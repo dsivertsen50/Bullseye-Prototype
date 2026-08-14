@@ -13,12 +13,9 @@ public class PlayerLook : MonoBehaviour
 
     private void OnEnable()
     {
+        // Enable only. Non-owner players disable this component on spawn;
+        // disabling the shared action there would also stop the local owner.
         lookAction.action.Enable();
-    }
-
-    private void OnDisable()
-    {
-        lookAction.action.Disable();
     }
 
     private void Start()
