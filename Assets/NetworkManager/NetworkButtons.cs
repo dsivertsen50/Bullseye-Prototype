@@ -5,18 +5,21 @@ public class NetworkButtons : MonoBehaviour
 {
     private void OnGUI()
     {
-        if (NetworkManager.Singleton.IsClient ||
-            NetworkManager.Singleton.IsServer)
+        NetworkManager networkManager = NetworkManager.Singleton;
+
+        if (networkManager == null ||
+            networkManager.IsClient ||
+            networkManager.IsServer)
             return;
 
         if (GUI.Button(new Rect(10, 10, 120, 40), "Start Host"))
         {
-            NetworkManager.Singleton.StartHost();
+            networkManager.StartHost();
         }
 
         if (GUI.Button(new Rect(10, 60, 120, 40), "Start Client"))
         {
-            NetworkManager.Singleton.StartClient();
+            networkManager.StartClient();
         }
     }
 }

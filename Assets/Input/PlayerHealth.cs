@@ -8,11 +8,25 @@ public class PlayerHealth : NetworkBehaviour
 
     public void Kill()
     {
-        RespawnRpc();
+        if (!IsSpawned)
+            return;
+
+        KillServerRpc();
     }
 
-    [Rpc(SendTo.Owner)]
-    private void RespawnRpc()
+    [Rpc(SendTo.Server)]
+    private void KillServerRpc()
+    {
+        RespawnOwnerRpc();
+    }
+
+    [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
+    private void RespawnOwnerRpc()
+    {
+        PerformRespawn();
+    }
+
+    private void PerformRespawn()
     {
         CharacterController controller = GetComponent<CharacterController>();
         NetworkTransform networkTransform = GetComponent<NetworkTransform>();
