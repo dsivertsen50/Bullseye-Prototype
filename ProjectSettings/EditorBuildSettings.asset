@@ -12,4 +12,5 @@ EditorBuildSettings:
     path: Assets/ArenaPrototype.unity
     guid: 80af36cae0124a14d96ebd495e5cfb0e
   m_configObjects:
+    com.unity.input.settings: {fileID: 11400000, guid: e8883e747f6d8f940b029ff969e93121, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 35845fe01580c41289b024647b1d1c53, type: 3}

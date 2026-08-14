@@ -133,6 +133,7 @@ GameObject:
   - component: {fileID: 184801294320284036}
   - component: {fileID: 3086871669323907386}
   - component: {fileID: 2164469732699985398}
+  - component: {fileID: 7128493058174629104}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -363,6 +364,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BullseyeMover
   ShowTopMostFoldoutHeaderGroup: 1
   bullseye: {fileID: 4742303186014154082}
+--- !u!114 &7128493058174629104
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8fb73b31f7493243a0661cde7a0dcc8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LocalPlayerInputBinding
+  ShowTopMostFoldoutHeaderGroup: 1
+  playerActions: {fileID: -944628639613478452, guid: d5774e102d654bd409097006f9ceb460, type: 3}
+  assignKeyboardAndMouseToFirstPlayer: 1
 --- !u!1 &6265211788790424518
 GameObject:
   m_ObjectHideFlags: 0

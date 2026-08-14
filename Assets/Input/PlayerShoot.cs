@@ -10,12 +10,8 @@ public class PlayerShoot : NetworkBehaviour
 
     private void OnEnable()
     {
+        // Enable only. Player instances share this action in-process.
         fireAction.action.Enable();
-    }
-
-    private void OnDisable()
-    {
-        fireAction.action.Disable();
     }
 
     private void Update()

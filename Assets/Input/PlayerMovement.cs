@@ -20,14 +20,10 @@ public class PlayerMovement : MonoBehaviour
 
     private void OnEnable()
     {
+        // Enable only. Non-owner players disable this component on spawn;
+        // disabling the shared actions there would also stop the local owner.
         moveAction.action.Enable();
         jumpAction.action.Enable();
-    }
-
-    private void OnDisable()
-    {
-        moveAction.action.Disable();
-        jumpAction.action.Disable();
     }
 
     private void Update()
