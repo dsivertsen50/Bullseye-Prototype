@@ -1,0 +1,20 @@
+# Unity-generated directories
+Library/
+Temp/
+Logs/
+obj/
+
+# Build output
+Build/
+Builds/
+
+# Local editor/user state
+UserSettings/
+
+# IDE-generated files
+.vs/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
