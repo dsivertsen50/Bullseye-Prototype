@@ -6,6 +6,7 @@ public class PlayerNetworkSetup : NetworkBehaviour
     [SerializeField] private Camera playerCamera;
     [SerializeField] private PlayerMovement playerMovement;
     [SerializeField] private PlayerLook playerLook;
+    [SerializeField] private PlayerAimZoom playerAimZoom;
 
     public override void OnNetworkSpawn()
     {
@@ -13,7 +14,9 @@ public class PlayerNetworkSetup : NetworkBehaviour
             return;
 
         playerCamera.enabled = false;
-        playerMovement.enabled = false;
         playerLook.enabled = false;
+
+        if (playerAimZoom != null)
+            playerAimZoom.enabled = false;
     }
 }

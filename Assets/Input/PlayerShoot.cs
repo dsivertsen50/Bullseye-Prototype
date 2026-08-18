@@ -36,6 +36,10 @@ public class PlayerShoot : NetworkBehaviour
             if (hit.collider.TryGetComponent<BullseyeTarget>(out BullseyeTarget target))
             {
                 target.Hit();
+
+                if (TryGetComponent(out Reticle reticle))
+                    reticle.ShowHitMarker();
+
                 Debug.Log("BULLSEYE HIT!");
             }
         }

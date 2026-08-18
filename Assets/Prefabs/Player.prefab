@@ -134,6 +134,7 @@ GameObject:
   - component: {fileID: 3086871669323907386}
   - component: {fileID: 2164469732699985398}
   - component: {fileID: 7128493058174629104}
+  - component: {fileID: 2480854329810773369}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -196,11 +197,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 785a84125c353ca49ad59f6cb1b10410, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
+  ShowTopMostFoldoutHeaderGroup: 1
   moveSpeed: 6
   jumpHeight: 1.5
   gravity: -20
+  sprintSpeedMultiplier: 2.25
+  maxSprintDuration: 7.5
+  sprintActivation: 1
+  crouchSpeedMultiplier: 0.6
+  crouchedHeight: 1.2
+  crouchedCameraLocalY: 0.76
+  crouchActivation: 0
+  crouchTransitionDuration: 0.4
   moveAction: {fileID: -5898318956582390034, guid: d5774e102d654bd409097006f9ceb460, type: 3}
   jumpAction: {fileID: 828345082794699240, guid: d5774e102d654bd409097006f9ceb460, type: 3}
+  sprintAction: {fileID: -8415722067761297706, guid: d5774e102d654bd409097006f9ceb460, type: 3}
+  crouchAction: {fileID: 0}
+  playerCamera: {fileID: 3828508028819866319}
+  bodyVisual: {fileID: 2028367230948511731}
 --- !u!114 &2654506294960691061
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -305,6 +319,7 @@ MonoBehaviour:
   playerCamera: {fileID: 6286195477711956745}
   playerMovement: {fileID: 3032247509169584174}
   playerLook: {fileID: 2654506294960691061}
+  playerAimZoom: {fileID: 2480854329810773369}
 --- !u!114 &3985183292529798639
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -334,8 +349,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Reticle
   ShowTopMostFoldoutHeaderGroup: 1
-  size: 4
-  length: 12
+  size: 2
+  length: 6
+  hitMarkerDuration: 0.15
+  hitMarkerSize: 6
+  hitMarkerLength: 20
 --- !u!114 &3086871669323907386
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -350,6 +368,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHealth
   ShowTopMostFoldoutHeaderGroup: 1
   respawnPosition: {x: 0, y: 2, z: 0}
+  bullseye: {fileID: 4742303186014154082}
+  bodyCapsule: {fileID: 7594966012916543655}
+  bullseyeTarget: {fileID: 3219564696771553}
+  maxHealth: 6
+  upperHitsToKill: 1
+  middleHitsToKill: 2
+  lowerHitsToKill: 3
+  lowerMiddleBoundary: 0.33333334
+  middleUpperBoundary: 0.6666667
 --- !u!114 &2164469732699985398
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -364,6 +391,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BullseyeMover
   ShowTopMostFoldoutHeaderGroup: 1
   bullseye: {fileID: 4742303186014154082}
+  bodyCapsule: {fileID: 7594966012916543655}
+  moveSpeed: 0.75
+  surfaceOffset: 0.08
+  minDirectionChangeInterval: 1.5
+  maxDirectionChangeInterval: 3.5
+  directionSmoothingTime: 0.6
+  jumpInfluenceStrength: 0.55
+  jumpInfluenceDuration: 1.15
+  crouchInfluenceStrength: 0.42
 --- !u!114 &7128493058174629104
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -379,6 +415,23 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   playerActions: {fileID: -944628639613478452, guid: d5774e102d654bd409097006f9ceb460, type: 3}
   assignKeyboardAndMouseToFirstPlayer: 1
+--- !u!114 &2480854329810773369
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a2a2336fff3f21647a7b5ba4d4d5077f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerAimZoom
+  playerCamera: {fileID: 6286195477711956745}
+  aimAction: {fileID: -534881147820960508, guid: d5774e102d654bd409097006f9ceb460, type: 3}
+  fovReduction: 0.25
+  zoomTransitionDuration: 0.12
+  aimActivation: 0
 --- !u!1 &6265211788790424518
 GameObject:
   m_ObjectHideFlags: 0
@@ -736,3 +789,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8b3bd63e0ef74294ea6f76bd83a153f6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BullseyeTarget
+  flashDuration: 0.12
+  flashScaleMultiplier: 1.35
+  flashColor: {r: 2.5, g: 2.5, b: 2.5, a: 1}
