@@ -25,9 +25,12 @@ public class BullseyeMover : NetworkBehaviour
     [SerializeField] private float turnRateForFullInfluence = 180f;
     [SerializeField] private float turnInfluenceSmoothing = 4f;
     [SerializeField] private float turnInfluenceDecayRate = 2.5f;
+    [SerializeField] private float maxSpawnPhaseOffset = 2.5f;
 
     private readonly NetworkVariable<float> pathStartTime = new(0f);
     private readonly NetworkVariable<int> randomSeed = new(0);
+
+    private static int nextPathEntropy;
 
     private NetworkList<float> jumpInfluenceTimes;
     private NetworkList<float> crouchToggleTimes;
@@ -45,6 +48,7 @@ public class BullseyeMover : NetworkBehaviour
     private float lastSentTurnRate;
     private float turnSampleSendCooldown;
     private bool hasLastYaw;
+    private PlayerHealth playerHealth;
 
     private struct Leg
     {
@@ -65,6 +69,8 @@ public class BullseyeMover : NetworkBehaviour
         if (bodyCapsule == null)
             bodyCapsule = GetComponentInChildren<CapsuleCollider>();
 
+        playerHealth = GetComponent<PlayerHealth>();
+
         jumpInfluenceTimes = new NetworkList<float>();
         crouchToggleTimes = new NetworkList<float>();
         turnSampleTimes = new NetworkList<float>();
@@ -81,10 +87,7 @@ public class BullseyeMover : NetworkBehaviour
         turnSampleRates.OnListChanged += OnInfluenceChanged;
 
         if (IsServer)
-        {
-            pathStartTime.Value = (float)NetworkManager.ServerTime.Time;
-            randomSeed.Value = unchecked((int)(NetworkObjectId * 73856093u + 19349663u));
-        }
+            AssignIndependentRandomization();
 
         ResetTurnTracking();
         RebuildSimulation();
@@ -126,6 +129,46 @@ public class BullseyeMover : NetworkBehaviour
         crouchToggleTimes.Clear();
         turnSampleTimes.Clear();
         turnSampleRates.Clear();
+    }
+
+    public void RestartIndependentRandomization()
+    {
+        if (!IsServer || !IsSpawned)
+            return;
+
+        ClearInfluence();
+        AssignIndependentRandomization();
+    }
+
+    private void AssignIndependentRandomization()
+    {
+        unchecked
+        {
+            nextPathEntropy++;
+            int entropy = nextPathEntropy * 16777619 + Random.Range(1, int.MaxValue);
+            randomSeed.Value = MixSeed(NetworkObjectId, OwnerClientId, entropy);
+        }
+
+        float phaseOffset = maxSpawnPhaseOffset > 0f
+            ? Random.Range(0f, maxSpawnPhaseOffset)
+            : 0f;
+        pathStartTime.Value = (float)NetworkManager.ServerTime.Time - phaseOffset;
+    }
+
+    private static int MixSeed(ulong networkObjectId, ulong ownerClientId, int entropy)
+    {
+        unchecked
+        {
+            uint hash = 2166136261u;
+            hash = (hash ^ (uint)networkObjectId) * 16777619u;
+            hash = (hash ^ (uint)(networkObjectId >> 32)) * 16777619u;
+            hash = (hash ^ (uint)ownerClientId) * 16777619u;
+            hash = (hash ^ (uint)(ownerClientId >> 32)) * 16777619u;
+            hash = (hash ^ (uint)entropy) * 16777619u;
+            if (hash == 0u)
+                hash = 1u;
+            return (int)hash;
+        }
     }
 
     public void ResetTurnTracking()
@@ -180,6 +223,9 @@ public class BullseyeMover : NetworkBehaviour
     private void Update()
     {
         if (!IsSpawned || bullseye == null || bodyCapsule == null)
+            return;
+
+        if (playerHealth != null && playerHealth.IsDead)
             return;
 
         if (IsOwner)

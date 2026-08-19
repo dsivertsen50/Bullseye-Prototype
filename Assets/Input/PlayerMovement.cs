@@ -32,6 +32,7 @@ public class PlayerMovement : NetworkBehaviour
 
     private CharacterController controller;
     private BullseyeMover bullseyeMover;
+    private PlayerHealth playerHealth;
     private float verticalVelocity;
     private float sprintHoldTime;
     private bool sprintExhausted;
@@ -69,6 +70,7 @@ public class PlayerMovement : NetworkBehaviour
     {
         controller = GetComponent<CharacterController>();
         bullseyeMover = GetComponent<BullseyeMover>();
+        playerHealth = GetComponent<PlayerHealth>();
 
         if (playerCamera == null)
         {
@@ -117,8 +119,11 @@ public class PlayerMovement : NetworkBehaviour
     {
         if (!IsSpawned || IsOwner)
         {
-            UpdateCrouchState();
-            MoveOwner();
+            if (playerHealth == null || !playerHealth.IsDead)
+            {
+                UpdateCrouchState();
+                MoveOwner();
+            }
         }
 
         TickStanceTransition();

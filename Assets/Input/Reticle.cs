@@ -22,6 +22,9 @@ public class Reticle : NetworkBehaviour
         if (!IsOwner)
             return;
 
+        if (TryGetComponent(out PlayerHealth health) && health.IsDead)
+            return;
+
         float centerX = Screen.width / 2f;
         float centerY = Screen.height / 2f;
 
