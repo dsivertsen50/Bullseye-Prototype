@@ -18,5 +18,8 @@ public class PlayerNetworkSetup : NetworkBehaviour
 
         if (playerAimZoom != null)
             playerAimZoom.enabled = false;
+
+        if (TryGetComponent(out PlayerHaptics playerHaptics))
+            playerHaptics.enabled = false;
     }
 }

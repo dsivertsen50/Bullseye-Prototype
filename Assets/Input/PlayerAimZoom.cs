@@ -13,6 +13,7 @@ public class PlayerAimZoom : MonoBehaviour
     private float defaultFov;
     private float currentFov;
     private bool aimToggledOn;
+    private PlayerHealth playerHealth;
 
     public float FovReduction
     {
@@ -24,6 +25,8 @@ public class PlayerAimZoom : MonoBehaviour
     {
         if (playerCamera == null)
             playerCamera = GetComponentInChildren<Camera>();
+
+        playerHealth = GetComponent<PlayerHealth>();
 
         defaultFov = playerCamera != null ? playerCamera.fieldOfView : 60f;
         currentFov = defaultFov;
@@ -38,6 +41,9 @@ public class PlayerAimZoom : MonoBehaviour
     private void Update()
     {
         if (playerCamera == null || aimAction == null)
+            return;
+
+        if (playerHealth != null && playerHealth.IsDead)
             return;
 
         bool aiming = ReadAimInput();

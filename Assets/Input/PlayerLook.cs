@@ -10,6 +10,12 @@ public class PlayerLook : MonoBehaviour
     [SerializeField] private float gamepadSensitivity = 150f;
 
     private float pitch;
+    private PlayerHealth playerHealth;
+
+    private void Awake()
+    {
+        playerHealth = GetComponent<PlayerHealth>();
+    }
 
     private void OnEnable()
     {
@@ -26,6 +32,9 @@ public class PlayerLook : MonoBehaviour
 
     private void Update()
     {
+        if (playerHealth != null && playerHealth.IsDead)
+            return;
+
         Vector2 input = lookAction.action.ReadValue<Vector2>();
 
         float yaw;

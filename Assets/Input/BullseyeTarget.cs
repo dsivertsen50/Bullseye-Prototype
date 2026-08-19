@@ -1,4 +1,5 @@
 using System.Collections;
+using Unity.Netcode;
 using UnityEngine;
 
 public class BullseyeTarget : MonoBehaviour
@@ -31,9 +32,33 @@ public class BullseyeTarget : MonoBehaviour
         }
     }
 
-    public void Hit()
+    public bool IsOwnedBy(ulong clientId)
     {
+        NetworkObject ownerObject = ResolveOwnerNetworkObject();
+        return ownerObject != null && ownerObject.OwnerClientId == clientId;
+    }
+
+    public bool TryRegisterHit(ulong shooterClientId)
+    {
+        if (IsOwnedBy(shooterClientId))
+            return false;
+
+        if (playerHealth == null)
+            return false;
+
+        if (playerHealth.IsDead || playerHealth.CurrentHealth <= 0)
+            return false;
+
         playerHealth.RegisterBullseyeHit();
+        return true;
+    }
+
+    private NetworkObject ResolveOwnerNetworkObject()
+    {
+        if (playerHealth != null)
+            return playerHealth.NetworkObject;
+
+        return GetComponentInParent<NetworkObject>();
     }
 
     public void PlayHitFlash()

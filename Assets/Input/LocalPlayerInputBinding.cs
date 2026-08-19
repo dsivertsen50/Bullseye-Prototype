@@ -20,6 +20,8 @@ public class LocalPlayerInputBinding : NetworkBehaviour
     private Gamepad assignedGamepad;
     private int xinputUserIndex = -1;
 
+    public Gamepad AssignedGamepad => assignedGamepad;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void EnableBackgroundControllerInput()
     {
