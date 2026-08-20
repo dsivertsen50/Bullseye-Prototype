@@ -27,6 +27,9 @@ public class PlayerHealthHud : MonoBehaviour
         if (playerHealth == null || !playerHealth.IsSpawned || !playerHealth.IsOwner)
             return;
 
+        if (LocalPlayerMenuState.IsOpen(this))
+            return;
+
         int current = Mathf.Clamp(playerHealth.CurrentHealth, 0, playerHealth.MaxHealth);
         int max = Mathf.Max(1, playerHealth.MaxHealth);
 

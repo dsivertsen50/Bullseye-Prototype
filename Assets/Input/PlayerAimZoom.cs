@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+[DefaultExecutionOrder(50)]
 public class PlayerAimZoom : MonoBehaviour
 {
     [SerializeField] private Camera playerCamera;
@@ -8,12 +9,16 @@ public class PlayerAimZoom : MonoBehaviour
 
     [SerializeField] [Range(0f, 0.9f)] private float fovReduction = 0.25f;
     [SerializeField] private float zoomTransitionDuration = 0.12f;
+    [SerializeField] private float sprintFovIncrease = 8f;
     [SerializeField] private InputActivationMode aimActivation = InputActivationMode.Toggle;
 
     private float defaultFov;
     private float currentFov;
     private bool aimToggledOn;
     private PlayerHealth playerHealth;
+    private PlayerMovement playerMovement;
+
+    public bool IsAiming { get; private set; }
 
     public float FovReduction
     {
@@ -27,6 +32,7 @@ public class PlayerAimZoom : MonoBehaviour
             playerCamera = GetComponentInChildren<Camera>();
 
         playerHealth = GetComponent<PlayerHealth>();
+        playerMovement = GetComponent<PlayerMovement>();
 
         defaultFov = playerCamera != null ? playerCamera.fieldOfView : 60f;
         currentFov = defaultFov;
@@ -44,17 +50,38 @@ public class PlayerAimZoom : MonoBehaviour
             return;
 
         if (playerHealth != null && playerHealth.IsDead)
+        {
+            IsAiming = false;
+            aimToggledOn = false;
+            ApplyFov(defaultFov);
             return;
+        }
 
-        bool aiming = ReadAimInput();
-        float targetFov = aiming
+        if (LocalPlayerMenuState.IsOpen(this))
+        {
+            IsAiming = false;
+            aimToggledOn = false;
+            ApplyFov(defaultFov);
+            return;
+        }
+
+        bool sprinting = playerMovement != null && playerMovement.IsSprinting;
+        if (sprinting)
+        {
+            IsAiming = false;
+            aimToggledOn = false;
+        }
+        else
+        {
+            IsAiming = ReadAimInput();
+        }
+
+        float sprintFov = defaultFov + (sprinting ? sprintFovIncrease : 0f);
+        float targetFov = IsAiming
             ? defaultFov * (1f - fovReduction)
-            : defaultFov;
+            : sprintFov;
 
-        float duration = Mathf.Max(0.0001f, zoomTransitionDuration);
-        float maxDelta = Mathf.Abs(defaultFov - defaultFov * (1f - fovReduction)) / duration;
-        currentFov = Mathf.MoveTowards(currentFov, targetFov, maxDelta * Time.deltaTime);
-        playerCamera.fieldOfView = currentFov;
+        ApplyFov(targetFov);
     }
 
     private bool ReadAimInput()
@@ -66,5 +93,16 @@ public class PlayerAimZoom : MonoBehaviour
             aimToggledOn = !aimToggledOn;
 
         return aimToggledOn;
+    }
+
+    private void ApplyFov(float targetFov)
+    {
+        float duration = Mathf.Max(0.0001f, zoomTransitionDuration);
+        float fovSpan = Mathf.Max(
+            Mathf.Abs(defaultFov - defaultFov * (1f - fovReduction)),
+            sprintFovIncrease);
+        float maxDelta = fovSpan / duration;
+        currentFov = Mathf.MoveTowards(currentFov, targetFov, maxDelta * Time.deltaTime);
+        playerCamera.fieldOfView = currentFov;
     }
 }

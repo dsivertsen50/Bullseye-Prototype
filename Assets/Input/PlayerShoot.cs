@@ -11,11 +11,15 @@ public class PlayerShoot : NetworkBehaviour
     private readonly RaycastHit[] hits = new RaycastHit[32];
     private PlayerHaptics playerHaptics;
     private PlayerHealth playerHealth;
+    private WeaponPresentationCoordinator weaponPresentationCoordinator;
+    private WeaponPresentationController weaponPresentation;
 
     private void Awake()
     {
         playerHaptics = GetComponent<PlayerHaptics>();
         playerHealth = GetComponent<PlayerHealth>();
+        weaponPresentationCoordinator = GetComponent<WeaponPresentationCoordinator>();
+        weaponPresentation = GetComponent<WeaponPresentationController>();
     }
 
     private void OnEnable()
@@ -32,6 +36,9 @@ public class PlayerShoot : NetworkBehaviour
         if (playerHealth != null && playerHealth.IsDead)
             return;
 
+        if (LocalPlayerMenuState.IsOpen(this))
+            return;
+
         if (fireAction.action.WasPressedThisFrame())
         {
             Shoot();
@@ -42,6 +49,11 @@ public class PlayerShoot : NetworkBehaviour
     {
         if (playerHaptics != null)
             playerHaptics.PlayFireRumble();
+
+        if (weaponPresentationCoordinator != null)
+            weaponPresentationCoordinator.NotifyFire();
+        else if (weaponPresentation != null)
+            weaponPresentation.PlayFirePresentation();
 
         if (playerCamera == null)
             return;
