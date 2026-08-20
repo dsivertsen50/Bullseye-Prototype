@@ -223,9 +223,19 @@ public class PlayerHealth : NetworkBehaviour
     private void PerformRespawn()
     {
         CharacterController controller = GetComponent<CharacterController>();
+        Rigidbody body = GetComponent<Rigidbody>();
         NetworkTransform networkTransform = GetComponent<NetworkTransform>();
 
-        controller.enabled = false;
+        if (controller != null)
+            controller.enabled = false;
+
+        if (body != null)
+        {
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            body.useGravity = false;
+            body.isKinematic = true;
+        }
 
         networkTransform.Teleport(
             respawnPosition,
@@ -233,10 +243,14 @@ public class PlayerHealth : NetworkBehaviour
             transform.localScale
         );
 
-        controller.enabled = true;
+        if (controller != null)
+            controller.enabled = true;
 
         if (TryGetComponent(out PlayerMovement movement))
             movement.ResetAfterRespawn();
+
+        if (TryGetComponent(out PlayerLook look))
+            look.ResetAfterRespawn();
 
         if (TryGetComponent(out BullseyeMover mover))
             mover.ResetTurnTracking();

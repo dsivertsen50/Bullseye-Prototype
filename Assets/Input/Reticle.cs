@@ -25,6 +25,9 @@ public class Reticle : NetworkBehaviour
         if (TryGetComponent(out PlayerHealth health) && health.IsDead)
             return;
 
+        if (LocalPlayerMenuState.IsOpen(this))
+            return;
+
         float centerX = Screen.width / 2f;
         float centerY = Screen.height / 2f;
 

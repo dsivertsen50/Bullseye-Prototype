@@ -21,6 +21,7 @@ public class LocalPlayerInputBinding : NetworkBehaviour
     private int xinputUserIndex = -1;
 
     public Gamepad AssignedGamepad => assignedGamepad;
+    public InputActionAsset PlayerActions => playerActions;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void EnableBackgroundControllerInput()
@@ -36,7 +37,7 @@ public class LocalPlayerInputBinding : NetworkBehaviour
 
         InputSystem.onDeviceChange += OnDeviceChange;
         ApplyDeviceBinding();
-        playerActions.Enable();
+        EnableGameplayActions();
     }
 
     public override void OnNetworkDespawn()
@@ -95,6 +96,80 @@ public class LocalPlayerInputBinding : NetworkBehaviour
         Debug.Log(
             "LocalPlayerInputBinding: local client " + playerIndex +
             " bound to " + DescribeDevices(devices));
+    }
+
+    public void SetMenuInputActive(bool menuOpen)
+    {
+        if (playerActions == null)
+            return;
+
+        InputActionMap playerMap = playerActions.FindActionMap("Player");
+        InputActionMap uiMap = playerActions.FindActionMap("UI");
+
+        if (menuOpen)
+        {
+            if (uiMap != null)
+                uiMap.Enable();
+            SetGameplayActionsEnabled(playerMap, false);
+        }
+        else
+        {
+            EnableGameplayActions();
+        }
+    }
+
+    private void EnableGameplayActions()
+    {
+        if (playerActions == null)
+            return;
+
+        InputActionMap uiMap = playerActions.FindActionMap("UI");
+        if (uiMap != null)
+        {
+            uiMap.Disable();
+            SetAllActionsEnabled(uiMap, false);
+        }
+
+        InputActionMap playerMap = playerActions.FindActionMap("Player");
+        if (playerMap != null)
+        {
+            playerMap.Enable();
+            SetAllActionsEnabled(playerMap, true);
+        }
+    }
+
+    private static void SetGameplayActionsEnabled(InputActionMap playerMap, bool enabled)
+    {
+        if (playerMap == null)
+            return;
+
+        foreach (InputAction action in playerMap.actions)
+        {
+            if (action.name == "Pause")
+            {
+                action.Enable();
+                continue;
+            }
+
+            if (enabled)
+                action.Enable();
+            else
+                action.Disable();
+        }
+    }
+
+    private static void SetAllActionsEnabled(InputActionMap map, bool enabled)
+    {
+        if (map == null)
+            return;
+
+        foreach (InputAction action in map.actions)
+        {
+            if (enabled)
+                action.Enable();
+            else
+                action.Disable();
+        }
     }
 
     private void Update()

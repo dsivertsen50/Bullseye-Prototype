@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c73ebe74427f15549ab444c7a33976b5, type: 3}
+  m_Name: Ruger22Presentation
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationConfig
+  weaponName: Ruger 22
+  fireSfx: {fileID: 8300000, guid: 9cccbc0c49ea02e44ac68422bc2714e8, type: 3}
+  reloadSfx: {fileID: 8300000, guid: 379ac0d7119ad4842b7cd122cfd11307, type: 3}
+  holsterSfx: {fileID: 8300000, guid: 6a6bf3bfedd8c184db7f1ebe0c4cc980, type: 3}
+  unholsterSfx: {fileID: 8300000, guid: d4a4b9d733759fd4e9447d7ad55f0ed7, type: 3}
+  fireSfxVolume: 0.7
+  muzzleVfxPrefab: {fileID: 1336949550903370, guid: 679d294f11bff5d49b2fc3da2db6c3b7, type: 3}
+  muzzleVfxLocalScale: {x: 0.35, y: 0.35, z: 0.35}
+  muzzleVfxLifetime: 0.6
+  idleAnimationState: Idle
+  fireAnimationState: Fire
+  reloadAnimationState: Reload
+  holsterAnimationState: Holster
+  unholsterAnimationState: Unholster
+  aimAnimationState: Aim
+  fireAnimationSpeed: 1
+  useProceduralFireKick: 1
+  fireKickLocalPosition: {x: 0, y: 0.006, z: -0.02}
+  fireKickLocalEuler: {x: -8, y: 1.8, z: 1.2}
+  fireKickDuration: 0.055
+  fireRecoverDuration: 0.12
+  adsLocalPosition: {x: 0, y: 0, z: 0}
+  adsLocalEuler: {x: 0, y: 0, z: 0}
+  adsBlendDuration: 0.12
+  recoilPitch: 0
+  recoilYaw: 0
+  lookSwayAmount: 0
+  worldFireKickLocalPosition: {x: 0, y: 0.02, z: -0.05}
+  worldFireKickLocalEuler: {x: -14, y: 3.5, z: 2.5}
+  worldFireKickDuration: 0.06
+  worldFireRecoverDuration: 0.16
+  worldMuzzleVfxLocalScale: {x: 0.55, y: 0.55, z: 0.55}
+  worldFireSfxVolume: 1
+  worldAudioMinDistance: 1.5
+  worldAudioMaxDistance: 45

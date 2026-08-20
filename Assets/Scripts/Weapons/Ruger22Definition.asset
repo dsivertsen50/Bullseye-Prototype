@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aaef68a99298539408f734afed3d7b48, type: 3}
+  m_Name: Ruger22Definition
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponDefinition
+  weaponId: ruger22
+  firstPersonPrefab: {fileID: 6447372032296048831, guid: 659ec7bba3762aa40aeda1186b084d00, type: 3}
+  worldPrefab: {fileID: 6447372032296048831, guid: 79990ef98594c37429d8e2ba5b981946, type: 3}
+  presentation: {fileID: 11400000, guid: 94c251f36d5a0c242b33d28f1f6aefc8, type: 2}
+  worldLocalPosition: {x: 0.58, y: 0, z: 0.42}
+  worldLocalEuler: {x: 0, y: 0, z: 0}
+  worldLocalScale: {x: 1, y: 1, z: 1}
+  worldStanceHeightOffset: 0.22
