@@ -26,6 +26,7 @@ public class BullseyeMover : NetworkBehaviour
     [SerializeField] private float turnInfluenceSmoothing = 4f;
     [SerializeField] private float turnInfluenceDecayRate = 2.5f;
     [SerializeField] private float maxSpawnPhaseOffset = 2.5f;
+    [SerializeField] private float hideFromOwnerCameraDistance = 0.6f;
 
     private readonly NetworkVariable<float> pathStartTime = new(0f);
     private readonly NetworkVariable<int> randomSeed = new(0);
@@ -49,6 +50,7 @@ public class BullseyeMover : NetworkBehaviour
     private float turnSampleSendCooldown;
     private bool hasLastYaw;
     private PlayerHealth playerHealth;
+    private BullseyeTarget bullseyeTarget;
 
     private struct Leg
     {
@@ -70,6 +72,10 @@ public class BullseyeMover : NetworkBehaviour
             bodyCapsule = GetComponentInChildren<CapsuleCollider>();
 
         playerHealth = GetComponent<PlayerHealth>();
+        if (bullseye != null)
+            bullseyeTarget = bullseye.GetComponent<BullseyeTarget>();
+        if (bullseyeTarget == null)
+            bullseyeTarget = GetComponentInChildren<BullseyeTarget>();
 
         jumpInfluenceTimes = new NetworkList<float>();
         crouchToggleTimes = new NetworkList<float>();
@@ -284,6 +290,7 @@ public class BullseyeMover : NetworkBehaviour
             Integrate(ref drawU, ref drawV, ref drawTurn, remainder, elapsed - remainder, reflectLegs: false);
 
         ApplySurfacePose(drawU, drawV);
+        ApplyOwnerVisibility();
     }
 
     private void Integrate(
@@ -533,5 +540,31 @@ public class BullseyeMover : NetworkBehaviour
             ? transform.forward
             : transform.up;
         bullseye.rotation = Quaternion.LookRotation(worldNormal, upHint);
+    }
+
+    private void ApplyOwnerVisibility()
+    {
+        if (bullseyeTarget == null)
+            return;
+
+        if (!IsOwner)
+        {
+            bullseyeTarget.SetVisibleToLocalViewer(true);
+            return;
+        }
+
+        Camera cam = PlayerNetworkSetup.LocalOwnedCamera;
+        if (cam == null)
+            cam = GetComponentInChildren<Camera>();
+
+        if (cam == null || !cam.enabled)
+        {
+            bullseyeTarget.SetVisibleToLocalViewer(false);
+            return;
+        }
+
+        float hideDistance = Mathf.Max(0f, hideFromOwnerCameraDistance);
+        bool coveringCamera = Vector3.Distance(bullseye.position, cam.transform.position) < hideDistance;
+        bullseyeTarget.SetVisibleToLocalViewer(!coveringCamera);
     }
 }

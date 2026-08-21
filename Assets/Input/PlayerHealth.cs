@@ -54,6 +54,7 @@ public class PlayerHealth : NetworkBehaviour
     public int MaxHealth => GetMaxHealth();
     public bool IsDead => isDead.Value;
     public float RespawnDelay => Mathf.Max(0f, respawnDelay);
+    public event System.Action<int, int> HealthChanged;
 
     private void Awake()
     {
@@ -74,6 +75,7 @@ public class PlayerHealth : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
+        currentHealth.OnValueChanged += OnCurrentHealthChanged;
         isDead.OnValueChanged += OnDeadChanged;
         ApplyDeadPresentation(isDead.Value);
 
@@ -85,6 +87,7 @@ public class PlayerHealth : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        currentHealth.OnValueChanged -= OnCurrentHealthChanged;
         isDead.OnValueChanged -= OnDeadChanged;
         StopRespawnRoutine();
     }
@@ -207,6 +210,11 @@ public class PlayerHealth : NetworkBehaviour
 
         int number = Mathf.CeilToInt((float)remaining);
         return number > 0 ? number : 0;
+    }
+
+    private void OnCurrentHealthChanged(int previous, int next)
+    {
+        HealthChanged?.Invoke(previous, next);
     }
 
     private void OnDeadChanged(bool previous, bool next)

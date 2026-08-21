@@ -22,8 +22,8 @@ public class PlayerMovement : NetworkBehaviour
     private const float SlideAirborneTolerance = 0.25f;
 
     [Header("Speed")]
-    [SerializeField] private float walkSpeed = 5f;
-    [SerializeField] private float runSpeed = 10f;
+        [SerializeField] private float walkSpeed = 6.25f;
+        [SerializeField] private float runSpeed = 12.5f;
     [SerializeField] private float crouchSpeed = 3f;
     [SerializeField] private float acceleration = 4500f;
     [SerializeField] private float maxSpeedAllowed = 20f;
@@ -70,7 +70,6 @@ public class PlayerMovement : NetworkBehaviour
     [SerializeField] private InputActionReference jumpAction;
     [SerializeField] private InputActionReference sprintAction;
     [SerializeField] private InputActionReference crouchAction;
-    [SerializeField] private InputActionReference fireAction;
     [SerializeField] private Transform playerCamera;
     [SerializeField] private Transform bodyVisual;
 
@@ -88,7 +87,6 @@ public class PlayerMovement : NetworkBehaviour
     private BullseyeMover bullseyeMover;
     private PlayerHealth playerHealth;
     private InputAction resolvedCrouchAction;
-    private InputAction resolvedFireAction;
 
     private float currentSpeed;
     private bool grounded;
@@ -126,6 +124,7 @@ public class PlayerMovement : NetworkBehaviour
     public bool Grounded => grounded;
     public bool IsSliding => sliding;
     public bool IsSprinting { get; private set; }
+    public bool CanRunWhileShooting => canRunWhileShooting;
     public float CurrentSpeed => currentSpeed;
     public float WalkSpeed => walkSpeed;
     public float RunSpeed => runSpeed;
@@ -155,23 +154,6 @@ public class PlayerMovement : NetworkBehaviour
                 resolvedCrouchAction = moveAction.action.actionMap.FindAction("Crouch");
 
             return resolvedCrouchAction;
-        }
-    }
-
-    private InputAction FireInput
-    {
-        get
-        {
-            if (fireAction != null && fireAction.action != null)
-                return fireAction.action;
-
-            if (resolvedFireAction != null)
-                return resolvedFireAction;
-
-            if (moveAction != null && moveAction.action != null)
-                resolvedFireAction = moveAction.action.actionMap.FindAction("Fire");
-
-            return resolvedFireAction;
         }
     }
 
@@ -506,6 +488,13 @@ public class PlayerMovement : NetworkBehaviour
             return;
         if (!jumpAction.action.WasPressedThisFrame())
             return;
+
+        if (crouched.Value && CanStand())
+        {
+            SetCrouched(false);
+            EndSlide();
+        }
+
         if (!CanJump())
             return;
 
@@ -589,11 +578,8 @@ public class PlayerMovement : NetworkBehaviour
         bool movingForward = input.y > 0.1f;
         bool movingBackward = input.y < -0.1f;
         bool movingSideways = Mathf.Abs(input.x) > 0.1f;
-        bool shooting = FireInput != null && FireInput.IsPressed();
 
         if (crouched.Value)
-            return false;
-        if (shooting && !canRunWhileShooting && grounded)
             return false;
         if (movingBackward && !canRunBackwards)
             return false;

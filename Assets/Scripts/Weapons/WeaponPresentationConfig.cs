@@ -35,17 +35,31 @@ public class WeaponPresentationConfig : ScriptableObject
     [SerializeField] private float fireKickDuration = 0.055f;
     [SerializeField] private float fireRecoverDuration = 0.12f;
 
-    [Header("ADS Foundation")]
+    [Header("Hip Pose")]
+    [SerializeField] private bool useConfiguredHipPose = true;
+    [SerializeField] private Vector3 hipLocalPosition = new(0.15f, -0.15f, 0.4f);
+    [SerializeField] private Vector3 hipLocalEuler = new(0f, 1f, 0f);
+
+    [Header("ADS Pose")]
+    [SerializeField] private bool useAimPoint = true;
+    [SerializeField] private float aimDistance = 0.28f;
     [SerializeField] private Vector3 adsLocalPosition;
     [SerializeField] private Vector3 adsLocalEuler;
     [SerializeField] private float adsBlendDuration = 0.12f;
+    [SerializeField] private float aimInSpeed = 8.5f;
+    [SerializeField] private float aimOutSpeed = 7f;
+    [SerializeField, Range(0f, 1f)] private float adsSwayMultiplier = 0.15f;
+    [SerializeField, Range(0f, 1f)] private float adsBobMultiplier = 0.2f;
 
     [Header("Recoil Foundation")]
     [SerializeField] private float recoilPitch;
     [SerializeField] private float recoilYaw;
 
-    [Header("Sway Foundation")]
-    [SerializeField] private float lookSwayAmount;
+    [Header("Weapon Motion")]
+    [SerializeField] private float lookSwayAmount = 0.03f;
+    [SerializeField] private float lookSwaySmooth = 10f;
+    [SerializeField] private float walkBobAmount = 0.006f;
+    [SerializeField] private float walkBobFrequency = 8f;
 
     [Header("World Presentation")]
     [SerializeField] private Vector3 worldFireKickLocalPosition = new(0f, 0.02f, -0.05f);
@@ -78,12 +92,24 @@ public class WeaponPresentationConfig : ScriptableObject
     public Vector3 FireKickLocalEuler => fireKickLocalEuler;
     public float FireKickDuration => fireKickDuration;
     public float FireRecoverDuration => fireRecoverDuration;
+    public bool UseConfiguredHipPose => useConfiguredHipPose;
+    public Vector3 HipLocalPosition => hipLocalPosition;
+    public Vector3 HipLocalEuler => hipLocalEuler;
+    public bool UseAimPoint => useAimPoint;
+    public float AimDistance => aimDistance;
     public Vector3 AdsLocalPosition => adsLocalPosition;
     public Vector3 AdsLocalEuler => adsLocalEuler;
     public float AdsBlendDuration => adsBlendDuration;
+    public float AimInSpeed => aimInSpeed;
+    public float AimOutSpeed => aimOutSpeed;
+    public float AdsSwayMultiplier => adsSwayMultiplier;
+    public float AdsBobMultiplier => adsBobMultiplier;
     public float RecoilPitch => recoilPitch;
     public float RecoilYaw => recoilYaw;
     public float LookSwayAmount => lookSwayAmount;
+    public float LookSwaySmooth => lookSwaySmooth;
+    public float WalkBobAmount => walkBobAmount;
+    public float WalkBobFrequency => walkBobFrequency;
     public Vector3 WorldFireKickLocalPosition => worldFireKickLocalPosition;
     public Vector3 WorldFireKickLocalEuler => worldFireKickLocalEuler;
     public float WorldFireKickDuration => worldFireKickDuration;
