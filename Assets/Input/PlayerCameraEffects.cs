@@ -120,8 +120,11 @@ public class PlayerCameraEffects : NetworkBehaviour
         float speed = movement != null ? movement.HorizontalSpeed : 0f;
         bool sprinting = movement != null && movement.IsSprinting;
         Vector2 moveInput = movement != null ? movement.MoveInput : Vector2.zero;
-        bool aiming = IsAiming();
-        float aimMul = aiming ? aimingMotionMultiplier : 1f;
+        float aimMul = 1f;
+        if (weaponPresentation != null)
+            aimMul = weaponPresentation.CurrentBobMultiplier;
+        else if (IsAiming())
+            aimMul = aimingMotionMultiplier;
 
         float targetWalk = grounded && speed > idleSpeedThreshold ? 1f : 0f;
         float targetSprint = grounded && sprinting ? 1f : 0f;

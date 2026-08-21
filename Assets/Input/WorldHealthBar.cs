@@ -14,6 +14,10 @@ public class WorldHealthBar : MonoBehaviour
     [SerializeField] private float worldScale = 0.012f;
     [SerializeField] private float fillLerpSpeed = 8f;
     [SerializeField] private Color fillColor = new Color(0.22f, 0.86f, 0.32f, 0.95f);
+    [SerializeField] private Color warningFillColor = new Color(0.95f, 0.76f, 0.14f, 0.95f);
+    [SerializeField] private Color criticalFillColor = new Color(0.86f, 0.16f, 0.14f, 0.95f);
+    [SerializeField, Range(0f, 1f)] private float warningHealthNormalized = 0.5f;
+    [SerializeField, Range(0f, 1f)] private float criticalHealthNormalized = 0.25f;
     [SerializeField] private Color backgroundColor = new Color(0.08f, 0.08f, 0.08f, 0.82f);
 
     private Canvas canvas;
@@ -55,8 +59,7 @@ public class WorldHealthBar : MonoBehaviour
             ? Mathf.Clamp01((float)playerHealth.CurrentHealth / playerHealth.MaxHealth)
             : 0f;
         displayedFill = Mathf.MoveTowards(displayedFill, target, fillLerpSpeed * Time.deltaTime);
-        if (fillImage != null)
-            fillImage.fillAmount = displayedFill;
+        ApplyFill(displayedFill);
 
         Camera cam = PlayerNetworkSetup.LocalOwnedCamera;
         if (cam == null)
@@ -107,7 +110,7 @@ public class WorldHealthBar : MonoBehaviour
         fillImage.type = Image.Type.Filled;
         fillImage.fillMethod = Image.FillMethod.Horizontal;
         fillImage.fillOrigin = 0;
-        fillImage.fillAmount = 1f;
+        ApplyFill(displayedFill);
 
         Graphic[] graphics = canvas.GetComponentsInChildren<Graphic>(true);
         for (int i = 0; i < graphics.Length; i++)
@@ -134,9 +137,40 @@ public class WorldHealthBar : MonoBehaviour
         return image;
     }
 
+    private void ApplyFill(float fill)
+    {
+        if (fillImage == null)
+            return;
+
+        fillImage.fillAmount = fill;
+        fillImage.color = ColorForFill(fill);
+    }
+
+    private Color ColorForFill(float fill)
+    {
+        float critical = Mathf.Clamp01(Mathf.Min(criticalHealthNormalized, warningHealthNormalized));
+        float warning = Mathf.Clamp01(Mathf.Max(criticalHealthNormalized, warningHealthNormalized));
+
+        if (fill >= warning)
+            return Color.Lerp(warningFillColor, fillColor, Mathf.InverseLerp(warning, 1f, fill));
+
+        if (fill >= critical)
+            return Color.Lerp(criticalFillColor, warningFillColor, Mathf.InverseLerp(critical, warning, fill));
+
+        return criticalFillColor;
+    }
+
     private void SetVisible(bool visible)
     {
         if (canvas != null && canvas.gameObject.activeSelf != visible)
             canvas.gameObject.SetActive(visible);
+    }
+
+    private void OnValidate()
+    {
+        warningHealthNormalized = Mathf.Clamp01(warningHealthNormalized);
+        criticalHealthNormalized = Mathf.Clamp01(criticalHealthNormalized);
+        if (warningHealthNormalized < criticalHealthNormalized)
+            warningHealthNormalized = criticalHealthNormalized;
     }
 }

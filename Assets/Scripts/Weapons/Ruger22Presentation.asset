@@ -18,7 +18,7 @@ MonoBehaviour:
   holsterSfx: {fileID: 8300000, guid: 6a6bf3bfedd8c184db7f1ebe0c4cc980, type: 3}
   unholsterSfx: {fileID: 8300000, guid: d4a4b9d733759fd4e9447d7ad55f0ed7, type: 3}
   fireSfxVolume: 0.7
-  muzzleVfxPrefab: {fileID: 1336949550903370, guid: 679d294f11bff5d49b2fc3da2db6c3b7, type: 3}
+  muzzleVfxPrefab: {fileID: 1336949550903370, guid: 1516ae0797a26504d9176ebb54d1e466, type: 3}
   muzzleVfxLocalScale: {x: 0.35, y: 0.35, z: 0.35}
   muzzleVfxLifetime: 0.6
   idleAnimationState: Idle
@@ -33,12 +33,24 @@ MonoBehaviour:
   fireKickLocalEuler: {x: -8, y: 1.8, z: 1.2}
   fireKickDuration: 0.055
   fireRecoverDuration: 0.12
+  useConfiguredHipPose: 1
+  hipLocalPosition: {x: 0.15, y: -0.15, z: 0.4}
+  hipLocalEuler: {x: 0, y: 1, z: 0}
+  useAimPoint: 1
+  aimDistance: 0.28
   adsLocalPosition: {x: 0, y: 0, z: 0}
   adsLocalEuler: {x: 0, y: 0, z: 0}
   adsBlendDuration: 0.12
+  aimInSpeed: 8.5
+  aimOutSpeed: 7
+  adsSwayMultiplier: 0.15
+  adsBobMultiplier: 0.2
   recoilPitch: 0
   recoilYaw: 0
-  lookSwayAmount: 0
+  lookSwayAmount: 0.03
+  lookSwaySmooth: 10
+  walkBobAmount: 0.006
+  walkBobFrequency: 8
   worldFireKickLocalPosition: {x: 0, y: 0.02, z: -0.05}
   worldFireKickLocalEuler: {x: -14, y: 3.5, z: 2.5}
   worldFireKickDuration: 0.06

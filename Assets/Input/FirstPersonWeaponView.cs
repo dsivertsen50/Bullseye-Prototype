@@ -48,13 +48,14 @@ public class FirstPersonWeaponView : NetworkBehaviour
 
         if (weaponMount == null && weaponView != null)
         {
-            weaponMount = weaponView.transform.Find("WeaponMount");
+            Transform effectsRoot = weaponView.transform.Find("WeaponEffectsRoot");
+            Transform aimRoot = effectsRoot != null ? effectsRoot.Find("AimRoot") : null;
+            if (aimRoot != null)
+                weaponMount = aimRoot.Find("WeaponMount");
+            if (weaponMount == null && effectsRoot != null)
+                weaponMount = effectsRoot.Find("WeaponMount");
             if (weaponMount == null)
-            {
-                Transform effectsRoot = weaponView.transform.Find("WeaponEffectsRoot");
-                if (effectsRoot != null)
-                    weaponMount = effectsRoot.Find("WeaponMount");
-            }
+                weaponMount = weaponView.transform.Find("WeaponMount");
         }
 
         firstPersonWeaponLayer = LayerMask.NameToLayer(FirstPersonWeaponLayerName);
@@ -144,7 +145,6 @@ public class FirstPersonWeaponView : NetworkBehaviour
         weaponOverlayCamera.nearClipPlane = Mathf.Max(0.001f, overlayNearClip);
         weaponOverlayCamera.farClipPlane = playerCamera.farClipPlane;
         weaponOverlayCamera.enabled = false;
-        weaponOverlayCamera.stereoTargetEye = playerCamera.stereoTargetEye;
 
         HDAdditionalCameraData overlayHd = weaponOverlayCamera.GetComponent<HDAdditionalCameraData>();
         HDAdditionalCameraData mainHd = playerCamera.GetComponent<HDAdditionalCameraData>();

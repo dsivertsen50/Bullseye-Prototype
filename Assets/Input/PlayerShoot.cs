@@ -11,6 +11,7 @@ public class PlayerShoot : NetworkBehaviour
     private readonly RaycastHit[] hits = new RaycastHit[32];
     private PlayerHaptics playerHaptics;
     private PlayerHealth playerHealth;
+    private PlayerMovement playerMovement;
     private WeaponPresentationCoordinator weaponPresentationCoordinator;
     private WeaponPresentationController weaponPresentation;
 
@@ -18,6 +19,7 @@ public class PlayerShoot : NetworkBehaviour
     {
         playerHaptics = GetComponent<PlayerHaptics>();
         playerHealth = GetComponent<PlayerHealth>();
+        playerMovement = GetComponent<PlayerMovement>();
         weaponPresentationCoordinator = GetComponent<WeaponPresentationCoordinator>();
         weaponPresentation = GetComponent<WeaponPresentationController>();
     }
@@ -37,6 +39,9 @@ public class PlayerShoot : NetworkBehaviour
             return;
 
         if (LocalPlayerMenuState.IsOpen(this))
+            return;
+
+        if (playerMovement != null && playerMovement.IsSprinting && !playerMovement.CanRunWhileShooting)
             return;
 
         if (fireAction.action.WasPressedThisFrame())
@@ -81,7 +86,9 @@ public class PlayerShoot : NetworkBehaviour
             playerCamera.transform.position,
             playerCamera.transform.forward,
             hits,
-            range);
+            range,
+            ~0,
+            QueryTriggerInteraction.Collide);
 
         float closestDistance = float.MaxValue;
         bool found = false;

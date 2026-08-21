@@ -23,6 +23,7 @@ public class BullseyeTarget : MonoBehaviour
         cachedRenderer = GetComponent<Renderer>();
         baseScale = transform.localScale;
         propertyBlock = new MaterialPropertyBlock();
+        ConfigureNonPhysicalTarget();
 
         if (cachedRenderer != null &&
             cachedRenderer.sharedMaterial != null &&
@@ -30,6 +31,22 @@ public class BullseyeTarget : MonoBehaviour
         {
             restEmissiveColor = cachedRenderer.sharedMaterial.GetColor(EmissiveColorId);
         }
+    }
+
+    public void SetVisibleToLocalViewer(bool visible)
+    {
+        if (cachedRenderer != null)
+            cachedRenderer.forceRenderingOff = !visible;
+    }
+
+    private void ConfigureNonPhysicalTarget()
+    {
+        if (TryGetComponent(out Rigidbody body))
+            Destroy(body);
+
+        Collider collider = GetComponent<Collider>();
+        if (collider != null)
+            collider.isTrigger = true;
     }
 
     public bool IsOwnedBy(ulong clientId)
@@ -103,5 +120,12 @@ public class BullseyeTarget : MonoBehaviour
         cachedRenderer.GetPropertyBlock(propertyBlock);
         propertyBlock.SetColor(EmissiveColorId, Color.Lerp(restEmissiveColor, flashColor, amount));
         cachedRenderer.SetPropertyBlock(propertyBlock);
+    }
+
+    private void OnValidate()
+    {
+        Collider collider = GetComponent<Collider>();
+        if (collider != null)
+            collider.isTrigger = true;
     }
 }
