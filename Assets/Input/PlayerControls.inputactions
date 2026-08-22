@@ -106,6 +106,15 @@
                     "initialStateCheck": true
                 },
                 {
+                    "name": "SwitchWeapon",
+                    "type": "Button",
+                    "id": "a7d39b65-c146-4f1e-9058-0b9e4f208375",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Pause",
                     "type": "Button",
                     "id": "17b4c8e2-9a6f-4d3b-8e51-0c2a7f9d4b18",
@@ -350,7 +359,7 @@
                 {
                     "name": "",
                     "id": "d4e5f607-1829-4012-d345-6789abcdef01",
-                    "path": "<Gamepad>/buttonNorth",
+                    "path": "<Gamepad>/buttonWest",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -423,6 +432,28 @@
                     "action": "WeaponSwitch",
                     "isComposite": false,
                     "isPartOfComposite": true
+                },
+                {
+                    "name": "",
+                    "id": "41526374-8596-4789-4abc-def012345678",
+                    "path": "<Keyboard>/q",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "SwitchWeapon",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "52637485-96a7-4890-5bcd-ef0123456789",
+                    "path": "<Gamepad>/buttonNorth",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "SwitchWeapon",
+                    "isComposite": false,
+                    "isPartOfComposite": false
                 },
                 {
                     "name": "",

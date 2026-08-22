@@ -57,6 +57,19 @@ public class WeaponPresentationCoordinator : NetworkBehaviour
         WriteAimPitch(false);
     }
 
+    public void ApplyDefinition(WeaponDefinition next)
+    {
+        bool changed = definition != next;
+        definition = next;
+        if (firstPersonWeapon != null)
+            firstPersonWeapon.ApplyDefinition(next);
+        if (worldWeapon != null)
+            worldWeapon.ApplyDefinition(next);
+
+        if (changed)
+            NotifyWeaponChanged(next != null ? next.WeaponId : string.Empty);
+    }
+
     public void NotifyFire()
     {
         if (!IsSpawned || !IsOwner)

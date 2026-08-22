@@ -164,6 +164,9 @@ public class PlayerHealth : NetworkBehaviour
         ClearRegeneration();
         respawnAtServerTime.Value = NetworkManager.ServerTime.Time + RespawnDelay;
 
+        if (TryGetComponent(out PlayerWeaponInventory inventory))
+            inventory.DropTemporaryWeaponOnDeath();
+
         StopRespawnRoutine();
         respawnRoutine = StartCoroutine(RespawnAfterDelay());
     }
@@ -188,6 +191,9 @@ public class PlayerHealth : NetworkBehaviour
 
         RespawnOwnerRpc();
         RestoreFullHealth();
+
+        if (TryGetComponent(out PlayerWeaponInventory inventory))
+            inventory.RestoreDefaultLoadout();
     }
 
     private void StopRespawnRoutine()

@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c73ebe74427f15549ab444c7a33976b5, type: 3}
   m_Name: Ruger22Presentation
   m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationConfig
-  weaponName: Ruger 22
+  weaponName: Pistol
   fireSfx: {fileID: 8300000, guid: 9cccbc0c49ea02e44ac68422bc2714e8, type: 3}
   reloadSfx: {fileID: 8300000, guid: 379ac0d7119ad4842b7cd122cfd11307, type: 3}
   holsterSfx: {fileID: 8300000, guid: 6a6bf3bfedd8c184db7f1ebe0c4cc980, type: 3}
@@ -34,17 +34,17 @@ MonoBehaviour:
   fireKickDuration: 0.055
   fireRecoverDuration: 0.12
   useConfiguredHipPose: 1
-  hipLocalPosition: {x: 0.15, y: -0.15, z: 0.4}
+  hipLocalPosition: {x: 0.15, y: -0.15, z: 0.55}
   hipLocalEuler: {x: 0, y: 1, z: 0}
   useAimPoint: 1
   aimDistance: 0.28
-  adsLocalPosition: {x: 0, y: 0, z: 0}
+  adsLocalPosition: {x: 0.005, y: -0.005, z: 0}
   adsLocalEuler: {x: 0, y: 0, z: 0}
   adsBlendDuration: 0.12
   aimInSpeed: 8.5
   aimOutSpeed: 7
-  adsSwayMultiplier: 0.15
-  adsBobMultiplier: 0.2
+  adsSwayMultiplier: 0.196
+  adsBobMultiplier: 0.201
   recoilPitch: 0
   recoilYaw: 0
   lookSwayAmount: 0.03

@@ -132,6 +132,19 @@ public class WeaponPresentationController : NetworkBehaviour
         TickWeaponMotion(Time.deltaTime);
     }
 
+    public void ApplyDefinition(WeaponDefinition definition)
+    {
+        config = definition != null ? definition.Presentation : null;
+        if (IsSpawned && !IsOwner)
+            return;
+
+        RebuildFirstPersonModel(definition);
+        ApplyConfiguredHipPose();
+        adsTargetCached = false;
+        CacheAdsTarget();
+        ResetPresentation();
+    }
+
     public void PlayFirePresentation()
     {
         if (!CanPresent())
@@ -190,6 +203,59 @@ public class WeaponPresentationController : NetworkBehaviour
         ClearTransientEffects();
         ClearMotionState();
         PlayAnimationState(config != null ? config.IdleAnimationState : "Idle", 1f);
+    }
+
+    private void RebuildFirstPersonModel(WeaponDefinition definition)
+    {
+        if (weaponKick == null)
+            ResolveHierarchyFallbacks();
+        if (weaponKick == null)
+            return;
+
+        ClearKickChildren(weaponKick);
+        aimPoint = null;
+        muzzlePoint = null;
+        weaponAnimator = null;
+
+        if (definition == null || definition.FirstPersonPrefab == null)
+            return;
+
+        GameObject instance = Instantiate(definition.FirstPersonPrefab, weaponKick);
+        instance.transform.localPosition = Vector3.zero;
+        instance.transform.localRotation = Quaternion.identity;
+        instance.transform.localScale = Vector3.one;
+        ApplyLayerRecursively(instance, "FirstPersonWeapon");
+        DisableGameplayCollision(instance);
+
+        aimPoint = FindChildByName(instance.transform, "AimPoint");
+        muzzlePoint = FindChildByName(instance.transform, "MuzzlePoint");
+        weaponAnimator = instance.GetComponentInChildren<Animator>(true);
+    }
+
+    private static void ClearKickChildren(Transform kick)
+    {
+        for (int i = kick.childCount - 1; i >= 0; i--)
+        {
+            Transform child = kick.GetChild(i);
+            if (Application.isPlaying)
+                Destroy(child.gameObject);
+            else
+                DestroyImmediate(child.gameObject);
+        }
+    }
+
+    private static void DisableGameplayCollision(GameObject root)
+    {
+        Collider[] colliders = root.GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < colliders.Length; i++)
+            colliders[i].enabled = false;
+
+        Rigidbody[] bodies = root.GetComponentsInChildren<Rigidbody>(true);
+        for (int i = 0; i < bodies.Length; i++)
+        {
+            bodies[i].isKinematic = true;
+            bodies[i].detectCollisions = false;
+        }
     }
 
     private bool CanPresent()
@@ -581,7 +647,10 @@ public class WeaponPresentationController : NetworkBehaviour
     private void PrepareAudioSource()
     {
         if (audioSource != null)
+        {
+            PlayerGameSettings.RouteToSfx(audioSource);
             return;
+        }
 
         Transform host = weaponKick != null ? weaponKick : weaponMount;
         if (host == null)
@@ -594,6 +663,7 @@ public class WeaponPresentationController : NetworkBehaviour
         audioSource.playOnAwake = false;
         audioSource.spatialBlend = 0f;
         audioSource.loop = false;
+        PlayerGameSettings.RouteToSfx(audioSource);
     }
 
     private static Transform FindChildByName(Transform root, string childName)

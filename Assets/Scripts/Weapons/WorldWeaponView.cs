@@ -96,6 +96,20 @@ public class WorldWeaponView : NetworkBehaviour
         ApplyAimPitch(false);
     }
 
+    public void ApplyDefinition(WeaponDefinition next)
+    {
+        definition = next;
+        if (IsSpawned && IsOwner)
+            return;
+
+        RebuildWorldModel(next);
+        CacheRestPoses();
+        PrepareAudioSource();
+        PreparePresentationObject();
+        ApplyWorldPose();
+        ResetPresentation();
+    }
+
     public void PlayFirePresentation()
     {
         if (!CanPresent())
@@ -125,6 +139,38 @@ public class WorldWeaponView : NetworkBehaviour
         ClearTransientEffects();
         displayedAimPitch = coordinator != null ? coordinator.AimPitch : 0f;
         PlayAnimationState(Config != null ? Config.IdleAnimationState : "Idle", 1f);
+    }
+
+    private void RebuildWorldModel(WeaponDefinition next)
+    {
+        if (weaponKick == null)
+            ResolveHierarchyFallbacks();
+        if (weaponKick == null)
+            return;
+
+        for (int i = weaponKick.childCount - 1; i >= 0; i--)
+        {
+            Transform child = weaponKick.GetChild(i);
+            if (Application.isPlaying)
+                Destroy(child.gameObject);
+            else
+                DestroyImmediate(child.gameObject);
+        }
+
+        muzzlePoint = null;
+        weaponAnimator = null;
+
+        if (next == null || next.WorldPrefab == null)
+            return;
+
+        GameObject instance = Instantiate(next.WorldPrefab, weaponKick);
+        instance.transform.localPosition = Vector3.zero;
+        instance.transform.localRotation = Quaternion.identity;
+        instance.transform.localScale = Vector3.one;
+        ApplyLayerRecursively(instance, WorldWeaponLayerName);
+        DisableGameplayCollision(instance);
+        muzzlePoint = FindChildByName(instance.transform, "MuzzlePoint");
+        weaponAnimator = instance.GetComponentInChildren<Animator>(true);
     }
 
     private bool CanPresent()
@@ -383,6 +429,7 @@ public class WorldWeaponView : NetworkBehaviour
         WeaponPresentationConfig config = Config;
         audioSource.minDistance = config != null ? Mathf.Max(0.1f, config.WorldAudioMinDistance) : 1.5f;
         audioSource.maxDistance = config != null ? Mathf.Max(audioSource.minDistance + 0.1f, config.WorldAudioMaxDistance) : 45f;
+        PlayerGameSettings.RouteToSfx(audioSource);
     }
 
     private void PreparePresentationObject()

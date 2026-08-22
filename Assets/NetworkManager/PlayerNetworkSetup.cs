@@ -36,6 +36,9 @@ public class PlayerNetworkSetup : NetworkBehaviour
 
         if (TryGetComponent(out BullseyeSprintSpeedEffects sprintEffects))
             sprintEffects.enabled = false;
+
+        if (TryGetComponent(out PlayerAimSightBlur aimSightBlur))
+            aimSightBlur.enabled = false;
     }
 
     public override void OnNetworkDespawn()
