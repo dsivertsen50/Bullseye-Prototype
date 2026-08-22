@@ -635,6 +635,7 @@ public class BullseyeHealthHud : MonoBehaviour
         source.spatialBlend = 0f;
         source.dopplerLevel = 0f;
         source.priority = 64;
+        PlayerGameSettings.RouteToSfx(source);
     }
 
     private void SetVisible(bool visible)

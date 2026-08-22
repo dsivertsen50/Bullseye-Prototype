@@ -14,6 +14,12 @@ public class PlayerShoot : NetworkBehaviour
     private PlayerMovement playerMovement;
     private WeaponPresentationCoordinator weaponPresentationCoordinator;
     private WeaponPresentationController weaponPresentation;
+    private PlayerWeaponInventory inventory;
+    private PlayerWeaponController weaponController;
+    private PlayerWeaponInteractor interactor;
+    private InputAction reloadAction;
+    private float nextFireTime;
+    private int pickupLayer = -1;
 
     private void Awake()
     {
@@ -22,12 +28,28 @@ public class PlayerShoot : NetworkBehaviour
         playerMovement = GetComponent<PlayerMovement>();
         weaponPresentationCoordinator = GetComponent<WeaponPresentationCoordinator>();
         weaponPresentation = GetComponent<WeaponPresentationController>();
+        inventory = GetComponent<PlayerWeaponInventory>();
+        weaponController = GetComponent<PlayerWeaponController>();
+        interactor = GetComponent<PlayerWeaponInteractor>();
+        pickupLayer = LayerMask.NameToLayer("WeaponPickup");
     }
 
     private void OnEnable()
     {
         // Enable only. Player instances share this action in-process.
         fireAction.action.Enable();
+        reloadAction?.Enable();
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        if (!IsOwner)
+            return;
+
+        if (TryGetComponent(out LocalPlayerInputBinding binding) && binding.PlayerActions != null)
+            reloadAction = binding.PlayerActions.FindAction("Reload");
+
+        reloadAction?.Enable();
     }
 
     private void Update()
@@ -44,14 +66,28 @@ public class PlayerShoot : NetworkBehaviour
         if (playerMovement != null && playerMovement.IsSprinting && !playerMovement.CanRunWhileShooting)
             return;
 
-        if (fireAction.action.WasPressedThisFrame())
-        {
-            Shoot();
-        }
+        if (reloadAction != null && reloadAction.WasPressedThisFrame() && !ShouldSuppressReload())
+            inventory?.RequestReload();
+
+        if (!WantsToFire())
+            return;
+
+        if (Time.time < nextFireTime)
+            return;
+
+        if (!CanFire())
+            return;
+
+        WeaponDefinition definition = inventory != null ? inventory.ActiveDefinition : null;
+        nextFireTime = Time.time + (definition != null ? definition.FireRate : 0.12f);
+        Shoot();
     }
 
     private void Shoot()
     {
+        if (inventory != null)
+            inventory.NotifyShotFired();
+
         if (playerHaptics != null)
             playerHaptics.PlayFireRumble();
 
@@ -78,16 +114,48 @@ public class PlayerShoot : NetworkBehaviour
         Debug.Log("BULLSEYE HIT!");
     }
 
+    private bool WantsToFire()
+    {
+        if (fireAction == null)
+            return false;
+
+        WeaponDefinition definition = inventory != null ? inventory.ActiveDefinition : null;
+        if (definition != null && definition.Automatic)
+            return fireAction.action.IsPressed();
+
+        return fireAction.action.WasPressedThisFrame();
+    }
+
+    private bool CanFire()
+    {
+        if (weaponController != null && weaponController.BlocksFiring)
+            return false;
+
+        if (inventory != null && !inventory.CanFireActive())
+            return false;
+
+        return true;
+    }
+
+    private bool ShouldSuppressReload()
+    {
+        return interactor != null && interactor.ShouldSuppressReload;
+    }
+
     private bool TryGetHitscanHit(out RaycastHit selectedHit)
     {
         selectedHit = default;
+
+        int mask = ~0;
+        if (pickupLayer >= 0)
+            mask &= ~(1 << pickupLayer);
 
         int hitCount = Physics.RaycastNonAlloc(
             playerCamera.transform.position,
             playerCamera.transform.forward,
             hits,
             range,
-            ~0,
+            mask,
             QueryTriggerInteraction.Collide);
 
         float closestDistance = float.MaxValue;

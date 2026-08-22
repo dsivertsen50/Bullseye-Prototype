@@ -12,19 +12,30 @@ using UnityEngine.UI;
 /// </summary>
 public class LocalPauseMenu : NetworkBehaviour
 {
+    private enum MenuPage
+    {
+        Pause,
+        Settings,
+        Controls
+    }
+
     [SerializeField] private InputActionReference pauseAction;
     [SerializeField] private LocalPlayerMenuState menuState;
+    [SerializeField] private MenuAudioController menuAudio;
 
     private Canvas canvas;
     private GameObject pausePanel;
     private GameObject settingsPanel;
+    private GameObject controlsPanel;
     private Selectable resumeButton;
     private Selectable settingsButton;
+    private Selectable controlsButton;
     private Selectable exitButton;
-    private Selectable backButton;
+    private Selectable settingsBackButton;
+    private Selectable controlsBackButton;
     private bool ownerMenuEnabled;
     private bool built;
-    private bool viewingSettings;
+    private MenuPage currentPage = MenuPage.Pause;
     private PlayerHealth playerHealth;
     private InputAction resolvedPauseAction;
     private InputAction cancelAction;
@@ -34,9 +45,15 @@ public class LocalPauseMenu : NetworkBehaviour
     private Slider controllerXSlider;
     private Slider controllerYSlider;
     private Slider aimSlider;
-    private Slider volumeSlider;
+    private Slider masterVolumeSlider;
+    private Slider sfxVolumeSlider;
+    private Slider musicVolumeSlider;
+    private Slider brightnessSlider;
     private Toggle invertToggle;
     private bool suppressUiCallbacks;
+    private bool suppressNavigateSound;
+    private int lastBackFrame = -1;
+    private GameObject lastSelected;
     private LocalPlayerInputBinding inputBinding;
     private InputSystemUIInputModule uiInputModule;
 
@@ -45,6 +62,8 @@ public class LocalPauseMenu : NetworkBehaviour
         playerHealth = GetComponent<PlayerHealth>();
         if (menuState == null)
             menuState = GetComponent<LocalPlayerMenuState>();
+        if (menuAudio == null)
+            menuAudio = GetComponent<MenuAudioController>();
         TryGetComponent(out inputBinding);
 
         ownerMenuEnabled = IsOwner;
@@ -93,11 +112,15 @@ public class LocalPauseMenu : NetworkBehaviour
 
         if (PauseInput != null && PauseInput.WasPressedThisFrame())
         {
-            TogglePause();
+            if (menuState != null && menuState.IsMenuOpen)
+                HandleBack(false);
+            else
+                OpenMenu();
             return;
         }
 
         RestoreSelectionIfNeeded();
+        TrackSelectionForNavigateSound();
     }
 
     public void TogglePause()
@@ -121,7 +144,7 @@ public class LocalPauseMenu : NetworkBehaviour
 
         menuState.SetMenuOpen(true);
         SetGameplayOrMenuInput(true);
-        ShowPausePanel();
+        ShowPausePanel(false);
         SetMenuVisible(true, true);
     }
 
@@ -130,7 +153,8 @@ public class LocalPauseMenu : NetworkBehaviour
         if (menuState != null)
             menuState.SetMenuOpen(false);
 
-        viewingSettings = false;
+        currentPage = MenuPage.Pause;
+        lastSelected = null;
         SetMenuVisible(false, false);
         SetGameplayOrMenuInput(false);
     }
@@ -214,10 +238,28 @@ public class LocalPauseMenu : NetworkBehaviour
         if (!ownerMenuEnabled || menuState == null || !menuState.IsMenuOpen)
             return;
 
-        if (viewingSettings)
-            ShowPausePanel();
-        else
-            CloseMenu();
+        HandleBack(true);
+    }
+
+    private void HandleBack(bool fromCancel)
+    {
+        if (Time.frameCount == lastBackFrame)
+            return;
+
+        lastBackFrame = Time.frameCount;
+
+        if (currentPage == MenuPage.Settings || currentPage == MenuPage.Controls)
+        {
+            if (menuAudio != null)
+                menuAudio.PlayBack();
+            ShowPausePanel(false);
+            return;
+        }
+
+        if (fromCancel && menuAudio != null)
+            menuAudio.PlaySelect();
+
+        CloseMenu();
     }
 
     private void SetMenuVisible(bool visible, bool selectDefault)
@@ -241,29 +283,66 @@ public class LocalPauseMenu : NetworkBehaviour
         }
     }
 
-    private void ShowPausePanel()
+    private void ShowPausePanel(bool playSelectSound)
     {
-        viewingSettings = false;
+        if (playSelectSound && menuAudio != null)
+            menuAudio.PlaySelect();
+
+        currentPage = MenuPage.Pause;
         if (pausePanel != null)
             pausePanel.SetActive(true);
         if (settingsPanel != null)
             settingsPanel.SetActive(false);
+        if (controlsPanel != null)
+            controlsPanel.SetActive(false);
         SelectControl(resumeButton);
     }
 
     private void ShowSettingsPanel()
     {
-        viewingSettings = true;
+        if (menuAudio != null)
+            menuAudio.PlaySelect();
+
+        currentPage = MenuPage.Settings;
         RefreshSettingsWidgets();
         if (pausePanel != null)
             pausePanel.SetActive(false);
         if (settingsPanel != null)
             settingsPanel.SetActive(true);
-        SelectControl(mouseXSlider);
+        if (controlsPanel != null)
+            controlsPanel.SetActive(false);
+        SelectControl(masterVolumeSlider);
+    }
+
+    private void ShowControlsPanel()
+    {
+        if (menuAudio != null)
+            menuAudio.PlaySelect();
+
+        currentPage = MenuPage.Controls;
+        RefreshSettingsWidgets();
+        if (pausePanel != null)
+            pausePanel.SetActive(false);
+        if (settingsPanel != null)
+            settingsPanel.SetActive(false);
+        if (controlsPanel != null)
+            controlsPanel.SetActive(true);
+        SelectControl(aimSlider);
+    }
+
+    private void ReturnToPauseFromSubmenu()
+    {
+        if (menuAudio != null)
+            menuAudio.PlayBack();
+
+        ShowPausePanel(false);
     }
 
     private void SelectControl(Selectable selectable)
     {
+        suppressNavigateSound = true;
+        lastSelected = selectable != null ? selectable.gameObject : null;
+
         if (selectable == null || EventSystem.current == null)
             return;
 
@@ -287,21 +366,59 @@ public class LocalPauseMenu : NetworkBehaviour
         if (!wantsSelection)
             return;
 
-        if (viewingSettings)
-            SelectControl(mouseXSlider);
-        else
-            SelectControl(resumeButton);
+        SelectControl(DefaultSelectableForCurrentPage());
+    }
+
+    private Selectable DefaultSelectableForCurrentPage()
+    {
+        switch (currentPage)
+        {
+            case MenuPage.Settings:
+                return masterVolumeSlider;
+            case MenuPage.Controls:
+                return aimSlider;
+            default:
+                return resumeButton;
+        }
+    }
+
+    private void TrackSelectionForNavigateSound()
+    {
+        if (menuState == null || !menuState.IsMenuOpen || EventSystem.current == null)
+            return;
+
+        GameObject selected = EventSystem.current.currentSelectedGameObject;
+        if (selected == lastSelected)
+            return;
+
+        GameObject previous = lastSelected;
+        lastSelected = selected;
+
+        if (suppressNavigateSound)
+        {
+            suppressNavigateSound = false;
+            return;
+        }
+
+        if (previous == null || selected == null || !selected.activeInHierarchy)
+            return;
+
+        if (menuAudio != null)
+            menuAudio.PlayNavigate();
     }
 
     private void RefreshSettingsWidgets()
     {
         suppressUiCallbacks = true;
+        SetSlider(masterVolumeSlider, PlayerGameSettings.MasterVolume);
+        SetSlider(sfxVolumeSlider, PlayerGameSettings.SfxVolume);
+        SetSlider(musicVolumeSlider, PlayerGameSettings.MusicVolume);
+        SetSlider(brightnessSlider, PlayerGameSettings.Brightness);
         SetSlider(mouseXSlider, PlayerGameSettings.MouseSensitivityX);
         SetSlider(mouseYSlider, PlayerGameSettings.MouseSensitivityY);
         SetSlider(controllerXSlider, PlayerGameSettings.ControllerSensitivityX);
         SetSlider(controllerYSlider, PlayerGameSettings.ControllerSensitivityY);
         SetSlider(aimSlider, PlayerGameSettings.AimSensitivityMultiplier);
-        SetSlider(volumeSlider, PlayerGameSettings.MasterVolume);
         if (invertToggle != null)
             invertToggle.isOn = PlayerGameSettings.InvertY;
         suppressUiCallbacks = false;
@@ -331,71 +448,122 @@ public class LocalPauseMenu : NetworkBehaviour
         Image dim = CreateImage(canvasObject.transform, "Dimmer", new Color(0.02f, 0.02f, 0.04f, 0.72f));
         Stretch(dim.rectTransform);
 
-        pausePanel = CreatePanel(canvasObject.transform, "PausePanel");
-        CreateLabel(pausePanel.transform, "Title", "PAUSED", 48, new Vector2(0f, 150f), new Vector2(520f, 64f));
-        resumeButton = CreateButton(pausePanel.transform, "Resume", "Resume", new Vector2(0f, 50f), OpenFromResume);
-        settingsButton = CreateButton(pausePanel.transform, "Settings", "Settings", new Vector2(0f, -20f), ShowSettingsPanel);
-        exitButton = CreateButton(pausePanel.transform, "Exit", "Exit Game", new Vector2(0f, -90f), QuitGame);
+        pausePanel = CreatePanel(canvasObject.transform, "PausePanel", new Vector2(640f, 520f));
+        CreateLabel(pausePanel.transform, "Title", "PAUSED", 48, new Vector2(0f, 170f), new Vector2(520f, 64f));
+        resumeButton = CreateButton(pausePanel.transform, "Resume", "Resume", new Vector2(0f, 80f), OpenFromResume);
+        settingsButton = CreateButton(pausePanel.transform, "Settings", "Settings", new Vector2(0f, 10f), ShowSettingsPanel);
+        controlsButton = CreateButton(pausePanel.transform, "Controls", "Controls", new Vector2(0f, -60f), ShowControlsPanel);
+        exitButton = CreateButton(pausePanel.transform, "Exit", "Exit Game", new Vector2(0f, -130f), QuitFromMenu);
 
-        settingsPanel = CreatePanel(canvasObject.transform, "SettingsPanel");
+        settingsPanel = CreatePanel(canvasObject.transform, "SettingsPanel", new Vector2(640f, 560f));
         settingsPanel.SetActive(false);
-        CreateLabel(settingsPanel.transform, "SettingsTitle", "SETTINGS", 40, new Vector2(0f, 300f), new Vector2(640f, 56f));
+        CreateLabel(settingsPanel.transform, "SettingsTitle", "SETTINGS", 40, new Vector2(0f, 210f), new Vector2(640f, 56f));
 
-        mouseXSlider = CreateLabeledSlider(settingsPanel.transform, "Mouse X Sensitivity", 210f, 0.2f, 12f, value =>
+        masterVolumeSlider = CreateLabeledSlider(settingsPanel.transform, "Master Volume", 140f, 0f, 1f, value =>
         {
-            if (!suppressUiCallbacks)
-                PlayerGameSettings.SetMouseSensitivity(value, PlayerGameSettings.MouseSensitivityY);
+            if (suppressUiCallbacks)
+                return;
+            PlayerGameSettings.SetMasterVolume(value);
+            PlaySliderSound();
         });
-        mouseYSlider = CreateLabeledSlider(settingsPanel.transform, "Mouse Y Sensitivity", 150f, 0.2f, 12f, value =>
+        sfxVolumeSlider = CreateLabeledSlider(settingsPanel.transform, "Sound Effects", 70f, 0f, 1f, value =>
         {
-            if (!suppressUiCallbacks)
-                PlayerGameSettings.SetMouseSensitivity(PlayerGameSettings.MouseSensitivityX, value);
+            if (suppressUiCallbacks)
+                return;
+            PlayerGameSettings.SetSfxVolume(value);
+            PlaySliderSound();
         });
-        controllerXSlider = CreateLabeledSlider(settingsPanel.transform, "Controller X Sensitivity", 90f, PlayerGameSettings.MinControllerSensitivity, PlayerGameSettings.MaxControllerSensitivity, value =>
+        musicVolumeSlider = CreateLabeledSlider(settingsPanel.transform, "Music Volume", 0f, 0f, 1f, value =>
         {
-            if (!suppressUiCallbacks)
-                PlayerGameSettings.SetControllerSensitivity(value, PlayerGameSettings.ControllerSensitivityY);
+            if (suppressUiCallbacks)
+                return;
+            PlayerGameSettings.SetMusicVolume(value);
+            PlaySliderSound();
         });
-        controllerYSlider = CreateLabeledSlider(settingsPanel.transform, "Controller Y Sensitivity", 30f, PlayerGameSettings.MinControllerSensitivity, PlayerGameSettings.MaxControllerSensitivity, value =>
+        brightnessSlider = CreateLabeledSlider(settingsPanel.transform, "Brightness", -70f, PlayerGameSettings.MinBrightness, PlayerGameSettings.MaxBrightness, value =>
         {
-            if (!suppressUiCallbacks)
-                PlayerGameSettings.SetControllerSensitivity(PlayerGameSettings.ControllerSensitivityX, value);
+            if (suppressUiCallbacks)
+                return;
+            PlayerGameSettings.SetBrightness(value);
+            PlaySliderSound();
         });
-        aimSlider = CreateLabeledSlider(settingsPanel.transform, "Aim Sensitivity", -30f, 0.1f, 1f, value =>
+        settingsBackButton = CreateButton(settingsPanel.transform, "Back", "Back", new Vector2(0f, -170f), ReturnToPauseFromSubmenu);
+
+        controlsPanel = CreatePanel(canvasObject.transform, "ControlsPanel", new Vector2(640f, 720f));
+        controlsPanel.SetActive(false);
+        CreateLabel(controlsPanel.transform, "ControlsTitle", "CONTROLS", 40, new Vector2(0f, 300f), new Vector2(640f, 56f));
+        aimSlider = CreateLabeledSlider(controlsPanel.transform, "Aim Sensitivity", 220f, 0.1f, 1f, value =>
         {
-            if (!suppressUiCallbacks)
-                PlayerGameSettings.SetAimSensitivity(value);
+            if (suppressUiCallbacks)
+                return;
+            PlayerGameSettings.SetAimSensitivity(value);
+            PlaySliderSound();
         });
-        volumeSlider = CreateLabeledSlider(settingsPanel.transform, "Master Volume", -90f, 0f, 1f, value =>
+        mouseXSlider = CreateLabeledSlider(controlsPanel.transform, "Mouse X Sensitivity", 150f, 0.2f, 12f, value =>
         {
-            if (!suppressUiCallbacks)
-                PlayerGameSettings.SetMasterVolume(value);
+            if (suppressUiCallbacks)
+                return;
+            PlayerGameSettings.SetMouseSensitivity(value, PlayerGameSettings.MouseSensitivityY);
+            PlaySliderSound();
         });
-        invertToggle = CreateToggle(settingsPanel.transform, "Invert Y", -150f, value =>
+        mouseYSlider = CreateLabeledSlider(controlsPanel.transform, "Mouse Y Sensitivity", 80f, 0.2f, 12f, value =>
+        {
+            if (suppressUiCallbacks)
+                return;
+            PlayerGameSettings.SetMouseSensitivity(PlayerGameSettings.MouseSensitivityX, value);
+            PlaySliderSound();
+        });
+        controllerXSlider = CreateLabeledSlider(controlsPanel.transform, "Controller X Sensitivity", 10f, PlayerGameSettings.MinControllerSensitivity, PlayerGameSettings.MaxControllerSensitivity, value =>
+        {
+            if (suppressUiCallbacks)
+                return;
+            PlayerGameSettings.SetControllerSensitivity(value, PlayerGameSettings.ControllerSensitivityY);
+            PlaySliderSound();
+        });
+        controllerYSlider = CreateLabeledSlider(controlsPanel.transform, "Controller Y Sensitivity", -60f, PlayerGameSettings.MinControllerSensitivity, PlayerGameSettings.MaxControllerSensitivity, value =>
+        {
+            if (suppressUiCallbacks)
+                return;
+            PlayerGameSettings.SetControllerSensitivity(PlayerGameSettings.ControllerSensitivityX, value);
+            PlaySliderSound();
+        });
+        invertToggle = CreateToggle(controlsPanel.transform, "Invert Y", -130f, value =>
         {
             if (!suppressUiCallbacks)
                 PlayerGameSettings.SetInvertY(value);
         });
-        backButton = CreateButton(settingsPanel.transform, "Back", "Back", new Vector2(0f, -250f), ShowPausePanel);
+        controlsBackButton = CreateButton(controlsPanel.transform, "Back", "Back", new Vector2(0f, -220f), ReturnToPauseFromSubmenu);
 
         WireNavigation();
         built = true;
     }
 
+    private void PlaySliderSound()
+    {
+        if (menuAudio != null)
+            menuAudio.PlaySliderAdjust();
+    }
+
     private void WireNavigation()
     {
         SetVerticalNav(resumeButton, exitButton, settingsButton);
-        SetVerticalNav(settingsButton, resumeButton, exitButton);
-        SetVerticalNav(exitButton, settingsButton, resumeButton);
+        SetVerticalNav(settingsButton, resumeButton, controlsButton);
+        SetVerticalNav(controlsButton, settingsButton, exitButton);
+        SetVerticalNav(exitButton, controlsButton, resumeButton);
 
-        SetVerticalNav(mouseXSlider, backButton, mouseYSlider);
+        SetVerticalNav(masterVolumeSlider, settingsBackButton, sfxVolumeSlider);
+        SetVerticalNav(sfxVolumeSlider, masterVolumeSlider, musicVolumeSlider);
+        SetVerticalNav(musicVolumeSlider, sfxVolumeSlider, brightnessSlider);
+        SetVerticalNav(brightnessSlider, musicVolumeSlider, settingsBackButton);
+        SetVerticalNav(settingsBackButton, brightnessSlider, masterVolumeSlider);
+
+        SetVerticalNav(aimSlider, controlsBackButton, mouseXSlider);
+        SetVerticalNav(mouseXSlider, aimSlider, mouseYSlider);
         SetVerticalNav(mouseYSlider, mouseXSlider, controllerXSlider);
         SetVerticalNav(controllerXSlider, mouseYSlider, controllerYSlider);
-        SetVerticalNav(controllerYSlider, controllerXSlider, aimSlider);
-        SetVerticalNav(aimSlider, controllerYSlider, volumeSlider);
-        SetVerticalNav(volumeSlider, aimSlider, invertToggle);
-        SetVerticalNav(invertToggle, volumeSlider, backButton);
-        SetVerticalNav(backButton, invertToggle, mouseXSlider);
+        SetVerticalNav(controllerYSlider, controllerXSlider, invertToggle);
+        SetVerticalNav(invertToggle, controllerYSlider, controlsBackButton);
+        SetVerticalNav(controlsBackButton, invertToggle, aimSlider);
     }
 
     private static void SetVerticalNav(Selectable current, Selectable up, Selectable down)
@@ -414,13 +582,22 @@ public class LocalPauseMenu : NetworkBehaviour
 
     private void OpenFromResume()
     {
+        if (menuAudio != null)
+            menuAudio.PlaySelect();
         CloseMenu();
     }
 
-    private static GameObject CreatePanel(Transform parent, string name)
+    private void QuitFromMenu()
+    {
+        if (menuAudio != null)
+            menuAudio.PlaySelect();
+        QuitGame();
+    }
+
+    private static GameObject CreatePanel(Transform parent, string name, Vector2 size)
     {
         Image panel = CreateImage(parent, name, new Color(0.08f, 0.09f, 0.12f, 0.94f));
-        panel.rectTransform.sizeDelta = new Vector2(640f, 720f);
+        panel.rectTransform.sizeDelta = size;
         panel.rectTransform.anchoredPosition = Vector2.zero;
         return panel.gameObject;
     }

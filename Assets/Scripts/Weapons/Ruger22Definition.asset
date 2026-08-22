@@ -13,10 +13,25 @@ MonoBehaviour:
   m_Name: Ruger22Definition
   m_EditorClassIdentifier: Assembly-CSharp::WeaponDefinition
   weaponId: ruger22
-  firstPersonPrefab: {fileID: 6447372032296048831, guid: 659ec7bba3762aa40aeda1186b084d00, type: 3}
-  worldPrefab: {fileID: 6447372032296048831, guid: 79990ef98594c37429d8e2ba5b981946, type: 3}
+  displayName: Pistol
+  inventoryRole: 1
+  firstPersonPrefab: {fileID: 7234254856609980122, guid: 36b55d417ead88b47bb4207833ec2b99, type: 3}
+  worldPrefab: {fileID: 7234254856609980122, guid: 36b55d417ead88b47bb4207833ec2b99, type: 3}
+  pickupPrefab: {fileID: 7234254856609980122, guid: 36b55d417ead88b47bb4207833ec2b99, type: 3}
   presentation: {fileID: 11400000, guid: 94c251f36d5a0c242b33d28f1f6aefc8, type: 2}
+  magazineSize: 10
+  startingMagazineAmmo: 10
+  startingReserveAmmo: 20
+  maximumReserveAmmo: 60
+  unlimitedReserve: 1
+  fireRate: 0.18
+  automatic: 0
+  reloadTime: 1.35
+  damage: 1
   worldLocalPosition: {x: 0.58, y: 0, z: 0.42}
   worldLocalEuler: {x: 0, y: 0, z: 0}
   worldLocalScale: {x: 1, y: 1, z: 1}
   worldStanceHeightOffset: 0.22
+  pickupLocalPosition: {x: 0, y: 0.08, z: 0}
+  pickupLocalEuler: {x: 0, y: 35, z: 90}
+  pickupLocalScale: {x: 1.15, y: 1.15, z: 1.15}
