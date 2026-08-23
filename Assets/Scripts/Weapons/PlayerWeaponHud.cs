@@ -9,14 +9,17 @@ public class PlayerWeaponHud : NetworkBehaviour
     private PlayerWeaponInventory inventory;
     private PlayerWeaponInteractor interactor;
     private PlayerHealth playerHealth;
+    private PlayerGrenadeThrower grenadeThrower;
     private GUIStyle promptStyle;
     private GUIStyle ammoStyle;
+    private GUIStyle grenadeStyle;
 
     public override void OnNetworkSpawn()
     {
         inventory = GetComponent<PlayerWeaponInventory>();
         interactor = GetComponent<PlayerWeaponInteractor>();
         playerHealth = GetComponent<PlayerHealth>();
+        grenadeThrower = GetComponent<PlayerGrenadeThrower>();
         if (!IsOwner)
         {
             enabled = false;
@@ -35,8 +38,20 @@ public class PlayerWeaponHud : NetworkBehaviour
         if (LocalPlayerMenuState.IsOpen(this))
             return;
 
+        DrawGrenades();
         DrawAmmo();
         DrawPrompt();
+    }
+
+    private void DrawGrenades()
+    {
+        if (grenadeThrower == null)
+            return;
+
+        int count = Mathf.Max(0, grenadeThrower.RemainingGrenades);
+        string label = count == 1 ? "GRENADE" : "GRENADES";
+        var rect = new Rect(Screen.width - 360f, Screen.height - 128f, 340f, 32f);
+        DrawShadowedLabel(rect, $"{label}  {count}", GetGrenadeStyle());
     }
 
     private void DrawAmmo()
@@ -106,5 +121,20 @@ public class PlayerWeaponHud : NetworkBehaviour
         };
         ammoStyle.normal.textColor = Color.white;
         return ammoStyle;
+    }
+
+    private GUIStyle GetGrenadeStyle()
+    {
+        if (grenadeStyle != null)
+            return grenadeStyle;
+
+        grenadeStyle = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = 18,
+            fontStyle = FontStyle.Bold,
+            alignment = TextAnchor.LowerRight
+        };
+        grenadeStyle.normal.textColor = Color.white;
+        return grenadeStyle;
     }
 }

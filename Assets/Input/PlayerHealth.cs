@@ -52,6 +52,8 @@ public class PlayerHealth : NetworkBehaviour
         NetworkVariableWritePermission.Server);
 
     private PlayerHaptics playerHaptics;
+    private BullseyeDetachController detachController;
+    private PlayerGrenadeThrower grenadeThrower;
     private Collider bullseyeCollider;
     private Coroutine respawnRoutine;
     private float regenerationDelayRemaining;
@@ -66,6 +68,8 @@ public class PlayerHealth : NetworkBehaviour
     private void Awake()
     {
         playerHaptics = GetComponent<PlayerHaptics>();
+        detachController = GetComponent<BullseyeDetachController>();
+        grenadeThrower = GetComponent<PlayerGrenadeThrower>();
 
         if (bodyCapsule == null)
             bodyCapsule = GetComponentInChildren<CapsuleCollider>();
@@ -225,6 +229,9 @@ public class PlayerHealth : NetworkBehaviour
         ClearRegeneration();
         respawnAtServerTime.Value = NetworkManager.ServerTime.Time + RespawnDelay;
 
+        if (detachController != null)
+            detachController.HandleOwnerDied();
+
         if (TryGetComponent(out PlayerWeaponInventory inventory))
             inventory.DropTemporaryWeaponOnDeath();
 
@@ -249,6 +256,12 @@ public class PlayerHealth : NetworkBehaviour
     {
         if (TryGetComponent(out BullseyeMover mover))
             mover.RestartIndependentRandomization();
+
+        if (detachController != null)
+            detachController.HandleOwnerRespawned();
+
+        if (grenadeThrower != null)
+            grenadeThrower.ResetGrenades();
 
         RespawnOwnerRpc();
         RestoreFullHealth();
@@ -388,6 +401,9 @@ public class PlayerHealth : NetworkBehaviour
 
     private BullseyeBodyZone ResolveZone()
     {
+        if (detachController != null && detachController.IsDetached)
+            return BullseyeBodyZone.Head;
+
         if (bodyCapsule == null || bullseye == null)
             return BullseyeBodyZone.Head;
 
