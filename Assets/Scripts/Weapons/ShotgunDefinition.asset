@@ -27,7 +27,64 @@ MonoBehaviour:
   fireRate: 0.75
   automatic: 0
   reloadTime: 2.4
-  damage: 1
+  damageSettings:
+    hitscanMode: 1
+    pelletCount: 8
+    baseDamage: 0.375
+    damagePerPellet: 0.375
+    guaranteeLethalHeadshot: 0
+    falloffStart: 10
+    falloffEnd: 24
+    maximumRange: 40
+    beyondMaxRange: 0
+    falloffCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.5
+        value: 0.7
+        inSlope: -0.7
+        outSlope: -0.7
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -0.8
+        outSlope: -0.8
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    minimumDamageMultiplier: 0.35
+    pelletSpread: 0
+    logDamage: 0
+  accuracy:
+    baseSpread: 44
+    maxSpread: 88
+    bloomPerShot: 10
+    bloomRecoveryDelay: 0.18
+    bloomRecoverySpeed: 28
+    sprintSpread: 64
+    sprintSpreadIncreaseSpeed: 70
+    sprintSpreadRecoverySpeed: 50
+    reticleSprite: {fileID: 0}
+    reticleElementLength: 16
+    reticleElementThickness: 3
   worldLocalPosition: {x: 0.6, y: 0, z: 0.45}
   worldLocalEuler: {x: 0, y: 0, z: 0}
   worldLocalScale: {x: 1, y: 1, z: 1}

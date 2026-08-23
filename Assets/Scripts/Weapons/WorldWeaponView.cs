@@ -171,6 +171,9 @@ public class WorldWeaponView : NetworkBehaviour
         DisableGameplayCollision(instance);
         muzzlePoint = FindChildByName(instance.transform, "MuzzlePoint");
         weaponAnimator = instance.GetComponentInChildren<Animator>(true);
+        WeaponPresentationConfig config = next != null ? next.Presentation : null;
+        if (weaponAnimator != null && config != null && config.AnimatorController != null)
+            weaponAnimator.runtimeAnimatorController = config.AnimatorController;
     }
 
     private bool CanPresent()

@@ -13,10 +13,17 @@ public class PlayerHealth : NetworkBehaviour
     [Header("Health")]
     [SerializeField] private int maxHealth = 8;
 
-    [Header("Damage")]
-    [SerializeField] private int headDamage = 8;
-    [SerializeField] private int torsoDamage = 4;
-    [SerializeField] private int lowerBodyDamage = 2;
+    [Header("Hit Location Multipliers")]
+    [SerializeField, Tooltip("Multiplier applied after weapon and distance damage. Pistol baseline headshot is 8.")]
+    private int headDamage = 8;
+    [SerializeField, Tooltip("Multiplier applied after weapon and distance damage. Pistol baseline torso hit is 4.")]
+    private int torsoDamage = 4;
+    [SerializeField, Tooltip("Multiplier applied after weapon and distance damage. Pistol baseline lower-body hit is 2.")]
+    private int lowerBodyDamage = 2;
+
+    [Header("Debug")]
+    [SerializeField, Tooltip("Logs resolved weapon damage events. Leave off for normal play.")]
+    private bool logDamageEvents;
 
     [Header("Regeneration")]
     [SerializeField] private float regenerationDelay = 5f;
@@ -102,31 +109,85 @@ public class PlayerHealth : NetworkBehaviour
 
     public void RegisterBullseyeHit()
     {
+        RegisterBullseyeHits(System.Array.Empty<float>());
+    }
+
+    public void RegisterBullseyeHits(float[] distances)
+    {
         if (!IsSpawned)
             return;
 
-        HitServerRpc();
+        HitServerRpc(distances ?? System.Array.Empty<float>());
     }
 
     [Rpc(SendTo.Server)]
-    private void HitServerRpc(RpcParams rpcParams = default)
+    private void HitServerRpc(float[] hitDistances, RpcParams rpcParams = default)
     {
-        if (rpcParams.Receive.SenderClientId == OwnerClientId)
+        ulong attackerId = rpcParams.Receive.SenderClientId;
+        if (attackerId == OwnerClientId)
             return;
 
         if (isDead.Value || currentHealth.Value <= 0)
             return;
 
+        WeaponDefinition weapon = ResolveAttackerWeapon(attackerId);
+        WeaponDamageSettings settings = weapon != null
+            ? weapon.DamageSettings
+            : WeaponDamageSettings.Fallback;
+
+        int incomingHits = hitDistances != null && hitDistances.Length > 0
+            ? hitDistances.Length
+            : 1;
+        int hitsToApply = Mathf.Clamp(incomingHits, 1, settings.ProjectileCount);
+
         BullseyeBodyZone zone = ResolveZone();
-        int damage = GetZoneDamage(zone);
-        if (damage <= 0)
+        float locationMultiplier = GetZoneMultiplier(zone);
+        float rawTotal = 0f;
+        float totalDistance = 0f;
+        float totalBeforeFalloff = 0f;
+        int appliedHits = 0;
+
+        for (int i = 0; i < hitsToApply; i++)
+        {
+            if (WeaponDamageCalculator.ToHealthUnits(rawTotal) >= currentHealth.Value)
+                break;
+
+            float distance = ResolveHitDistance(hitDistances, i, attackerId);
+            DamageInfo info = WeaponDamageCalculator.Evaluate(
+                settings,
+                weapon,
+                distance,
+                zone,
+                locationMultiplier,
+                i,
+                attackerId,
+                OwnerClientId);
+
+            rawTotal += info.RawDamage;
+            totalDistance += distance;
+            totalBeforeFalloff += info.BaseDamage;
+            appliedHits++;
+        }
+
+        int totalDamage = WeaponDamageCalculator.ToHealthUnits(rawTotal);
+        if (settings.GuaranteeLethalHeadshot && zone == BullseyeBodyZone.Head)
+            totalDamage = Mathf.Max(totalDamage, GetMaxHealth());
+
+        if (totalDamage <= 0)
             return;
 
-        SetHealth(currentHealth.Value - damage);
+        SetHealth(currentHealth.Value - totalDamage);
         InterruptRegeneration();
 
-        Debug.Log(
-            $"Bullseye {zone} hit for {damage} damage. Health: {currentHealth.Value}/{GetMaxHealth()}");
+        float averageDistance = appliedHits > 0 ? totalDistance / appliedHits : 0f;
+        LogResolvedDamage(
+            weapon,
+            settings,
+            zone,
+            appliedHits,
+            averageDistance,
+            totalBeforeFalloff,
+            totalDamage);
 
         PlayDamageRumbleOwnerRpc();
         FlashBullseyeRpc();
@@ -337,7 +398,7 @@ public class PlayerHealth : NetworkBehaviour
             torsoHeadBoundary);
     }
 
-    private int GetZoneDamage(BullseyeBodyZone zone)
+    private float GetZoneMultiplier(BullseyeBodyZone zone)
     {
         return zone switch
         {
@@ -345,6 +406,62 @@ public class PlayerHealth : NetworkBehaviour
             BullseyeBodyZone.Torso => Mathf.Max(0, torsoDamage),
             _ => Mathf.Max(0, lowerBodyDamage)
         };
+    }
+
+    private WeaponDefinition ResolveAttackerWeapon(ulong attackerId)
+    {
+        if (NetworkManager == null || NetworkManager.SpawnManager == null)
+            return null;
+
+        NetworkObject attackerObject = NetworkManager.SpawnManager.GetPlayerNetworkObject(attackerId);
+        if (attackerObject == null)
+            return null;
+
+        return attackerObject.TryGetComponent(out PlayerWeaponInventory inventory)
+            ? inventory.ActiveDefinition
+            : null;
+    }
+
+    private float ResolveHitDistance(float[] hitDistances, int index, ulong attackerId)
+    {
+        if (hitDistances != null && index >= 0 && index < hitDistances.Length && hitDistances[index] > 0f)
+            return hitDistances[index];
+
+        if (NetworkManager == null || NetworkManager.SpawnManager == null)
+            return 0f;
+
+        NetworkObject attackerObject = NetworkManager.SpawnManager.GetPlayerNetworkObject(attackerId);
+        if (attackerObject == null)
+            return 0f;
+
+        Vector3 point = bullseye != null ? bullseye.position : transform.position;
+        return Vector3.Distance(attackerObject.transform.position, point);
+    }
+
+    private void LogResolvedDamage(
+        WeaponDefinition weapon,
+        WeaponDamageSettings settings,
+        BullseyeBodyZone zone,
+        int pelletsHit,
+        float averageDistance,
+        float damageBeforeFalloff,
+        int finalDamage)
+    {
+        bool shouldLog = logDamageEvents || (settings != null && settings.LogDamage);
+        if (!shouldLog)
+        {
+            Debug.Log(
+                $"Bullseye {zone} hit for {finalDamage} damage. Health: {currentHealth.Value}/{GetMaxHealth()}");
+            return;
+        }
+
+        float multiplier = WeaponDamageCalculator.EvaluateDistanceMultiplier(settings, averageDistance);
+        string weaponName = weapon != null ? weapon.DisplayName : "Weapon";
+        Debug.Log(
+            $"Weapon: {weaponName} Zone: {zone} Distance: {averageDistance:0.0}m " +
+            $"Pellets Hit: {pelletsHit} Damage Before Falloff: {damageBeforeFalloff:0.00} " +
+            $"Distance Multiplier: {multiplier:0.00} Final Damage: {finalDamage} " +
+            $"Health: {currentHealth.Value}/{GetMaxHealth()}");
     }
 
     private int GetMaxHealth()
