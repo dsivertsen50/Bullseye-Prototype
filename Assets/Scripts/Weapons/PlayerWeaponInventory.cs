@@ -18,7 +18,9 @@ public class PlayerWeaponInventory : NetworkBehaviour
     [SerializeField] private WeaponCatalog catalog;
     [SerializeField] private GroundWeaponPickup groundPickupPrefab;
     [SerializeField] private float dropForwardDistance = 1.15f;
-    [SerializeField] private float dropHeight = 0.35f;
+    [SerializeField] private float dropHeight = 1.05f;
+    [SerializeField] private float dropTossSpeed = 2.4f;
+    [SerializeField] private float dropTossUpSpeed = 1.5f;
     [SerializeField] private float dropPickupIgnoreDuration = 0.8f;
 
     private readonly NetworkVariable<WeaponRuntimeState> permanentWeapon = new(
@@ -456,17 +458,34 @@ public class PlayerWeaponInventory : NetworkBehaviour
 
         Vector3 origin = transform.position + Vector3.up * dropHeight;
         Vector3 desired = origin + transform.forward * dropForwardDistance;
-        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 3f, ~0, QueryTriggerInteraction.Ignore))
-            desired.y = hit.point.y + 0.08f;
+        int pickupLayer = LayerMask.NameToLayer("WeaponPickup");
+        int mask = pickupLayer >= 0 ? ~(1 << pickupLayer) : ~0;
+        if (Physics.SphereCast(
+                origin,
+                0.18f,
+                transform.forward,
+                out RaycastHit hit,
+                dropForwardDistance,
+                mask,
+                QueryTriggerInteraction.Ignore))
+        {
+            desired = hit.point - transform.forward * 0.25f;
+            desired.y = origin.y;
+        }
 
+        Vector3 toss = transform.forward * dropTossSpeed + Vector3.up * dropTossUpSpeed;
         GroundWeaponPickup.SpawnDropped(
             groundPickupPrefab,
             definition,
             state,
             desired,
-            Quaternion.Euler(0f, transform.eulerAngles.y + 25f, 0f),
+            Quaternion.Euler(
+                Random.Range(-8f, 8f),
+                transform.eulerAngles.y + Random.Range(15f, 40f),
+                Random.Range(-12f, 12f)),
             OwnerClientId,
-            dropPickupIgnoreDuration);
+            dropPickupIgnoreDuration,
+            toss);
     }
 
     private WeaponRuntimeState CreateStartingState(WeaponDefinition definition)

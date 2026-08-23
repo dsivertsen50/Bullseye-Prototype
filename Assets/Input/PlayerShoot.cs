@@ -114,7 +114,7 @@ public class PlayerShoot : NetworkBehaviour
             if (!TryGetHitscanHit(shotRange, pelletSpread, out RaycastHit hit))
                 continue;
 
-            if (!hit.collider.TryGetComponent(out BullseyeTarget target))
+            if (!TryGetBullseyeTarget(hit.collider, out BullseyeTarget target))
                 continue;
 
             pelletHits.Add((target, hit.distance));
@@ -293,8 +293,28 @@ public class PlayerShoot : NetworkBehaviour
         return found;
     }
 
+    private static bool TryGetBullseyeTarget(Collider collider, out BullseyeTarget target)
+    {
+        target = null;
+        if (collider == null)
+            return false;
+
+        target = collider.GetComponentInParent<BullseyeTarget>();
+        return target != null;
+    }
+
     private bool IsOwnCollider(Collider collider)
     {
+        if (collider == null)
+            return false;
+
+        if (TryGetBullseyeTarget(collider, out BullseyeTarget target) &&
+            target.OwnerHealth != null &&
+            target.OwnerHealth.NetworkObject == NetworkObject)
+        {
+            return true;
+        }
+
         NetworkObject ownerObject = collider.GetComponentInParent<NetworkObject>();
         return ownerObject != null && ownerObject == NetworkObject;
     }

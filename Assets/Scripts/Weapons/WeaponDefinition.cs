@@ -47,6 +47,13 @@ public class WeaponDefinition : ScriptableObject
     [SerializeField] private Vector3 pickupLocalPosition = new(0f, 0.08f, 0f);
     [SerializeField] private Vector3 pickupLocalEuler = new(0f, 35f, 90f);
     [SerializeField] private Vector3 pickupLocalScale = Vector3.one;
+    [SerializeField, Tooltip("If enabled, the dropped-weapon BoxCollider is sized to this mesh after the pickup pose is applied.")]
+    private bool fitPickupColliderToMesh = true;
+    [SerializeField, Tooltip("Used only when Fit Pickup Collider To Mesh is off.")]
+    private Vector3 pickupPhysicsBoxSize;
+    [SerializeField] private Vector3 pickupPhysicsBoxCenter;
+    [SerializeField, Tooltip("Keeps a very thin mesh from falling through the floor. Extra height is added above the mesh, not below it.")]
+    private float pickupColliderMinHeight = 0.05f;
 
     public string WeaponId => string.IsNullOrWhiteSpace(weaponId) ? name : weaponId;
     public WeaponInventoryRole InventoryRole => inventoryRole;
@@ -84,6 +91,10 @@ public class WeaponDefinition : ScriptableObject
     public Vector3 PickupLocalPosition => pickupLocalPosition;
     public Vector3 PickupLocalEuler => pickupLocalEuler;
     public Vector3 PickupLocalScale => pickupLocalScale;
+    public bool FitPickupColliderToMesh => fitPickupColliderToMesh;
+    public Vector3 PickupPhysicsBoxSize => pickupPhysicsBoxSize;
+    public Vector3 PickupPhysicsBoxCenter => pickupPhysicsBoxCenter;
+    public float PickupColliderMinHeight => Mathf.Max(0.02f, pickupColliderMinHeight);
 
     public int StartingTotalAmmo => StartingMagazineAmmo + StartingReserveAmmo;
 

@@ -89,6 +89,6 @@ MonoBehaviour:
   worldLocalEuler: {x: 0, y: 0, z: 0}
   worldLocalScale: {x: 1, y: 1, z: 1}
   worldStanceHeightOffset: 0.2
-  pickupLocalPosition: {x: 0, y: 0.08, z: 0}
+  pickupLocalPosition: {x: 0, y: 0, z: 0}
   pickupLocalEuler: {x: 0, y: 35, z: 90}
   pickupLocalScale: {x: 1.15, y: 1.15, z: 1.15}

@@ -115,6 +115,7 @@ public class PlayerMovement : NetworkBehaviour
     private float slideBoostRemaining;
     private bool slideBoosting;
     private float slideAirborneTimer;
+    private float knockbackTimer;
 
     public event Action<float> Landed;
     public event Action Jumped;
@@ -273,11 +274,71 @@ public class PlayerMovement : NetworkBehaviour
         if (!onSlope)
             rb.AddForce(Vector3.down * ExtraGravityForce, ForceMode.Acceleration);
 
-        if (rb.linearVelocity.magnitude > maxSpeedAllowed)
-            rb.linearVelocity = Vector3.ClampMagnitude(rb.linearVelocity, maxSpeedAllowed);
+        float speedCap = knockbackTimer > 0f ? Mathf.Max(maxSpeedAllowed, 28f) : maxSpeedAllowed;
+        if (rb.linearVelocity.magnitude > speedCap)
+            rb.linearVelocity = Vector3.ClampMagnitude(rb.linearVelocity, speedCap);
 
         ApplyLocomotion();
         TickSlidePhysics();
+        TickKnockback();
+    }
+
+    [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
+    public void ApplyExplosionKnockbackOwnerRpc(
+        Vector3 explosionPosition,
+        float force,
+        float radius,
+        float upwardModifier)
+    {
+        ApplyExplosionKnockback(explosionPosition, force, radius, upwardModifier);
+    }
+
+    public void ApplyExplosionKnockback(
+        Vector3 explosionPosition,
+        float force,
+        float radius,
+        float upwardModifier)
+    {
+        if (!IsMovementOwner || rb == null || rb.isKinematic)
+            return;
+
+        if (playerHealth != null && playerHealth.IsDead)
+            return;
+
+        RestoreAlivePhysics();
+
+        Vector3 origin = rb.worldCenterOfMass;
+        Vector3 toPlayer = origin - explosionPosition;
+        float distance = toPlayer.magnitude;
+        float effectiveRadius = Mathf.Max(0.1f, radius);
+        if (distance > effectiveRadius)
+            return;
+
+        float falloff = 1f - Mathf.Clamp01(distance / effectiveRadius);
+        falloff = falloff * falloff * (3f - 2f * falloff);
+
+        Vector3 direction = distance > 0.05f ? toPlayer.normalized : Vector3.up;
+        direction += Vector3.up * Mathf.Max(0f, upwardModifier);
+        if (direction.sqrMagnitude < 0.0001f)
+            direction = Vector3.up;
+
+        rb.AddForce(direction.normalized * Mathf.Max(0f, force) * falloff, ForceMode.VelocityChange);
+
+        knockbackTimer = Mathf.Lerp(0.18f, 0.5f, falloff);
+        hasJumped = true;
+        grounded = false;
+        jumpIgnoreTimer = JumpIgnoreDuration;
+        EndSlide();
+    }
+
+    private void TickKnockback()
+    {
+        if (knockbackTimer <= 0f)
+            return;
+
+        knockbackTimer -= Time.fixedDeltaTime;
+        if (knockbackTimer < 0f)
+            knockbackTimer = 0f;
     }
 
     public void ResetAfterRespawn()
@@ -293,6 +354,7 @@ public class PlayerMovement : NetworkBehaviour
         ungroundTimer = 0f;
         cancellingGrounded = false;
         currentSpeed = walkSpeed;
+        knockbackTimer = 0f;
         EndSlide();
 
         if (IsSpawned && IsOwner && crouched.Value)
@@ -376,7 +438,7 @@ public class PlayerMovement : NetworkBehaviour
 
         Vector3 horizontalVel = HorizontalVelocity();
         bool isCrouchSliding = crouched.Value && horizontalVel.magnitude >= crouchSpeed;
-        if (isCrouchSliding && !allowMoveWhileSliding)
+        if (isCrouchSliding && !allowMoveWhileSliding && knockbackTimer <= 0f)
             return;
 
         float airborneMultiplier = grounded ? 1f : controlAirborne;
@@ -396,9 +458,12 @@ public class PlayerMovement : NetworkBehaviour
         }
 
         float velocityChange = (movementMultipliers / Mathf.Max(0.01f, rb.mass)) * Time.fixedDeltaTime;
+        if (knockbackTimer > 0f)
+            velocityChange *= 0.35f;
+
         Vector3 targetVelocity = rb.linearVelocity + moveDirection * velocityChange;
         Vector3 horizontalTarget = new Vector3(targetVelocity.x, 0f, targetVelocity.z);
-        float maxSpeed = currentSpeed;
+        float maxSpeed = knockbackTimer > 0f ? Mathf.Max(currentSpeed, horizontalTarget.magnitude) : currentSpeed;
         if (horizontalTarget.magnitude > maxSpeed)
         {
             horizontalTarget = horizontalTarget.normalized * maxSpeed;
@@ -442,6 +507,9 @@ public class PlayerMovement : NetworkBehaviour
 
     private void LimitDiagonalVelocity()
     {
+        if (knockbackTimer > 0f)
+            return;
+
         Vector3 horizontalVelocity = HorizontalVelocity();
         if (horizontalVelocity.magnitude > currentSpeed)
         {
@@ -452,7 +520,7 @@ public class PlayerMovement : NetworkBehaviour
 
     private void FrictionForce(float x, float y, Vector2 mag)
     {
-        if (!grounded || hasJumped)
+        if (!grounded || hasJumped || knockbackTimer > 0f)
             return;
 
         Vector3 horizontalVel = HorizontalVelocity();

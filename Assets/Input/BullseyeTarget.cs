@@ -33,6 +33,8 @@ public class BullseyeTarget : MonoBehaviour
         }
     }
 
+    public PlayerHealth OwnerHealth => playerHealth;
+
     public void SetVisibleToLocalViewer(bool visible)
     {
         if (cachedRenderer != null)
@@ -41,9 +43,6 @@ public class BullseyeTarget : MonoBehaviour
 
     private void ConfigureNonPhysicalTarget()
     {
-        if (TryGetComponent(out Rigidbody body))
-            Destroy(body);
-
         Collider collider = GetComponent<Collider>();
         if (collider != null)
             collider.isTrigger = true;

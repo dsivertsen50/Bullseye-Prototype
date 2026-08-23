@@ -51,6 +51,7 @@ public class BullseyeMover : NetworkBehaviour
     private bool hasLastYaw;
     private PlayerHealth playerHealth;
     private BullseyeTarget bullseyeTarget;
+    private BullseyeDetachController detachController;
 
     private struct Leg
     {
@@ -72,6 +73,7 @@ public class BullseyeMover : NetworkBehaviour
             bodyCapsule = GetComponentInChildren<CapsuleCollider>();
 
         playerHealth = GetComponent<PlayerHealth>();
+        detachController = GetComponent<BullseyeDetachController>();
         if (bullseye != null)
             bullseyeTarget = bullseye.GetComponent<BullseyeTarget>();
         if (bullseyeTarget == null)
@@ -233,6 +235,12 @@ public class BullseyeMover : NetworkBehaviour
 
         if (playerHealth != null && playerHealth.IsDead)
             return;
+
+        if (detachController != null && !detachController.IsSurfaceDriven)
+        {
+            ApplyOwnerVisibility();
+            return;
+        }
 
         if (IsOwner)
             SampleOwnerYaw();
@@ -547,7 +555,7 @@ public class BullseyeMover : NetworkBehaviour
         if (bullseyeTarget == null)
             return;
 
-        if (!IsOwner)
+        if (!IsOwner || (detachController != null && !detachController.IsAttached))
         {
             bullseyeTarget.SetVisibleToLocalViewer(true);
             return;
