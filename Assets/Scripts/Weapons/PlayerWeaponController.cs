@@ -21,8 +21,25 @@ public class PlayerWeaponController : NetworkBehaviour
     private int lastPresentedCatalogIndex = int.MinValue;
     private bool holsteredForSwitch;
 
-    public float HolsterDuration => Mathf.Max(0.05f, holsterDuration);
-    public float DrawDuration => Mathf.Max(0.05f, drawDuration);
+    public float HolsterDuration
+    {
+        get
+        {
+            if (firstPersonWeapon != null)
+                return Mathf.Max(0.05f, firstPersonWeapon.HolsterDuration);
+            return Mathf.Max(0.05f, holsterDuration);
+        }
+    }
+
+    public float DrawDuration
+    {
+        get
+        {
+            if (firstPersonWeapon != null)
+                return Mathf.Max(0.05f, firstPersonWeapon.UnholsterDuration);
+            return Mathf.Max(0.05f, drawDuration);
+        }
+    }
 
     private void Awake()
     {

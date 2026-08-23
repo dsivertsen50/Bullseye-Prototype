@@ -85,7 +85,7 @@ public class PlayerWeaponHud : NetworkBehaviour
 
         promptStyle = new GUIStyle(GUI.skin.label)
         {
-            fontSize = 28,
+            fontSize = 20,
             fontStyle = FontStyle.Bold,
             alignment = TextAnchor.MiddleCenter
         };

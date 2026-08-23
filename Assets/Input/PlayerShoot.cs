@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Unity.Netcode;
@@ -9,6 +10,7 @@ public class PlayerShoot : NetworkBehaviour
     [SerializeField] private float range = 100f;
 
     private readonly RaycastHit[] hits = new RaycastHit[32];
+    private readonly List<(BullseyeTarget target, float distance)> pelletHits = new(16);
     private PlayerHaptics playerHaptics;
     private PlayerHealth playerHealth;
     private PlayerMovement playerMovement;
@@ -17,6 +19,7 @@ public class PlayerShoot : NetworkBehaviour
     private PlayerWeaponInventory inventory;
     private PlayerWeaponController weaponController;
     private PlayerWeaponInteractor interactor;
+    private WeaponAccuracyController accuracy;
     private InputAction reloadAction;
     private float nextFireTime;
     private int pickupLayer = -1;
@@ -31,6 +34,7 @@ public class PlayerShoot : NetworkBehaviour
         inventory = GetComponent<PlayerWeaponInventory>();
         weaponController = GetComponent<PlayerWeaponController>();
         interactor = GetComponent<PlayerWeaponInteractor>();
+        accuracy = GetComponent<WeaponAccuracyController>();
         pickupLayer = LayerMask.NameToLayer("WeaponPickup");
     }
 
@@ -96,22 +100,115 @@ public class PlayerShoot : NetworkBehaviour
         else if (weaponPresentation != null)
             weaponPresentation.PlayFirePresentation();
 
-        if (playerCamera == null)
-            return;
+        WeaponDefinition definition = inventory != null ? inventory.ActiveDefinition : null;
+        WeaponDamageSettings damageSettings = definition != null
+            ? definition.DamageSettings
+            : WeaponDamageSettings.Fallback;
+        int projectileCount = damageSettings.ProjectileCount;
+        float shotRange = damageSettings != null ? damageSettings.MaximumRange : range;
+        float pelletSpread = ResolvePelletSpread(damageSettings);
 
-        if (!TryGetHitscanHit(out RaycastHit hit))
-            return;
+        pelletHits.Clear();
+        for (int i = 0; i < projectileCount; i++)
+        {
+            if (!TryGetHitscanHit(shotRange, pelletSpread, out RaycastHit hit))
+                continue;
 
-        if (!hit.collider.TryGetComponent(out BullseyeTarget target))
-            return;
+            if (!hit.collider.TryGetComponent(out BullseyeTarget target))
+                continue;
 
-        if (!target.TryRegisterHit(OwnerClientId))
-            return;
+            pelletHits.Add((target, hit.distance));
+        }
 
-        if (TryGetComponent(out Reticle reticle))
+        if (damageSettings.LogDamage)
+            LogShotDebug(definition, damageSettings, projectileCount);
+
+        bool scoredHit = RegisterGroupedHits();
+        if (scoredHit && TryGetComponent(out Reticle reticle))
             reticle.ShowHitMarker();
 
-        Debug.Log("BULLSEYE HIT!");
+        if (scoredHit)
+            Debug.Log("BULLSEYE HIT!");
+
+        if (accuracy != null)
+            accuracy.NotifyShotFired();
+    }
+
+    private bool RegisterGroupedHits()
+    {
+        bool scoredHit = false;
+
+        for (int i = 0; i < pelletHits.Count; i++)
+        {
+            BullseyeTarget target = pelletHits[i].target;
+            if (target == null)
+                continue;
+
+            int count = 0;
+            for (int j = 0; j < pelletHits.Count; j++)
+            {
+                if (pelletHits[j].target == target)
+                    count++;
+            }
+
+            var distances = new float[count];
+            int write = 0;
+            for (int j = 0; j < pelletHits.Count; j++)
+            {
+                if (pelletHits[j].target != target)
+                    continue;
+
+                distances[write++] = pelletHits[j].distance;
+                if (j != i)
+                    pelletHits[j] = default;
+            }
+
+            if (target.TryRegisterHits(OwnerClientId, distances))
+                scoredHit = true;
+
+            pelletHits[i] = default;
+        }
+
+        return scoredHit;
+    }
+
+    private float ResolvePelletSpread(WeaponDamageSettings damageSettings)
+    {
+        float reticleSpread = accuracy != null ? accuracy.CurrentSpread : WeaponAccuracySettings.MinimumVisualGap;
+        if (damageSettings == null || !damageSettings.IsPelletHitscan)
+            return reticleSpread;
+
+        if (damageSettings.PelletSpread <= 0f)
+            return reticleSpread;
+
+        return Mathf.Min(damageSettings.PelletSpread, reticleSpread);
+    }
+
+    private void LogShotDebug(WeaponDefinition definition, WeaponDamageSettings settings, int pelletsFired)
+    {
+        int pelletsHit = pelletHits.Count;
+        float totalDistance = 0f;
+        float damageBeforeFalloff = 0f;
+        float damageAfterFalloff = 0f;
+
+        for (int i = 0; i < pelletHits.Count; i++)
+        {
+            float distance = pelletHits[i].distance;
+            totalDistance += distance;
+            damageBeforeFalloff += settings.ProjectileDamage;
+            damageAfterFalloff += WeaponDamageCalculator.EvaluateProjectileDamage(settings, distance);
+        }
+
+        float averageDistance = pelletsHit > 0 ? totalDistance / pelletsHit : 0f;
+        float distanceMultiplier = WeaponDamageCalculator.EvaluateDistanceMultiplier(settings, averageDistance);
+        string weaponName = definition != null ? definition.DisplayName : "Weapon";
+
+        Debug.Log(
+            $"Weapon: {weaponName} Distance: {averageDistance:0.0}m " +
+            $"Pellets Fired: {pelletsFired} Pellets Hit: {pelletsHit} " +
+            $"Damage Before Falloff: {damageBeforeFalloff:0.00} " +
+            $"Distance Multiplier: {distanceMultiplier:0.00} " +
+            $"Weapon Damage: {damageAfterFalloff:0.00}");
     }
 
     private bool WantsToFire()
@@ -142,7 +239,7 @@ public class PlayerShoot : NetworkBehaviour
         return interactor != null && interactor.ShouldSuppressReload;
     }
 
-    private bool TryGetHitscanHit(out RaycastHit selectedHit)
+    private bool TryGetHitscanHit(float shotRange, float spreadAt1080, out RaycastHit selectedHit)
     {
         selectedHit = default;
 
@@ -150,11 +247,29 @@ public class PlayerShoot : NetworkBehaviour
         if (pickupLayer >= 0)
             mask &= ~(1 << pickupLayer);
 
+        Vector3 origin = playerCamera != null ? playerCamera.transform.position : transform.position;
+        Vector3 direction = playerCamera != null ? playerCamera.transform.forward : transform.forward;
+        if (accuracy != null && playerCamera != null)
+        {
+            Ray ray = accuracy.GetHitscanRay(playerCamera, spreadAt1080);
+            origin = ray.origin;
+            direction = ray.direction;
+        }
+
+        if (playerCamera != null && inventory != null)
+        {
+            WeaponDamageSettings settings = inventory.ActiveDefinition != null
+                ? inventory.ActiveDefinition.DamageSettings
+                : null;
+            if (settings != null && settings.LogDamage)
+                Debug.DrawRay(origin, direction * shotRange, Color.yellow, 0.2f);
+        }
+
         int hitCount = Physics.RaycastNonAlloc(
-            playerCamera.transform.position,
-            playerCamera.transform.forward,
+            origin,
+            direction,
             hits,
-            range,
+            shotRange,
             mask,
             QueryTriggerInteraction.Collide);
 

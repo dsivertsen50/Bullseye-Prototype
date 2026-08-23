@@ -22,9 +22,18 @@ public class WeaponPresentationController : NetworkBehaviour
     [SerializeField] private PlayerHealth playerHealth;
 
     private readonly List<GameObject> activeMuzzleEffects = new();
+    private readonly HashSet<string> missingAnimationWarnings = new();
     private bool ownerPresentationEnabled;
     private bool wasDead;
     private Coroutine kickRoutine;
+    private Coroutine reloadRoutine;
+    private bool isReloadPresenting;
+    private Vector3 reloadPositionOffset;
+    private Vector3 reloadEulerOffset;
+    private float sprintTime;
+    private bool isMoving;
+    private string currentPlayedState;
+    private float locomotionLockUntil;
     private Vector3 kickRestLocalPosition;
     private Quaternion kickRestLocalRotation;
     private Vector3 mountRestLocalPosition;
@@ -34,6 +43,10 @@ public class WeaponPresentationController : NetworkBehaviour
     private bool aiming;
     private float aimBlend;
     private float bobTime;
+    private float idleTime;
+    private float sprintWeight;
+    private float holsterWeight;
+    private float holsterTarget;
     private float previousYaw;
     private float previousPitch;
     private Vector3 swayPosition;
@@ -42,6 +55,7 @@ public class WeaponPresentationController : NetworkBehaviour
     private Quaternion effectsRestLocalRotation;
     private bool adsTargetCached;
     private bool wasMenuOpen;
+    private WeaponDefinition appliedDefinition;
 
     private PlayerAimZoom playerAimZoom;
     private PlayerMovement playerMovement;
@@ -56,6 +70,8 @@ public class WeaponPresentationController : NetworkBehaviour
     public float AimBlend => aimBlend;
     public float CurrentSwayMultiplier => Mathf.Lerp(1f, config != null ? config.AdsSwayMultiplier : 1f, aimBlend);
     public float CurrentBobMultiplier => Mathf.Lerp(1f, config != null ? config.AdsBobMultiplier : 1f, aimBlend);
+    public float HolsterDuration => config != null && config.HolsterDuration > 0.01f ? config.HolsterDuration : 0.16f;
+    public float UnholsterDuration => config != null && config.UnholsterDuration > 0.01f ? config.UnholsterDuration : 0.2f;
 
     private void Awake()
     {
@@ -129,7 +145,9 @@ public class WeaponPresentationController : NetworkBehaviour
         wasMenuOpen = false;
         SyncAimingFromGameplay();
         TickAds(Time.deltaTime);
+        TickSprintAndHolster(Time.deltaTime);
         TickWeaponMotion(Time.deltaTime);
+        TickAnimatorLocomotion();
     }
 
     public void ApplyDefinition(WeaponDefinition definition)
@@ -138,6 +156,11 @@ public class WeaponPresentationController : NetworkBehaviour
         if (IsSpawned && !IsOwner)
             return;
 
+        if (definition == appliedDefinition && HasFirstPersonModel())
+            return;
+
+        appliedDefinition = definition;
+        missingAnimationWarnings.Clear();
         RebuildFirstPersonModel(definition);
         ApplyConfiguredHipPose();
         adsTargetCached = false;
@@ -155,15 +178,24 @@ public class WeaponPresentationController : NetworkBehaviour
         SpawnMuzzleEffect();
         PlayProceduralFireKick();
         RaiseRecoilRequest();
+        float fireLock = 0.08f;
+        if (config != null)
+            fireLock = Mathf.Max(config.FireKickDuration, config.FireRecoverDuration * 0.45f);
+        locomotionLockUntil = Time.time + fireLock;
     }
 
     public void PlayReloadPresentation()
     {
-        if (!CanPresent())
+        if (!CanPresent() || isReloadPresenting)
             return;
 
-        PlayAnimationState(config != null ? config.ReloadAnimationState : "Reload", 1f);
+        float gameplayDuration = appliedDefinition != null ? appliedDefinition.ReloadTime : 1.2f;
+        float duration = config != null ? config.ResolveReloadDuration(gameplayDuration) : Mathf.Max(0.05f, gameplayDuration);
+        float animSpeed = config != null ? config.ResolveReloadAnimatorSpeed(duration) : 1f;
+        PlayAnimationState(config != null ? config.ReloadAnimationState : "Reload", animSpeed);
         PlayClip(config != null ? config.ReloadSfx : null, config != null ? config.FireSfxVolume : 1f);
+        locomotionLockUntil = Time.time + duration;
+        StartReloadPresentation(duration);
     }
 
     public void PlayHolsterPresentation()
@@ -171,6 +203,7 @@ public class WeaponPresentationController : NetworkBehaviour
         if (!CanPresent())
             return;
 
+        holsterTarget = 1f;
         PlayAnimationState(config != null ? config.HolsterAnimationState : "Holster", 1f);
         PlayClip(config != null ? config.HolsterSfx : null, config != null ? config.FireSfxVolume : 1f);
     }
@@ -180,6 +213,8 @@ public class WeaponPresentationController : NetworkBehaviour
         if (!CanPresent())
             return;
 
+        holsterWeight = 1f;
+        holsterTarget = 0f;
         PlayAnimationState(config != null ? config.UnholsterAnimationState : "Unholster", 1f);
         PlayClip(config != null ? config.UnholsterSfx : null, config != null ? config.FireSfxVolume : 1f);
     }
@@ -196,6 +231,7 @@ public class WeaponPresentationController : NetworkBehaviour
     public void ResetPresentation()
     {
         StopKick();
+        StopReloadPresentation();
         RestoreKickRestPose();
         RestoreMountRestPose();
         SnapAimToHip();
@@ -230,6 +266,7 @@ public class WeaponPresentationController : NetworkBehaviour
         aimPoint = FindChildByName(instance.transform, "AimPoint");
         muzzlePoint = FindChildByName(instance.transform, "MuzzlePoint");
         weaponAnimator = instance.GetComponentInChildren<Animator>(true);
+        ApplyConfiguredAnimator();
     }
 
     private static void ClearKickChildren(Transform kick)
@@ -304,8 +341,9 @@ public class WeaponPresentationController : NetworkBehaviour
     {
         Vector3 startPos = weaponKick.localPosition;
         Quaternion startRot = weaponKick.localRotation;
-        Vector3 kickPos = kickRestLocalPosition + config.FireKickLocalPosition;
-        Quaternion kickRot = kickRestLocalRotation * Quaternion.Euler(config.FireKickLocalEuler);
+        config.SampleFireKick(out Vector3 kickOffset, out Vector3 kickEuler);
+        Vector3 kickPos = kickRestLocalPosition + kickOffset;
+        Quaternion kickRot = kickRestLocalRotation * Quaternion.Euler(kickEuler);
 
         float kickDuration = Mathf.Max(0.01f, config.FireKickDuration);
         float recoverDuration = Mathf.Max(0.01f, config.FireRecoverDuration);
@@ -353,6 +391,47 @@ public class WeaponPresentationController : NetworkBehaviour
         aimRoot.localRotation = Quaternion.SlerpUnclamped(Quaternion.identity, adsTargetLocalRotation, t);
     }
 
+    private void TickSprintAndHolster(float deltaTime)
+    {
+        if (weaponMount == null)
+            return;
+
+        bool grounded = playerMovement == null || playerMovement.Grounded;
+        bool sprinting = playerMovement != null &&
+                         playerMovement.IsSprinting &&
+                         grounded &&
+                         !aiming &&
+                         !isReloadPresenting;
+        float sprintDuration = config != null && config.SprintTransitionDuration > 0.01f
+            ? config.SprintTransitionDuration
+            : 0.18f;
+        float sprintTarget = sprinting ? 1f : 0f;
+        sprintWeight = Mathf.MoveTowards(sprintWeight, sprintTarget, deltaTime / sprintDuration);
+
+        float holsterDuration = holsterTarget > holsterWeight ? HolsterDuration : UnholsterDuration;
+        holsterWeight = Mathf.MoveTowards(holsterWeight, holsterTarget, deltaTime / Mathf.Max(0.05f, holsterDuration));
+
+        float sprintT = sprintWeight * sprintWeight * (3f - 2f * sprintWeight) * (1f - aimBlend);
+        float holsterT = holsterWeight * holsterWeight * (3f - 2f * holsterWeight);
+
+        Vector3 sprintPos = config != null ? config.SprintLocalPosition : Vector3.zero;
+        Vector3 sprintEuler = config != null ? config.SprintLocalEuler : Vector3.zero;
+        Vector3 holsterPos = config != null ? config.HolsterLocalPosition : new Vector3(0.03f, -0.3f, -0.1f);
+        Vector3 holsterEuler = config != null ? config.HolsterLocalEuler : new Vector3(42f, 16f, -20f);
+        SampleSprintSway(sprintT, deltaTime, out Vector3 sprintSwayPos, out Vector3 sprintSwayEuler);
+
+        weaponMount.localPosition = mountRestLocalPosition
+            + sprintPos * sprintT
+            + sprintSwayPos
+            + holsterPos * holsterT
+            + reloadPositionOffset;
+        weaponMount.localRotation = mountRestLocalRotation
+            * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(sprintEuler), sprintT)
+            * Quaternion.Euler(sprintSwayEuler)
+            * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(holsterEuler), holsterT)
+            * Quaternion.Euler(reloadEulerOffset);
+    }
+
     private void TickWeaponMotion(float deltaTime)
     {
         if (weaponEffectsRoot == null || config == null)
@@ -380,20 +459,33 @@ public class WeaponPresentationController : NetworkBehaviour
         bool grounded = playerMovement == null || playerMovement.Grounded;
         float speed = playerMovement != null ? playerMovement.HorizontalSpeed : 0f;
         Vector2 moveInput = playerMovement != null ? playerMovement.MoveInput : Vector2.zero;
-        bool moving = grounded && speed > 0.35f && moveInput.sqrMagnitude > 0.01f;
-        if (moving)
+        isMoving = grounded && speed > 0.35f && moveInput.sqrMagnitude > 0.01f;
+        float idleWeight = (!isMoving ? 1f : 0f) * (grounded ? 1f : 0f) * (1f - sprintWeight) * (1f - holsterWeight);
+
+        if (isMoving)
         {
             float walkSpeed = playerMovement != null ? Mathf.Max(0.01f, playerMovement.WalkSpeed) : 1f;
-            bobTime += deltaTime * config.WalkBobFrequency * Mathf.Clamp(speed / walkSpeed, 0.4f, 1.6f);
-            float bob = config.WalkBobAmount * bobMul;
-            targetSwayPos.x += Mathf.Cos(bobTime) * bob * 0.55f;
-            targetSwayPos.y += Mathf.Abs(Mathf.Sin(bobTime)) * bob;
-            targetSwayEuler.z += -moveInput.x * bob * 40f;
+            float bobAmount = Mathf.Lerp(config.WalkBobAmount, config.SprintBobAmount, sprintWeight) * bobMul;
+            float bobFrequency = Mathf.Lerp(config.WalkBobFrequency, config.SprintBobFrequency, sprintWeight);
+            bobTime += deltaTime * bobFrequency * Mathf.Clamp(speed / walkSpeed, 0.4f, 1.6f);
+            targetSwayPos.x += Mathf.Cos(bobTime) * bobAmount * (0.55f + sprintWeight * 0.45f);
+            targetSwayPos.y += Mathf.Abs(Mathf.Sin(bobTime)) * bobAmount;
+            targetSwayPos.z += -Mathf.Abs(Mathf.Sin(bobTime)) * config.SprintForwardBob * sprintWeight;
+            targetSwayEuler.x += Mathf.Sin(bobTime) * bobAmount * 18f * sprintWeight;
+            targetSwayEuler.z += -moveInput.x * bobAmount * (40f + sprintWeight * 20f);
         }
         else
         {
             bobTime = Mathf.MoveTowards(bobTime, 0f, deltaTime * 4f);
         }
+
+        idleTime += deltaTime * Mathf.Max(0.1f, config.IdleSwayFrequency) * Mathf.PI * 2f;
+        float breathe = Mathf.Sin(idleTime);
+        float breatheCos = Mathf.Cos(idleTime * 0.5f);
+        float idleAmount = config.IdleSwayAmount * idleWeight * swayMul;
+        targetSwayPos.y += breathe * idleAmount;
+        targetSwayPos.x += breatheCos * idleAmount * 0.45f;
+        targetSwayEuler.x += breatheCos * idleAmount * 25f;
 
         float smooth = Mathf.Max(0.01f, config.LookSwaySmooth);
         float alpha = 1f - Mathf.Exp(-smooth * deltaTime);
@@ -458,7 +550,7 @@ public class WeaponPresentationController : NetworkBehaviour
         audioSource.PlayOneShot(clip, Mathf.Clamp01(volume));
     }
 
-    private void PlayAnimationState(string stateName, float speed)
+    private void PlayAnimationState(string stateName, float speed, bool restart = true)
     {
         if (weaponAnimator == null || string.IsNullOrEmpty(stateName))
             return;
@@ -466,8 +558,25 @@ public class WeaponPresentationController : NetworkBehaviour
         if (!weaponAnimator.gameObject.activeInHierarchy)
             return;
 
+        int stateHash = Animator.StringToHash(stateName);
+        if (!weaponAnimator.HasState(0, stateHash))
+        {
+            if (missingAnimationWarnings.Add(stateName))
+            {
+                string weaponName = config != null ? config.WeaponName : "weapon";
+                Debug.LogWarning(
+                    $"Missing optional animation state '{stateName}' on {weaponName}. Continuing with procedural presentation.");
+            }
+
+            return;
+        }
+
+        if (!restart && currentPlayedState == stateName)
+            return;
+
         weaponAnimator.speed = Mathf.Max(0.01f, speed);
-        weaponAnimator.Play(stateName, 0, 0f);
+        weaponAnimator.Play(stateHash, 0, 0f);
+        currentPlayedState = stateName;
     }
 
     private void RaiseRecoilRequest()
@@ -475,7 +584,8 @@ public class WeaponPresentationController : NetworkBehaviour
         if (config == null)
             return;
 
-        RecoilRequested?.Invoke(config.RecoilPitch, config.RecoilYaw);
+        config.SampleCameraRecoil(out float recoilPitch, out float recoilYaw);
+        RecoilRequested?.Invoke(recoilPitch, recoilYaw);
     }
 
     private void ClearTransientEffects()
@@ -496,6 +606,172 @@ public class WeaponPresentationController : NetworkBehaviour
 
         StopCoroutine(kickRoutine);
         kickRoutine = null;
+    }
+
+    private void StartReloadPresentation(float duration)
+    {
+        if (config == null || !config.UseProceduralReload)
+            return;
+
+        if (reloadRoutine != null)
+            StopCoroutine(reloadRoutine);
+
+        reloadRoutine = StartCoroutine(ReloadPresentationRoutine(duration));
+    }
+
+    private void StopReloadPresentation()
+    {
+        if (reloadRoutine != null)
+        {
+            StopCoroutine(reloadRoutine);
+            reloadRoutine = null;
+        }
+
+        isReloadPresenting = false;
+        reloadPositionOffset = Vector3.zero;
+        reloadEulerOffset = Vector3.zero;
+    }
+
+    private IEnumerator ReloadPresentationRoutine(float duration)
+    {
+        isReloadPresenting = true;
+        duration = Mathf.Max(0.05f, duration);
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            EvaluateReloadPose(Mathf.Clamp01(elapsed / duration));
+            yield return null;
+        }
+
+        reloadPositionOffset = Vector3.zero;
+        reloadEulerOffset = Vector3.zero;
+        isReloadPresenting = false;
+        reloadRoutine = null;
+    }
+
+    private void EvaluateReloadPose(float t)
+    {
+        if (config == null)
+        {
+            reloadPositionOffset = Vector3.zero;
+            reloadEulerOffset = Vector3.zero;
+            return;
+        }
+
+        Vector3 lowerPos = config.ReloadLowerLocalPosition;
+        Vector3 lowerEuler = config.ReloadLowerLocalEuler;
+        Vector3 actionPos = config.ReloadActionLocalPosition;
+        Vector3 actionEuler = config.ReloadActionLocalEuler;
+        const float introEnd = 0.22f;
+        const float outroStart = 0.78f;
+
+        if (t < introEnd)
+        {
+            float u = Smooth01(t / introEnd);
+            reloadPositionOffset = Vector3.Lerp(Vector3.zero, lowerPos, u);
+            reloadEulerOffset = Vector3.Lerp(Vector3.zero, lowerEuler, u);
+            return;
+        }
+
+        if (t < outroStart)
+        {
+            float mid = (t - introEnd) / (outroStart - introEnd);
+            float cycles = config.ReloadCycleCount;
+            float cycleT = Mathf.Repeat(mid * cycles, 1f);
+            float pulse = cycleT < 0.5f ? cycleT * 2f : (1f - cycleT) * 2f;
+            pulse = Smooth01(pulse);
+            reloadPositionOffset = Vector3.Lerp(lowerPos, actionPos, pulse);
+            reloadEulerOffset = Vector3.Lerp(lowerEuler, actionEuler, pulse);
+            return;
+        }
+
+        float outro = Smooth01((t - outroStart) / Mathf.Max(0.0001f, 1f - outroStart));
+        reloadPositionOffset = Vector3.Lerp(lowerPos, Vector3.zero, outro);
+        reloadEulerOffset = Vector3.Lerp(lowerEuler, Vector3.zero, outro);
+    }
+
+    private void SampleSprintSway(float sprintT, float deltaTime, out Vector3 position, out Vector3 euler)
+    {
+        if (config == null || sprintT <= 0.001f)
+        {
+            position = Vector3.zero;
+            euler = Vector3.zero;
+            return;
+        }
+
+        sprintTime += deltaTime * Mathf.Max(0.1f, config.SprintSwayFrequency);
+        float wave = Mathf.Sin(sprintTime * Mathf.PI * 2f);
+        float bounce = Mathf.Abs(Mathf.Cos(sprintTime * Mathf.PI * 2f));
+        position = new Vector3(
+            wave * config.SprintSwayAmount,
+            bounce * config.SprintSwayVerticalAmount,
+            0f) * sprintT;
+        euler = new Vector3(
+            bounce * config.SprintSwayPitch,
+            wave * config.SprintSwayYaw,
+            -wave * config.SprintSwayRoll) * sprintT;
+    }
+
+    private void TickAnimatorLocomotion()
+    {
+        if (weaponAnimator == null || config == null)
+            return;
+
+        if (isReloadPresenting || holsterTarget > 0.45f || Time.time < locomotionLockUntil)
+            return;
+
+        string desired;
+        if (aiming && aimBlend > 0.45f)
+            desired = FirstAssignedState(config.AimAnimationState, config.IdleAnimationState);
+        else if (sprintWeight > 0.55f)
+            desired = FirstAssignedState(config.SprintAnimationState, config.WalkAnimationState, config.IdleAnimationState);
+        else if (isMoving)
+            desired = FirstAssignedState(config.WalkAnimationState, config.IdleAnimationState);
+        else
+            desired = config.IdleAnimationState;
+
+        PlayAnimationState(desired, 1f, false);
+    }
+
+    private void ApplyConfiguredAnimator()
+    {
+        if (config == null)
+            return;
+
+        if (weaponAnimator == null)
+        {
+            if (missingAnimationWarnings.Add("__no_animator"))
+            {
+                Debug.LogWarning(
+                    $"No Animator on {config.WeaponName}. Continuing with procedural presentation.");
+            }
+
+            return;
+        }
+
+        if (config.AnimatorController != null &&
+            weaponAnimator.runtimeAnimatorController != config.AnimatorController)
+        {
+            weaponAnimator.runtimeAnimatorController = config.AnimatorController;
+        }
+    }
+
+    private static string FirstAssignedState(params string[] states)
+    {
+        for (int i = 0; i < states.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(states[i]))
+                return states[i];
+        }
+
+        return "Idle";
+    }
+
+    private static float Smooth01(float t)
+    {
+        t = Mathf.Clamp01(t);
+        return t * t * (3f - 2f * t);
     }
 
     private void RestoreKickRestPose()
@@ -539,8 +815,23 @@ public class WeaponPresentationController : NetworkBehaviour
     private void ClearMotionState()
     {
         bobTime = 0f;
+        idleTime = 0f;
+        sprintTime = 0f;
+        sprintWeight = 0f;
+        holsterWeight = 0f;
+        holsterTarget = 0f;
+        isMoving = false;
+        currentPlayedState = null;
+        locomotionLockUntil = 0f;
         swayPosition = Vector3.zero;
         swayEuler = Vector3.zero;
+        reloadPositionOffset = Vector3.zero;
+        reloadEulerOffset = Vector3.zero;
+    }
+
+    private bool HasFirstPersonModel()
+    {
+        return weaponKick != null && weaponKick.childCount > 0;
     }
 
     private void CacheRestPoses()

@@ -30,7 +30,12 @@ public class WeaponDefinition : ScriptableObject
     [SerializeField] private float fireRate = 0.15f;
     [SerializeField] private bool automatic;
     [SerializeField] private float reloadTime = 1.4f;
-    [SerializeField] private int damage = 1;
+
+    [Header("Damage")]
+    [SerializeField] private WeaponDamageSettings damageSettings = new();
+
+    [Header("Accuracy / Reticle")]
+    [SerializeField] private WeaponAccuracySettings accuracy = new();
 
     [Header("World Attachment")]
     [SerializeField] private Vector3 worldLocalPosition = new(0.34f, 0f, 0.38f);
@@ -70,7 +75,8 @@ public class WeaponDefinition : ScriptableObject
     public float FireRate => Mathf.Max(0.01f, fireRate);
     public bool Automatic => automatic;
     public float ReloadTime => Mathf.Max(0.05f, reloadTime);
-    public int Damage => Mathf.Max(0, damage);
+    public WeaponDamageSettings DamageSettings => damageSettings ??= new WeaponDamageSettings();
+    public WeaponAccuracySettings Accuracy => accuracy ??= new WeaponAccuracySettings();
     public Vector3 WorldLocalPosition => worldLocalPosition;
     public Vector3 WorldLocalEuler => worldLocalEuler;
     public Vector3 WorldLocalScale => worldLocalScale;
@@ -89,6 +95,9 @@ public class WeaponDefinition : ScriptableObject
         startingReserveAmmo = Mathf.Clamp(startingReserveAmmo, 0, maximumReserveAmmo);
         fireRate = Mathf.Max(0.01f, fireRate);
         reloadTime = Mathf.Max(0.05f, reloadTime);
-        damage = Mathf.Max(0, damage);
+        damageSettings ??= new WeaponDamageSettings();
+        damageSettings.Validate();
+        accuracy ??= new WeaponAccuracySettings();
+        accuracy.Validate();
     }
 }

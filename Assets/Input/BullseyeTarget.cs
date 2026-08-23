@@ -57,6 +57,14 @@ public class BullseyeTarget : MonoBehaviour
 
     public bool TryRegisterHit(ulong shooterClientId)
     {
+        return TryRegisterHits(shooterClientId, new[] { 0f });
+    }
+
+    public bool TryRegisterHits(ulong shooterClientId, float[] distances)
+    {
+        if (distances == null || distances.Length == 0)
+            return false;
+
         if (IsOwnedBy(shooterClientId))
             return false;
 
@@ -66,7 +74,7 @@ public class BullseyeTarget : MonoBehaviour
         if (playerHealth.IsDead || playerHealth.CurrentHealth <= 0)
             return false;
 
-        playerHealth.RegisterBullseyeHit();
+        playerHealth.RegisterBullseyeHits(distances);
         return true;
     }
 

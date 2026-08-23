@@ -21,21 +21,28 @@ MonoBehaviour:
   muzzleVfxPrefab: {fileID: 1336949550903370, guid: 1516ae0797a26504d9176ebb54d1e466, type: 3}
   muzzleVfxLocalScale: {x: 0.35, y: 0.35, z: 0.35}
   muzzleVfxLifetime: 0.6
+  animatorController: {fileID: 22100000, guid: 029b84055ddb3bc41be8a64e773b8c62, type: 2}
   idleAnimationState: Idle
+  walkAnimationState: Walk
+  sprintAnimationState: Sprint
   fireAnimationState: Fire
+  emptyFireAnimationState: EmptyFire
   reloadAnimationState: Reload
   holsterAnimationState: Holster
   unholsterAnimationState: Unholster
   aimAnimationState: Aim
   fireAnimationSpeed: 1
+  reloadAnimationClipLength: 0
   useProceduralFireKick: 1
-  fireKickLocalPosition: {x: 0, y: 0.006, z: -0.02}
-  fireKickLocalEuler: {x: -8, y: 1.8, z: 1.2}
-  fireKickDuration: 0.055
-  fireRecoverDuration: 0.12
+  fireKickLocalPosition: {x: 0, y: 0.003, z: -0.02}
+  fireKickLocalEuler: {x: -1.5, y: 0, z: 0}
+  fireKickPositionVariance: {x: 0.006, y: 0.003, z: 0.005}
+  fireKickEulerVariance: {x: 1.2, y: 2.4, z: 2}
+  fireKickDuration: 0.05
+  fireRecoverDuration: 0.08
   useConfiguredHipPose: 1
   hipLocalPosition: {x: 0.15, y: -0.15, z: 0.55}
-  hipLocalEuler: {x: 0, y: 1, z: 0}
+  hipLocalEuler: {x: 1, y: 4, z: 1}
   useAimPoint: 1
   aimDistance: 0.28
   adsLocalPosition: {x: 0.005, y: -0.005, z: 0}
@@ -43,14 +50,41 @@ MonoBehaviour:
   adsBlendDuration: 0.12
   aimInSpeed: 8.5
   aimOutSpeed: 7
-  adsSwayMultiplier: 0.196
-  adsBobMultiplier: 0.201
-  recoilPitch: 0
-  recoilYaw: 0
+  adsSwayMultiplier: 0.07
+  adsBobMultiplier: 0.08
+  recoilPitch: 0.65
+  recoilYaw: 0.2
+  recoilPitchVariance: 0.12
+  recoilYawVariance: 0.28
+  idleSwayAmount: 0.0032
+  idleSwayFrequency: 1.45
   lookSwayAmount: 0.03
-  lookSwaySmooth: 10
-  walkBobAmount: 0.006
-  walkBobFrequency: 8
+  lookSwaySmooth: 12
+  walkBobAmount: 0.0065
+  walkBobFrequency: 8.4
+  useProceduralReload: 1
+  reloadPresentationDuration: 0
+  reloadLowerLocalPosition: {x: 0.03, y: -0.06, z: -0.015}
+  reloadLowerLocalEuler: {x: -14, y: 14, z: 10}
+  reloadActionLocalPosition: {x: 0.04, y: -0.1, z: -0.01}
+  reloadActionLocalEuler: {x: -6, y: 20, z: 16}
+  reloadCycleCount: 1
+  sprintLocalPosition: {x: 0.06, y: -0.1, z: -0.02}
+  sprintLocalEuler: {x: -16, y: 24, z: -14}
+  sprintTransitionDuration: 0.14
+  sprintBobAmount: 0.012
+  sprintBobFrequency: 6.4
+  sprintSwayAmount: 0.016
+  sprintSwayFrequency: 2.4
+  sprintSwayVerticalAmount: 0.006
+  sprintSwayYaw: 6
+  sprintSwayRoll: 5
+  sprintSwayPitch: 1.5
+  sprintForwardBob: 0.003
+  holsterLocalPosition: {x: 0.04, y: -0.28, z: -0.08}
+  holsterLocalEuler: {x: 40, y: 20, z: -25}
+  holsterDuration: 0.14
+  unholsterDuration: 0.16
   worldFireKickLocalPosition: {x: 0, y: 0.02, z: -0.05}
   worldFireKickLocalEuler: {x: -14, y: 3.5, z: 2.5}
   worldFireKickDuration: 0.06
