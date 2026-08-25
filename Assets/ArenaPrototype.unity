@@ -1672,6 +1672,7 @@ GameObject:
   - component: {fileID: 2090510776}
   - component: {fileID: 2090510779}
   - component: {fileID: 2090510780}
+  - component: {fileID: 2090510781}
   m_Layer: 0
   m_Name: NetworkManager
   m_TagString: Untagged
@@ -1791,6 +1792,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b365f166da2fd3f49a4ef129c220f0fd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::NetworkButtons
+--- !u!114 &2090510781
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2090510775}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3021463c7b629cf4a9af1e346f0c6994, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameplaySessionBootstrap
 --- !u!1001 &561242657656795215
 PrefabInstance:
   m_ObjectHideFlags: 0

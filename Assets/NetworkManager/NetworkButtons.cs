@@ -7,6 +7,9 @@ public class NetworkButtons : MonoBehaviour
     {
         NetworkManager networkManager = NetworkManager.Singleton;
 
+        if (GameSessionCoordinator.HasMenuDrivenSession)
+            return;
+
         if (networkManager == null ||
             networkManager.IsClient ||
             networkManager.IsServer)
