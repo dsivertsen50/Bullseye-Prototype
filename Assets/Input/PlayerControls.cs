@@ -903,6 +903,17 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                 },
                 {
                     ""name"": """",
+                    ""id"": ""24e0f314-1526-43a5-e2f3-142536475869"",
+                    ""path"": ""<Keyboard>/escape"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Cancel"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
                     ""id"": ""24d0e1f2-0314-4293-d0e1-f20314253647"",
                     ""path"": ""<Mouse>/position"",
                     ""interactions"": """",

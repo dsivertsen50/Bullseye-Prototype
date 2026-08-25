@@ -180,8 +180,11 @@ public class PlayerHealth : NetworkBehaviour
         if (totalDamage <= 0)
             return;
 
-        SetHealth(currentHealth.Value - totalDamage);
-        InterruptRegeneration();
+        ApplyDamage(DamageContext.FromFirearm(
+            attackerId,
+            OwnerClientId,
+            totalDamage,
+            weapon != null ? weapon.WeaponId : "unknown"));
 
         float averageDistance = appliedHits > 0 ? totalDistance / appliedHits : 0f;
         LogResolvedDamage(
@@ -192,12 +195,31 @@ public class PlayerHealth : NetworkBehaviour
             averageDistance,
             totalBeforeFalloff,
             totalDamage);
+    }
 
+    /// <summary>
+    /// Server-only damage entry point. Weapons report attacker information
+    /// here; this component applies health change and death.
+    /// </summary>
+    public void ApplyDamage(DamageContext context)
+    {
+        if (!IsServer || !IsSpawned)
+            return;
+
+        if (isDead.Value || currentHealth.Value <= 0)
+            return;
+
+        int amount = Mathf.Max(0, context.Amount);
+        if (amount <= 0)
+            return;
+
+        SetHealth(currentHealth.Value - amount);
+        InterruptRegeneration();
         PlayDamageRumbleOwnerRpc();
         FlashBullseyeRpc();
 
         if (currentHealth.Value <= 0)
-            HandleDeath();
+            HandleDeath(context);
     }
 
     [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
@@ -220,10 +242,12 @@ public class PlayerHealth : NetworkBehaviour
         PerformRespawn();
     }
 
-    private void HandleDeath()
+    private void HandleDeath(DamageContext context)
     {
         if (isDead.Value)
             return;
+
+        RecordKillAndDeath(context);
 
         isDead.Value = true;
         ClearRegeneration();
@@ -237,6 +261,25 @@ public class PlayerHealth : NetworkBehaviour
 
         StopRespawnRoutine();
         respawnRoutine = StartCoroutine(RespawnAfterDelay());
+    }
+
+    private void RecordKillAndDeath(DamageContext context)
+    {
+        if (TryGetComponent(out PlayerStats victimStats))
+            victimStats.AddDeath();
+
+        if (!context.HasAttacker || context.AttackerClientId == OwnerClientId)
+            return;
+
+        PlayerStats attackerStats = PlayerStats.FindOwnedByClient(context.AttackerClientId);
+        if (attackerStats == null || attackerStats == victimStats)
+            return;
+
+        attackerStats.AddKill();
+
+        bool bullseyeWasKnockedOff = detachController != null && !detachController.IsAttached;
+        if (bullseyeWasKnockedOff)
+            attackerStats.AddDetachedBullseyeKill();
     }
 
     private IEnumerator RespawnAfterDelay()

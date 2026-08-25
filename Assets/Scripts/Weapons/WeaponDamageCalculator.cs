@@ -8,6 +8,7 @@ public struct DamageInfo
     public ulong AttackerClientId;
     public ulong VictimClientId;
     public string WeaponId;
+    public DamageSourceType SourceType;
     public float BaseDamage;
     public float Distance;
     public float DistanceMultiplier;
@@ -80,6 +81,7 @@ public static class WeaponDamageCalculator
             AttackerClientId = attackerClientId,
             VictimClientId = victimClientId,
             WeaponId = weapon != null ? weapon.WeaponId : "unknown",
+            SourceType = DamageSourceType.Firearm,
             BaseDamage = settings.ProjectileDamage,
             Distance = Mathf.Max(0f, distance),
             DistanceMultiplier = distanceMultiplier,

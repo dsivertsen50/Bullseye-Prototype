@@ -350,6 +350,10 @@ GameObject:
   - component: {fileID: 7666637814387857637}
   - component: {fileID: 1832886791553653036}
   - component: {fileID: 5660117659077990904}
+  - component: {fileID: 6526418408636503331}
+  - component: {fileID: 5272149846074038911}
+  - component: {fileID: 4947036782077842104}
+  - component: {fileID: 719618055631054838}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1160,6 +1164,80 @@ MonoBehaviour:
   collisionSfxCooldown: 0.14
   feedbackVolume: 0.8
   ownerMessageDuration: 2.4
+--- !u!114 &6526418408636503331
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1bdaa8057f6e5ed48a5bc4dc1f4cda5b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerStats
+  ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &5272149846074038911
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 115458fbeae83254eb42ef8bf36ee8d9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerStatsHud
+  playerStats: {fileID: 6526418408636503331}
+--- !u!114 &4947036782077842104
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b245d92f167d6144874526ab0b41f2e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BullseyeBodyPositionMapper
+  bodyRoot: {fileID: 8460578298504684699}
+  bodyCapsule: {fileID: 7594966012916543655}
+  bullseye: {fileID: 4742303186014154082}
+  bodyHeight: 2
+  bodyRadius: 0.5
+  frontBackHysteresis: 0.16
+--- !u!114 &719618055631054838
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a6f821babf925845a4bb3fa130f844b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BullseyeBodyHud
+  positionMapper: {fileID: 4947036782077842104}
+  detachController: {fileID: 5660117659077990904}
+  playerHealth: {fileID: 3086871669323907386}
+  frontBodySprite: {fileID: 21300000, guid: 46f59a6695a4da544b76857a62e39a8b, type: 3}
+  backBodySprite: {fileID: 21300000, guid: d69d8c407ca9cca43845f1b80bbd9a85, type: 3}
+  markerSprite: {fileID: 21300000, guid: 2825aa0a0086e2b49927977111bfac5a, type: 3}
+  bodyMapNormalized:
+    serializedVersion: 2
+    x: 0.24
+    y: 0.07
+    width: 0.52
+    height: 0.86
+  panelSize: {x: 320, y: 236}
+  margin: {x: 20, y: 20}
+  markerSize: 28
+  showVulnerableLabel: 1
+  flashColor: {r: 0.92, g: 0.12, b: 0.14, a: 0.88}
+  flashSpeed: 3.4
 --- !u!1 &3625492656395199349
 GameObject:
   m_ObjectHideFlags: 0
