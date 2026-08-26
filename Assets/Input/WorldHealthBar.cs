@@ -45,7 +45,7 @@ public class WorldHealthBar : MonoBehaviour
             return;
         }
 
-        if (playerHealth.IsOwner || playerHealth.IsDead)
+        if (playerHealth.IsOwner || playerHealth.AreDeathVisualsHidden)
         {
             SetVisible(false);
             displayedFill = playerHealth.IsDead ? 0f : 1f;

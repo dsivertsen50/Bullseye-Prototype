@@ -23,8 +23,8 @@ public class BullseyeDetachController : NetworkBehaviour
     [SerializeField] private float bullseyeMass = 4.5f;
     [SerializeField] private float bullseyeDrag = 1.1f;
     [SerializeField] private float bullseyeAngularDrag = 1.4f;
-    [SerializeField] private float physicsRadius = 0.22f;
     [SerializeField] private PhysicsMaterial bullseyePhysicsMaterial;
+    [SerializeField] private MeshCollider discCollider;
 
     [Header("Feedback")]
     [SerializeField] private AudioClip bullseyeDetachSfx;
@@ -61,7 +61,7 @@ public class BullseyeDetachController : NetworkBehaviour
     private Transform attachedParent;
     private Vector3 attachedScale;
     private Rigidbody physicsBody;
-    private SphereCollider physicsCollider;
+    private MeshCollider physicsCollider;
     private PhysicsCollisionRelay collisionRelay;
     private Coroutine returnRoutine;
     private float nextCollisionSfxTime;
@@ -96,6 +96,8 @@ public class BullseyeDetachController : NetworkBehaviour
         {
             attachedParent = bullseye.parent;
             attachedScale = bullseye.localScale;
+            if (discCollider == null)
+                discCollider = bullseye.GetComponent<MeshCollider>();
         }
     }
 
@@ -179,7 +181,11 @@ public class BullseyeDetachController : NetworkBehaviour
 
         StopReturnRoutine();
         returnAtServerTime.Value = 0d;
-        SetState(BullseyeAttachState.Attached);
+
+        if (bullseye != null && !IsAttached)
+            WriteDetachedPose(bullseye.position, bullseye.rotation);
+
+        ConfigurePhysics(active: false, colliding: false);
     }
 
     public void HandleOwnerRespawned()
@@ -503,21 +509,38 @@ public class BullseyeDetachController : NetworkBehaviour
         physicsBody.constraints = RigidbodyConstraints.None;
         physicsBody.freezeRotation = false;
 
+        RemoveLegacyBallCollider();
+        physicsCollider = discCollider != null ? discCollider : bullseye.GetComponent<MeshCollider>();
         if (physicsCollider == null)
+            physicsCollider = bullseye.gameObject.AddComponent<MeshCollider>();
+
+        discCollider = physicsCollider;
+        if (physicsCollider.sharedMesh == null)
         {
-            Transform existing = bullseye.Find("DetachCollider");
-            GameObject proxy = existing != null ? existing.gameObject : new GameObject("DetachCollider");
-            proxy.transform.SetParent(bullseye, false);
-            physicsCollider = proxy.GetComponent<SphereCollider>();
-            if (physicsCollider == null)
-                physicsCollider = proxy.AddComponent<SphereCollider>();
+            MeshFilter filter = bullseye.GetComponent<MeshFilter>();
+            if (filter != null)
+                physicsCollider.sharedMesh = filter.sharedMesh;
         }
 
-        RefreshPhysicsColliderScale();
+        physicsCollider.convex = true;
         physicsCollider.material = bullseyePhysicsMaterial;
-        physicsCollider.isTrigger = false;
         BindCollisionRelay();
         IgnoreOwnerCollisions();
+    }
+
+    private void RemoveLegacyBallCollider()
+    {
+        if (bullseye == null)
+            return;
+
+        Transform existing = bullseye.Find("DetachCollider");
+        if (existing == null)
+            return;
+
+        if (Application.isPlaying)
+            Destroy(existing.gameObject);
+        else
+            DestroyImmediate(existing.gameObject);
     }
 
     private void BindCollisionRelay()
@@ -578,22 +601,6 @@ public class BullseyeDetachController : NetworkBehaviour
         return volume > 0.01f;
     }
 
-    private void RefreshPhysicsColliderScale()
-    {
-        if (physicsCollider == null)
-            return;
-
-        Vector3 parentScale = bullseye.lossyScale;
-        float radius = Mathf.Max(0.05f, physicsRadius);
-        physicsCollider.radius = 0.5f;
-        physicsCollider.transform.localPosition = Vector3.zero;
-        physicsCollider.transform.localRotation = Quaternion.identity;
-        physicsCollider.transform.localScale = new Vector3(
-            radius / Mathf.Max(0.0001f, parentScale.x) / 0.5f,
-            radius / Mathf.Max(0.0001f, parentScale.y) / 0.5f,
-            radius / Mathf.Max(0.0001f, parentScale.z) / 0.5f);
-    }
-
     private void ConfigurePhysics(bool active, bool colliding)
     {
         if (physicsBody == null && !active)
@@ -613,10 +620,14 @@ public class BullseyeDetachController : NetworkBehaviour
 
         physicsBody.isKinematic = !simulate;
         physicsBody.useGravity = simulate;
-        physicsBody.detectCollisions = simulate;
+        physicsBody.detectCollisions = true;
 
         if (physicsCollider != null)
-            physicsCollider.enabled = colliding && active;
+        {
+            physicsCollider.enabled = true;
+            physicsCollider.convex = true;
+            physicsCollider.isTrigger = !simulate;
+        }
 
         IgnoreOwnerCollisions();
     }
@@ -739,7 +750,6 @@ public class BullseyeDetachController : NetworkBehaviour
         bullseyeMass = Mathf.Max(0.1f, bullseyeMass);
         bullseyeDrag = Mathf.Max(0f, bullseyeDrag);
         bullseyeAngularDrag = Mathf.Max(0f, bullseyeAngularDrag);
-        physicsRadius = Mathf.Max(0.05f, physicsRadius);
         collisionSfxVolume = Mathf.Clamp01(collisionSfxVolume);
         minCollisionSpeed = Mathf.Max(0.05f, minCollisionSpeed);
         maxCollisionSpeed = Mathf.Max(minCollisionSpeed, maxCollisionSpeed);

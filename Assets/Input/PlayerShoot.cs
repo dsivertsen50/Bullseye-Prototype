@@ -243,9 +243,13 @@ public class PlayerShoot : NetworkBehaviour
     {
         selectedHit = default;
 
-        int mask = ~0;
+        int mask = Physics.DefaultRaycastLayers;
         if (pickupLayer >= 0)
             mask &= ~(1 << pickupLayer);
+
+        int debrisLayer = LayerMask.NameToLayer("BullseyeDebris");
+        if (debrisLayer >= 0)
+            mask &= ~(1 << debrisLayer);
 
         Vector3 origin = playerCamera != null ? playerCamera.transform.position : transform.position;
         Vector3 direction = playerCamera != null ? playerCamera.transform.forward : transform.forward;

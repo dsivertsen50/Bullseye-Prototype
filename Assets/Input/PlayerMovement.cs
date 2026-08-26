@@ -105,6 +105,7 @@ public class PlayerMovement : NetworkBehaviour
     private float standingHeight;
     private Vector3 standingCenter;
     private Vector3 standingBodyPosition;
+    private Quaternion standingBodyRotation = Quaternion.identity;
     private Vector3 standingBodyScale;
     private float standingCameraLocalY;
     private float stanceBlend;
@@ -178,13 +179,17 @@ public class PlayerMovement : NetworkBehaviour
 
         if (bodyVisual == null)
         {
-            CapsuleCollider[] capsules = GetComponentsInChildren<CapsuleCollider>();
-            for (int i = 0; i < capsules.Length; i++)
+            bodyVisual = transform.Find("VisualRoot");
+            if (bodyVisual == null)
             {
-                if (capsules[i] != playerCapsule)
+                CapsuleCollider[] capsules = GetComponentsInChildren<CapsuleCollider>();
+                for (int i = 0; i < capsules.Length; i++)
                 {
-                    bodyVisual = capsules[i].transform;
-                    break;
+                    if (capsules[i] != playerCapsule)
+                    {
+                        bodyVisual = capsules[i].transform;
+                        break;
+                    }
                 }
             }
         }
@@ -341,6 +346,11 @@ public class PlayerMovement : NetworkBehaviour
             knockbackTimer = 0f;
     }
 
+    public void FreezeForDeath()
+    {
+        FreezeDeadBody();
+    }
+
     public void ResetAfterRespawn()
     {
         sprintToggledOn = false;
@@ -362,6 +372,7 @@ public class PlayerMovement : NetworkBehaviour
 
         stanceBlend = 0f;
         ApplyStanceBlend(0f);
+        RestoreBodyVisualPose();
 
         if (rb != null)
         {
@@ -974,16 +985,8 @@ public class PlayerMovement : NetworkBehaviour
             playerCapsule.center = center;
         }
 
-        if (bodyVisual != null)
-        {
-            float ratio = standingHeight > 0.0001f ? height / standingHeight : 1f;
-            Vector3 scale = standingBodyScale;
-            scale.y = standingBodyScale.y * ratio;
-            bodyVisual.localScale = scale;
-            bodyVisual.localPosition = standingBodyPosition +
-                Vector3.up * (standingBodyScale.y * (ratio - 1f));
-        }
-
+        // REQ-033: keep the unrigged character in its static pose. Crouch
+        // still shortens the gameplay collider and lowers the camera.
         if (playerCamera != null)
         {
             Vector3 cameraPosition = playerCamera.localPosition;
@@ -1077,11 +1080,22 @@ public class PlayerMovement : NetworkBehaviour
         if (bodyVisual != null)
         {
             standingBodyPosition = bodyVisual.localPosition;
+            standingBodyRotation = bodyVisual.localRotation;
             standingBodyScale = bodyVisual.localScale;
         }
 
         if (playerCamera != null)
             standingCameraLocalY = playerCamera.localPosition.y;
+    }
+
+    private void RestoreBodyVisualPose()
+    {
+        if (bodyVisual == null)
+            return;
+
+        bodyVisual.localPosition = standingBodyPosition;
+        bodyVisual.localRotation = standingBodyRotation;
+        bodyVisual.localScale = standingBodyScale;
     }
 }
 

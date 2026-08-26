@@ -14,8 +14,8 @@ TagManager:
   - FirstPersonWeapon
   - WorldWeapon
   - WeaponPickup 
-  - 
-  - 
+  - BullseyeDebris
+  - LocalPlayerBody
   - 
   - 
   - 
