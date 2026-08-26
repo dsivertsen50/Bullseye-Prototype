@@ -44,8 +44,15 @@ public class BullseyeTarget : MonoBehaviour
     private void ConfigureNonPhysicalTarget()
     {
         Collider collider = GetComponent<Collider>();
-        if (collider != null)
-            collider.isTrigger = true;
+        if (collider == null)
+            return;
+
+        // Convex is required for a MeshCollider trigger, and it keeps the
+        // hit volume scaled with the flattened disc mesh.
+        if (collider is MeshCollider meshCollider)
+            meshCollider.convex = true;
+
+        collider.isTrigger = true;
     }
 
     public bool IsOwnedBy(ulong clientId)
@@ -131,8 +138,6 @@ public class BullseyeTarget : MonoBehaviour
 
     private void OnValidate()
     {
-        Collider collider = GetComponent<Collider>();
-        if (collider != null)
-            collider.isTrigger = true;
+        ConfigureNonPhysicalTarget();
     }
 }

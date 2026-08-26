@@ -97,6 +97,8 @@ public class PlayerGrenadeThrower : NetworkBehaviour
 
         ResolveThrowPose(out Vector3 origin, out Vector3 velocity);
         PlayThrowFeedback();
+        if (TryGetComponent(out PlayerAnimationState animationState))
+            animationState.NotifyThrowStarted();
         ThrowServerRpc(origin, velocity);
     }
 

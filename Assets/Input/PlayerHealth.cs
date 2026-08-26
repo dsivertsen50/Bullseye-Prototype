@@ -54,6 +54,7 @@ public class PlayerHealth : NetworkBehaviour
     private PlayerHaptics playerHaptics;
     private BullseyeDetachController detachController;
     private PlayerGrenadeThrower grenadeThrower;
+    private BullseyeShatterController shatterController;
     private Collider bullseyeCollider;
     private Coroutine respawnRoutine;
     private float regenerationDelayRemaining;
@@ -62,6 +63,8 @@ public class PlayerHealth : NetworkBehaviour
     public int CurrentHealth => currentHealth.Value;
     public int MaxHealth => GetMaxHealth();
     public bool IsDead => isDead.Value;
+    public bool AreDeathVisualsHidden =>
+        IsDead && (shatterController == null || shatterController.AreCorpseVisualsHidden);
     public float RespawnDelay => Mathf.Max(0f, respawnDelay);
     public event System.Action<int, int> HealthChanged;
 
@@ -70,6 +73,7 @@ public class PlayerHealth : NetworkBehaviour
         playerHaptics = GetComponent<PlayerHaptics>();
         detachController = GetComponent<BullseyeDetachController>();
         grenadeThrower = GetComponent<PlayerGrenadeThrower>();
+        shatterController = GetComponent<BullseyeShatterController>();
 
         if (bodyCapsule == null)
             bodyCapsule = GetComponentInChildren<CapsuleCollider>();
@@ -101,6 +105,8 @@ public class PlayerHealth : NetworkBehaviour
         currentHealth.OnValueChanged -= OnCurrentHealthChanged;
         isDead.OnValueChanged -= OnDeadChanged;
         StopRespawnRoutine();
+        if (shatterController != null)
+            shatterController.CleanupForDespawn();
     }
 
     private void Update()
@@ -335,6 +341,18 @@ public class PlayerHealth : NetworkBehaviour
         return number > 0 ? number : 0;
     }
 
+    public float GetElapsedDeathTime()
+    {
+        if (!isDead.Value)
+            return 0f;
+
+        if (NetworkManager == null || respawnAtServerTime.Value <= 0d)
+            return 0f;
+
+        double remaining = respawnAtServerTime.Value - NetworkManager.ServerTime.Time;
+        return Mathf.Max(0f, RespawnDelay - (float)remaining);
+    }
+
     private void OnCurrentHealthChanged(int previous, int next)
     {
         HealthChanged?.Invoke(previous, next);
@@ -349,6 +367,9 @@ public class PlayerHealth : NetworkBehaviour
     {
         if (bullseyeCollider != null)
             bullseyeCollider.enabled = !dead;
+
+        if (shatterController != null)
+            shatterController.HandleDeadChanged(dead);
     }
 
     private void PerformRespawn()
@@ -382,6 +403,9 @@ public class PlayerHealth : NetworkBehaviour
 
         if (TryGetComponent(out PlayerLook look))
             look.ResetAfterRespawn();
+
+        if (TryGetComponent(out PlayerThirdPersonAnimator thirdPersonAnimator))
+            thirdPersonAnimator.ResetAfterRespawn();
 
         if (TryGetComponent(out BullseyeMover mover))
             mover.ResetTurnTracking();

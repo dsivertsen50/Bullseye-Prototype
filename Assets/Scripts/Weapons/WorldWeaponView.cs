@@ -186,7 +186,6 @@ public class WorldWeaponView : NetworkBehaviour
     private void HandleDeathPresentation()
     {
         ResetPresentation();
-        SetWorldWeaponActive(false);
     }
 
     private void HandleRespawnPresentation()
@@ -199,8 +198,8 @@ public class WorldWeaponView : NetworkBehaviour
 
     private void RefreshRemoteVisibility()
     {
-        bool visible = playerHealth == null || !playerHealth.IsDead;
-        SetWorldWeaponActive(visible);
+        bool hidden = playerHealth != null && playerHealth.AreDeathVisualsHidden;
+        SetWorldWeaponActive(!hidden);
     }
 
     private void SetWorldWeaponActive(bool active)
