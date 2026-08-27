@@ -64,6 +64,9 @@ public class PlayerShoot : NetworkBehaviour
         if (playerHealth != null && playerHealth.IsDead)
             return;
 
+        if (playerMovement != null && playerMovement.BlocksCombat)
+            return;
+
         if (LocalPlayerMenuState.IsOpen(this))
             return;
 
@@ -225,6 +228,9 @@ public class PlayerShoot : NetworkBehaviour
 
     private bool CanFire()
     {
+        if (playerMovement != null && playerMovement.BlocksCombat)
+            return false;
+
         if (weaponController != null && weaponController.BlocksFiring)
             return false;
 

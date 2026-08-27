@@ -23,8 +23,7 @@ public static class PlayerCharacterRigBuilder
     public const string RiggedPrefabGuid = "7c4e9f2a1b8d4560a3e5c719d0f2b846";
     public const long RootGameObjectFileId = 1555850018738510906;
     public const long RootTransformFileId = 3507150726923045233;
-    public const float VisualScale = 1.1418551f;
-    public const float VisualYOffset = -0.013023615f;
+    public const float TargetHeight = 2f;
 
     [MenuItem("Bullseye/Rebuild Player Character Rig")]
     public static void RebuildFromMenu()
@@ -47,7 +46,8 @@ public static class PlayerCharacterRigBuilder
             return "FAILED: source mesh missing";
 
         Mesh sourceMesh = sourceFilter.sharedMesh;
-        Vector3[] vertices = sourceMesh.vertices;
+        Mesh tPoseMesh = CreateTPoseMesh(sourceMesh);
+        Vector3[] vertices = tPoseMesh.vertices;
         Landmarks landmarks = Measure(vertices);
 
         GameObject root = new GameObject("PlayerCharacterV1");
@@ -56,7 +56,7 @@ public static class PlayerCharacterRigBuilder
             Dictionary<string, Transform> bones = CreateSkeleton(root.transform, landmarks);
             SkinnedMeshRenderer skinned = CreateSkinnedMesh(
                 root.transform,
-                sourceMesh,
+                tPoseMesh,
                 sourceRenderer != null ? sourceRenderer.sharedMaterial : null,
                 bones);
             AssignBindPoses(skinned, bones);
@@ -67,18 +67,20 @@ public static class PlayerCharacterRigBuilder
             Avatar avatar = BuildHumanoidAvatar(root, bones);
             if (avatar == null)
                 return "FAILED: AvatarBuilder returned null";
+            avatar.name = "PlayerCharacterV1_RiggedAvatar";
 
             bool avatarValid = avatar.isValid;
             bool avatarHuman = avatar.isHuman;
             int boneCount = skinned.bones != null ? skinned.bones.Length : 0;
             int weighted = CountWeightedVertices(skinned.sharedMesh);
 
-            SaveMesh(skinned.sharedMesh);
+            skinned.sharedMesh = SaveMesh(skinned.sharedMesh);
             SaveAvatar(avatar);
+            WriteRestPoseIdle(root, avatar);
 
-            root.transform.localPosition = new Vector3(0f, VisualYOffset, 0f);
+            root.transform.localPosition = Vector3.zero;
             root.transform.localRotation = Quaternion.identity;
-            root.transform.localScale = Vector3.one * VisualScale;
+            root.transform.localScale = Vector3.one;
 
             string meshGuid = GuidFor(MeshPath);
             string avatarGuid = GuidFor(AvatarPath);
@@ -86,11 +88,21 @@ public static class PlayerCharacterRigBuilder
             string materialGuid = MaterialGuid(sourceRenderer != null ? sourceRenderer.sharedMaterial : null);
             WriteRiggedPrefabYaml(root, skinned, meshGuid, avatarGuid, controllerGuid, materialGuid);
             string wiring = PatchPlayerPrefabYaml();
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+
+            Transform leftFoot = bones["LeftFoot"];
+            Transform rightFoot = bones["RightFoot"];
+            Transform hips = bones["Hips"];
+            Transform leftHand = bones["LeftHand"];
+            Transform rightHand = bones["RightHand"];
 
             return
                 "Rig build complete.\n" +
                 "Avatar valid=" + avatarValid + " human=" + avatarHuman + "\n" +
                 "Bones=" + boneCount + " weightedVerts=" + weighted + "/" + vertices.Length + "\n" +
+                "Hips=" + hips.position + " LFoot=" + leftFoot.position + " RFoot=" + rightFoot.position + "\n" +
+                "LHand=" + leftHand.position + " RHand=" + rightHand.position + "\n" +
                 "Prefab=" + RiggedPrefabPath + "\n" +
                 wiring + "\n" +
                 "Original FBX preserved at " + SourceFbxPath;
@@ -140,10 +152,10 @@ public static class PlayerCharacterRigBuilder
         }
 
         float height = Mathf.Max(0.01f, max.y - min.y);
-        Vector3 leftHand = Centroid(vertices, v => v.x < -0.55f);
-        Vector3 rightHand = Centroid(vertices, v => v.x > 0.55f);
-        Vector3 leftFoot = Centroid(vertices, v => v.y < min.y + height * 0.12f && v.x < -0.02f);
-        Vector3 rightFoot = Centroid(vertices, v => v.y < min.y + height * 0.12f && v.x > 0.02f);
+        Vector3 leftHand = Centroid(vertices, v => v.x < min.x + 0.12f);
+        Vector3 rightHand = Centroid(vertices, v => v.x > max.x - 0.12f);
+        Vector3 leftFoot = Centroid(vertices, v => v.y < min.y + 0.08f && v.x < -0.02f);
+        Vector3 rightFoot = Centroid(vertices, v => v.y < min.y + 0.08f && v.x > 0.02f);
         Vector3 head = Centroid(vertices, v => v.y > min.y + height * 0.86f);
         Vector3 torso = Centroid(vertices, v => Mathf.Abs(v.x) < 0.22f && v.y > min.y + height * 0.42f && v.y < min.y + height * 0.72f);
 
@@ -155,6 +167,8 @@ public static class PlayerCharacterRigBuilder
             leftFoot = new Vector3(-0.1f, min.y, 0f);
         if (rightFoot == Vector3.zero)
             rightFoot = new Vector3(0.1f, min.y, 0f);
+        leftFoot.y = min.y;
+        rightFoot.y = min.y;
         if (head == Vector3.zero)
             head = new Vector3(0f, max.y - 0.08f, 0f);
         if (torso == Vector3.zero)
@@ -183,13 +197,46 @@ public static class PlayerCharacterRigBuilder
 
         l.leftUpperArm = Vector3.Lerp(l.leftShoulder, l.leftHand, 0.18f);
         l.rightUpperArm = Vector3.Lerp(l.rightShoulder, l.rightHand, 0.18f);
-        l.leftLowerArm = Vector3.Lerp(l.leftShoulder, l.leftHand, 0.55f);
-        l.rightLowerArm = Vector3.Lerp(l.rightShoulder, l.rightHand, 0.55f);
-        l.leftUpperLeg = new Vector3(l.leftFoot.x, hipY - 0.02f, hips.z);
-        l.rightUpperLeg = new Vector3(l.rightFoot.x, hipY - 0.02f, hips.z);
-        l.leftLowerLeg = Vector3.Lerp(l.leftUpperLeg, l.leftFoot, 0.52f);
-        l.rightLowerLeg = Vector3.Lerp(l.rightUpperLeg, l.rightFoot, 0.52f);
+        l.leftLowerArm = Vector3.Lerp(l.leftShoulder, l.leftHand, 0.55f) + new Vector3(0f, -0.02f, 0.04f);
+        l.rightLowerArm = Vector3.Lerp(l.rightShoulder, l.rightHand, 0.55f) + new Vector3(0f, -0.02f, 0.04f);
+        l.leftUpperLeg = new Vector3(l.leftFoot.x, hipY - 0.04f, hips.z);
+        l.rightUpperLeg = new Vector3(l.rightFoot.x, hipY - 0.04f, hips.z);
+        l.leftLowerLeg = Vector3.Lerp(l.leftUpperLeg, l.leftFoot, 0.52f) + new Vector3(0f, 0f, 0.06f);
+        l.rightLowerLeg = Vector3.Lerp(l.rightUpperLeg, l.rightFoot, 0.52f) + new Vector3(0f, 0f, 0.06f);
         return l;
+    }
+
+    private static Mesh CreateTPoseMesh(Mesh sourceMesh)
+    {
+        Mesh mesh = UnityEngine.Object.Instantiate(sourceMesh);
+        mesh.name = "PlayerCharacterV1_WeightedMesh";
+
+        Vector3[] vertices = mesh.vertices;
+        Vector3[] normals = mesh.normals;
+        Vector3 min = vertices[0];
+        Vector3 max = vertices[0];
+        for (int i = 1; i < vertices.Length; i++)
+        {
+            min = Vector3.Min(min, vertices[i]);
+            max = Vector3.Max(max, vertices[i]);
+        }
+
+        float sourceHeight = Mathf.Max(0.01f, max.y - min.y);
+        float scale = TargetHeight / sourceHeight;
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            Vector3 v = vertices[i];
+            v.y -= min.y;
+            v *= scale;
+            vertices[i] = v;
+        }
+
+        mesh.vertices = vertices;
+        if (normals != null && normals.Length == vertices.Length)
+            mesh.normals = normals;
+        mesh.RecalculateBounds();
+        mesh.RecalculateTangents();
+        return mesh;
     }
 
     private static Vector3 Centroid(Vector3[] vertices, System.Func<Vector3, bool> match)
@@ -210,44 +257,54 @@ public static class PlayerCharacterRigBuilder
     private static Dictionary<string, Transform> CreateSkeleton(Transform root, Landmarks l)
     {
         var bones = new Dictionary<string, Transform>();
-        Transform hips = CreateBone(root, bones, "Hips", l.hips, null);
-        Transform spine = CreateBone(hips, bones, "Spine", l.spine, hips);
-        Transform chest = CreateBone(spine, bones, "Chest", l.chest, spine);
-        Transform neck = CreateBone(chest, bones, "Neck", l.neck, chest);
-        CreateBone(neck, bones, "Head", l.head, neck);
+        Transform hips = CreateBone(root, bones, "Hips", l.hips);
+        Transform spine = CreateBone(hips, bones, "Spine", l.spine);
+        Transform chest = CreateBone(spine, bones, "Chest", l.chest);
+        Transform neck = CreateBone(chest, bones, "Neck", l.neck);
+        Transform head = CreateBone(neck, bones, "Head", l.head);
 
-        Transform leftShoulder = CreateBone(chest, bones, "LeftShoulder", l.leftShoulder, chest);
-        Transform leftUpperArm = CreateBone(leftShoulder, bones, "LeftUpperArm", l.leftUpperArm, leftShoulder);
-        Transform leftLowerArm = CreateBone(leftUpperArm, bones, "LeftLowerArm", l.leftLowerArm, leftUpperArm);
-        CreateBone(leftLowerArm, bones, "LeftHand", l.leftHand, leftLowerArm);
+        Transform leftShoulder = CreateBone(chest, bones, "LeftShoulder", l.leftShoulder);
+        Transform leftUpperArm = CreateBone(leftShoulder, bones, "LeftUpperArm", l.leftUpperArm);
+        Transform leftLowerArm = CreateBone(leftUpperArm, bones, "LeftLowerArm", l.leftLowerArm);
+        Transform leftHand = CreateBone(leftLowerArm, bones, "LeftHand", l.leftHand);
 
-        Transform rightShoulder = CreateBone(chest, bones, "RightShoulder", l.rightShoulder, chest);
-        Transform rightUpperArm = CreateBone(rightShoulder, bones, "RightUpperArm", l.rightUpperArm, rightShoulder);
-        Transform rightLowerArm = CreateBone(rightUpperArm, bones, "RightLowerArm", l.rightLowerArm, rightUpperArm);
-        CreateBone(rightLowerArm, bones, "RightHand", l.rightHand, rightLowerArm);
+        Transform rightShoulder = CreateBone(chest, bones, "RightShoulder", l.rightShoulder);
+        Transform rightUpperArm = CreateBone(rightShoulder, bones, "RightUpperArm", l.rightUpperArm);
+        Transform rightLowerArm = CreateBone(rightUpperArm, bones, "RightLowerArm", l.rightLowerArm);
+        Transform rightHand = CreateBone(rightLowerArm, bones, "RightHand", l.rightHand);
 
-        Transform leftUpperLeg = CreateBone(hips, bones, "LeftUpperLeg", l.leftUpperLeg, hips);
-        Transform leftLowerLeg = CreateBone(leftUpperLeg, bones, "LeftLowerLeg", l.leftLowerLeg, leftUpperLeg);
-        CreateBone(leftLowerLeg, bones, "LeftFoot", l.leftFoot, leftLowerLeg);
+        Transform leftUpperLeg = CreateBone(hips, bones, "LeftUpperLeg", l.leftUpperLeg);
+        Transform leftLowerLeg = CreateBone(leftUpperLeg, bones, "LeftLowerLeg", l.leftLowerLeg);
+        Transform leftFoot = CreateBone(leftLowerLeg, bones, "LeftFoot", l.leftFoot);
+        CreateBone(leftFoot, bones, "LeftToes", l.leftFoot + new Vector3(0f, 0.01f, 0.08f));
 
-        Transform rightUpperLeg = CreateBone(hips, bones, "RightUpperLeg", l.rightUpperLeg, hips);
-        Transform rightLowerLeg = CreateBone(rightUpperLeg, bones, "RightLowerLeg", l.rightLowerLeg, rightUpperLeg);
-        CreateBone(rightLowerLeg, bones, "RightFoot", l.rightFoot, rightLowerLeg);
+        Transform rightUpperLeg = CreateBone(hips, bones, "RightUpperLeg", l.rightUpperLeg);
+        Transform rightLowerLeg = CreateBone(rightUpperLeg, bones, "RightLowerLeg", l.rightLowerLeg);
+        Transform rightFoot = CreateBone(rightLowerLeg, bones, "RightFoot", l.rightFoot);
+        CreateBone(rightFoot, bones, "RightToes", l.rightFoot + new Vector3(0f, 0.01f, 0.08f));
 
-        OrientChain(bones["Hips"], bones["Spine"]);
-        OrientChain(bones["Spine"], bones["Chest"]);
-        OrientChain(bones["Chest"], bones["Neck"]);
-        OrientChain(bones["Neck"], bones["Head"]);
-        OrientChain(bones["LeftShoulder"], bones["LeftUpperArm"]);
-        OrientChain(bones["LeftUpperArm"], bones["LeftLowerArm"]);
-        OrientChain(bones["LeftLowerArm"], bones["LeftHand"]);
-        OrientChain(bones["RightShoulder"], bones["RightUpperArm"]);
-        OrientChain(bones["RightUpperArm"], bones["RightLowerArm"]);
-        OrientChain(bones["RightLowerArm"], bones["RightHand"]);
-        OrientChain(bones["LeftUpperLeg"], bones["LeftLowerLeg"]);
-        OrientChain(bones["LeftLowerLeg"], bones["LeftFoot"]);
-        OrientChain(bones["RightUpperLeg"], bones["RightLowerLeg"]);
-        OrientChain(bones["RightLowerLeg"], bones["RightFoot"]);
+        OrientBone(hips, spine.position);
+        OrientBone(spine, chest.position);
+        OrientBone(chest, neck.position);
+        OrientBone(neck, head.position);
+
+        OrientBone(leftShoulder, leftUpperArm.position);
+        OrientBone(leftUpperArm, leftLowerArm.position);
+        OrientBone(leftLowerArm, leftHand.position);
+        OrientBone(leftHand, leftHand.position + Vector3.left * 0.08f);
+
+        OrientBone(rightShoulder, rightUpperArm.position);
+        OrientBone(rightUpperArm, rightLowerArm.position);
+        OrientBone(rightLowerArm, rightHand.position);
+        OrientBone(rightHand, rightHand.position + Vector3.right * 0.08f);
+
+        OrientBone(leftUpperLeg, leftLowerLeg.position);
+        OrientBone(leftLowerLeg, leftFoot.position);
+        OrientBone(leftFoot, bones["LeftToes"].position);
+
+        OrientBone(rightUpperLeg, rightLowerLeg.position);
+        OrientBone(rightLowerLeg, rightFoot.position);
+        OrientBone(rightFoot, bones["RightToes"].position);
         return bones;
     }
 
@@ -255,22 +312,30 @@ public static class PlayerCharacterRigBuilder
         Transform parent,
         Dictionary<string, Transform> bones,
         string name,
-        Vector3 worldPosition,
-        Transform orientFrom)
+        Vector3 worldPosition)
     {
         GameObject go = new GameObject(name);
-        go.transform.SetParent(parent, false);
         go.transform.position = worldPosition;
         go.transform.rotation = Quaternion.identity;
+        go.transform.SetParent(parent, true);
         bones[name] = go.transform;
         return go.transform;
     }
 
-    private static void OrientChain(Transform bone, Transform child)
+    private static void OrientBone(Transform bone, Vector3 childWorldPosition)
     {
-        Vector3 dir = child.position - bone.position;
+        Vector3 dir = childWorldPosition - bone.position;
         if (dir.sqrMagnitude < 0.000001f)
             return;
+
+        Transform[] descendants = bone.GetComponentsInChildren<Transform>(true);
+        var worldPositions = new Vector3[descendants.Length];
+        var worldRotations = new Quaternion[descendants.Length];
+        for (int i = 0; i < descendants.Length; i++)
+        {
+            worldPositions[i] = descendants[i].position;
+            worldRotations[i] = descendants[i].rotation;
+        }
 
         Vector3 up = dir.normalized;
         Vector3 forward = Vector3.forward;
@@ -281,6 +346,14 @@ public static class PlayerCharacterRigBuilder
             return;
         forward = Vector3.Cross(right, up).normalized;
         bone.rotation = Quaternion.LookRotation(forward, up);
+
+        for (int i = 0; i < descendants.Length; i++)
+        {
+            if (descendants[i] == bone)
+                continue;
+            descendants[i].position = worldPositions[i];
+            descendants[i].rotation = worldRotations[i];
+        }
     }
 
     private static SkinnedMeshRenderer CreateSkinnedMesh(
@@ -296,7 +369,7 @@ public static class PlayerCharacterRigBuilder
         meshObject.transform.localScale = Vector3.one;
 
         Mesh skinnedMesh = UnityEngine.Object.Instantiate(sourceMesh);
-        skinnedMesh.name = "PlayerCharacterV1_Skinned";
+        skinnedMesh.name = "PlayerCharacterV1_WeightedMesh";
 
         Transform[] boneArray =
         {
@@ -342,8 +415,15 @@ public static class PlayerCharacterRigBuilder
             Transform bone = bones[i];
             Vector3 start = bone.position;
             Vector3 end = start + bone.up * 0.08f;
-            if (bone.childCount > 0)
-                end = bone.GetChild(0).position;
+            for (int c = 0; c < bone.childCount; c++)
+            {
+                Transform child = bone.GetChild(c);
+                string childName = child.name;
+                if (childName.Contains("Socket") || childName.Contains("IK") || childName.Contains("Anchor"))
+                    continue;
+                end = child.position;
+                break;
+            }
             float radius = RadiusFor(bone.name);
             segments[i] = new Segment { start = start, end = end, radius = radius };
         }
@@ -353,7 +433,7 @@ public static class PlayerCharacterRigBuilder
 
     private static float RadiusFor(string name)
     {
-        if (name.Contains("Hand") || name.Contains("Foot") || name.Contains("Head") || name.Contains("Neck"))
+        if (name.Contains("Hand") || name.Contains("Foot") || name.Contains("Head") || name.Contains("Neck") || name.Contains("Toes"))
             return 0.11f;
         if (name.Contains("Shoulder"))
             return 0.10f;
@@ -371,7 +451,7 @@ public static class PlayerCharacterRigBuilder
 
         for (int i = 0; i < bones.Length; i++)
         {
-            float influence = Influence(vertex, segments[i]);
+            float influence = Influence(vertex, segments[i], bones[i].name);
             if (influence >= w0)
             {
                 w3 = w2; i3 = i2;
@@ -415,12 +495,30 @@ public static class PlayerCharacterRigBuilder
         };
     }
 
-    private static float Influence(Vector3 point, Segment segment)
+    private static float Influence(Vector3 point, Segment segment, string boneName)
     {
         float distance = DistanceToSegment(point, segment.start, segment.end);
         float radius = Mathf.Max(0.04f, segment.radius);
         float t = 1f - Mathf.Clamp01(distance / radius);
-        return t * t;
+        t *= t;
+
+        bool torso = IsTorsoVertex(point);
+        if (torso && IsLimbBone(boneName))
+            t *= 0.04f;
+        else if (torso && (boneName == "Chest" || boneName == "Spine" || boneName == "Hips"))
+            t *= 1.6f;
+        return t;
+    }
+
+    private static bool IsTorsoVertex(Vector3 point)
+    {
+        return Mathf.Abs(point.x) < 0.34f && point.y > 0.85f && point.y < 1.58f;
+    }
+
+    private static bool IsLimbBone(string name)
+    {
+        return name.Contains("Arm") || name.Contains("Shoulder") || name.Contains("Hand") ||
+               name.Contains("Leg") || name.Contains("Foot");
     }
 
     private static float DistanceToSegment(Vector3 point, Vector3 a, Vector3 b)
@@ -503,7 +601,9 @@ public static class PlayerCharacterRigBuilder
             Human(HumanBodyBones.LeftLowerLeg, "LeftLowerLeg"),
             Human(HumanBodyBones.RightLowerLeg, "RightLowerLeg"),
             Human(HumanBodyBones.LeftFoot, "LeftFoot"),
-            Human(HumanBodyBones.RightFoot, "RightFoot")
+            Human(HumanBodyBones.RightFoot, "RightFoot"),
+            Human(HumanBodyBones.LeftToes, "LeftToes"),
+            Human(HumanBodyBones.RightToes, "RightToes")
         };
 
         var skeleton = new List<SkeletonBone>();
@@ -524,7 +624,7 @@ public static class PlayerCharacterRigBuilder
         {
             human = human.ToArray(),
             skeleton = skeleton.ToArray(),
-            hasTranslationDoF = false
+            hasTranslationDoF = true
         };
         description.armStretch = 0.05f;
         description.legStretch = 0.05f;
@@ -550,22 +650,122 @@ public static class PlayerCharacterRigBuilder
         return PatchPlayerPrefabYaml();
     }
 
-    private static void SaveMesh(Mesh mesh)
+    private static Mesh SaveMesh(Mesh mesh)
     {
         if (mesh == null)
+            return null;
+
+        Mesh existing = AssetDatabase.LoadAssetAtPath<Mesh>(MeshPath);
+        if (existing == null)
+        {
+            AssetDatabase.CreateAsset(mesh, MeshPath);
+            return mesh;
+        }
+
+        existing.Clear();
+        existing.name = mesh.name;
+        existing.vertices = mesh.vertices;
+        existing.normals = mesh.normals;
+        existing.tangents = mesh.tangents;
+        existing.uv = mesh.uv;
+        existing.triangles = mesh.triangles;
+        existing.boneWeights = mesh.boneWeights;
+        existing.bindposes = mesh.bindposes;
+        existing.RecalculateBounds();
+        EditorUtility.SetDirty(existing);
+        return existing;
+    }
+
+    private static void WriteRestPoseIdle(GameObject root, Avatar avatar)
+    {
+        AnimationClip clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(ClipPath);
+        if (clip == null)
+        {
+            clip = new AnimationClip();
+            clip.name = "Idle_PlayerThirdPerson";
+            AssetDatabase.CreateAsset(clip, ClipPath);
+            clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(ClipPath);
+        }
+
+        HumanPose pose = new HumanPose();
+        if (root != null && avatar != null && avatar.isValid && avatar.isHuman)
+        {
+            HumanPoseHandler handler = new HumanPoseHandler(avatar, root.transform);
+            handler.GetHumanPose(ref pose);
+            handler.Dispose();
+        }
+
+        clip.legacy = false;
+        clip.frameRate = 30f;
+        clip.ClearCurves();
+        Vector3 body = pose.bodyPosition;
+        if (body.sqrMagnitude < 0.0001f)
+            body = new Vector3(0f, 1f, 0f);
+        clip.SetCurve("", typeof(Animator), "RootT.x", AnimationCurve.Constant(0f, 1f, body.x));
+        clip.SetCurve("", typeof(Animator), "RootT.y", AnimationCurve.Constant(0f, 1f, body.y));
+        clip.SetCurve("", typeof(Animator), "RootT.z", AnimationCurve.Constant(0f, 1f, body.z));
+        Quaternion q = pose.bodyRotation;
+        if (q.w == 0f && q.x == 0f && q.y == 0f && q.z == 0f)
+            q = Quaternion.identity;
+        clip.SetCurve("", typeof(Animator), "RootQ.x", AnimationCurve.Constant(0f, 1f, q.x));
+        clip.SetCurve("", typeof(Animator), "RootQ.y", AnimationCurve.Constant(0f, 1f, q.y));
+        clip.SetCurve("", typeof(Animator), "RootQ.z", AnimationCurve.Constant(0f, 1f, q.z));
+        clip.SetCurve("", typeof(Animator), "RootQ.w", AnimationCurve.Constant(0f, 1f, q.w));
+        if (pose.muscles != null)
+        {
+            for (int i = 0; i < pose.muscles.Length && i < HumanTrait.MuscleCount; i++)
+            {
+                clip.SetCurve(
+                    "",
+                    typeof(Animator),
+                    HumanTrait.MuscleName[i],
+                    AnimationCurve.Constant(0f, 1f, pose.muscles[i]));
+            }
+        }
+
+        AnimationClipSettings settings = AnimationUtility.GetAnimationClipSettings(clip);
+        settings.loopTime = true;
+        settings.loopBlend = true;
+        settings.keepOriginalPositionY = true;
+        settings.keepOriginalOrientation = true;
+        settings.loopBlendPositionY = true;
+        settings.heightFromFeet = false;
+        settings.startTime = 0f;
+        settings.stopTime = 1f;
+        AnimationUtility.SetAnimationClipSettings(clip, settings);
+        EditorUtility.SetDirty(clip);
+        AssetDatabase.SaveAssets();
+        SyncToProjectAssets(ClipPath);
+
+        string controllerYamlPath = AbsoluteAssetPath(ControllerPath);
+        if (!File.Exists(controllerYamlPath))
             return;
-        if (File.Exists(AbsoluteAssetPath(MeshPath)))
-            return;
-        AssetDatabase.CreateAsset(mesh, MeshPath);
+
+        string controllerYaml = File.ReadAllText(controllerYamlPath);
+        controllerYaml = controllerYaml.Replace("m_WriteDefaultValues: 1", "m_WriteDefaultValues: 0");
+        WriteAllCopies(ControllerPath, controllerYaml);
+        AssetDatabase.ImportAsset(ControllerPath, ImportAssetOptions.ForceUpdate);
     }
 
     private static void SaveAvatar(Avatar avatar)
     {
         if (avatar == null)
             return;
-        if (File.Exists(AbsoluteAssetPath(AvatarPath)))
-            return;
+
+        if (AssetDatabase.LoadAssetAtPath<Avatar>(AvatarPath) != null)
+            AssetDatabase.DeleteAsset(AvatarPath);
         AssetDatabase.CreateAsset(avatar, AvatarPath);
+    }
+
+    private static void SyncToProjectAssets(string assetPath)
+    {
+        string vpPath = Path.Combine(Application.dataPath, assetPath.Substring("Assets/".Length)).Replace("\\", "/");
+        string realPath = AbsoluteAssetPath(assetPath);
+        if (File.Exists(vpPath) && !string.Equals(vpPath, realPath, StringComparison.OrdinalIgnoreCase))
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(realPath) ?? ".");
+            File.Copy(vpPath, realPath, true);
+        }
     }
 
     private static int CountWeightedVertices(Mesh mesh)
@@ -635,11 +835,18 @@ public static class PlayerCharacterRigBuilder
 
     private static string MaterialGuid(Material material)
     {
+        const string fallback = "73c176f402d2c2f4d929aa5da7585d17";
         if (material == null)
-            return "73c176f402d2c2f4d929aa5da7585d17";
+            return fallback;
+
         string path = AssetDatabase.GetAssetPath(material);
+        if (string.IsNullOrEmpty(path) ||
+            path.EndsWith(".fbx", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".obj", StringComparison.OrdinalIgnoreCase))
+            return fallback;
+
         string guid = AssetDatabase.AssetPathToGUID(path);
-        return string.IsNullOrEmpty(guid) ? "73c176f402d2c2f4d929aa5da7585d17" : guid;
+        return string.IsNullOrEmpty(guid) ? fallback : guid;
     }
 
     private static void WriteRiggedPrefabYaml(
@@ -728,11 +935,11 @@ public static class PlayerCharacterRigBuilder
             sb.Append("  m_LocalPosition: ").Append(Vec(t.localPosition)).Append('\n');
             sb.Append("  m_LocalScale: ").Append(Vec(t.localScale)).Append('\n');
             sb.Append("  m_ConstrainProportionsScale: 0\n");
-            sb.Append("  m_Children:\n");
             if (t.childCount == 0)
-                sb.Append("  []\n");
+                sb.Append("  m_Children: []\n");
             else
             {
+                sb.Append("  m_Children:\n");
                 for (int c = 0; c < t.childCount; c++)
                     sb.Append("  - {fileID: ").Append(trIds[t.GetChild(c)]).Append("}\n");
             }
@@ -888,18 +1095,23 @@ public static class PlayerCharacterRigBuilder
 
     private static string Vec(Vector3 v)
     {
-        return string.Format(
-            CultureInfo.InvariantCulture,
-            "{{x: {0}, y: {1}, z: {2}}}",
-            v.x, v.y, v.z);
+        return "{x: " + F(v.x) + ", y: " + F(v.y) + ", z: " + F(v.z) + "}";
     }
 
     private static string Quat(Quaternion q)
     {
-        return string.Format(
-            CultureInfo.InvariantCulture,
-            "{{x: {0}, y: {1}, z: {2}, w: {3}}}",
-            q.x, q.y, q.z, q.w);
+        if (float.IsNaN(q.x) || float.IsNaN(q.w) || float.IsInfinity(q.x) || float.IsInfinity(q.w))
+            return "{x: 0, y: 0, z: 0, w: 1}";
+        return "{x: " + F(q.x) + ", y: " + F(q.y) + ", z: " + F(q.z) + ", w: " + F(q.w) + "}";
+    }
+
+    private static string F(float value)
+    {
+        if (float.IsNaN(value) || float.IsInfinity(value))
+            return "0";
+        if (Mathf.Abs(value) < 0.000001f)
+            return "0";
+        return value.ToString("0.########", CultureInfo.InvariantCulture);
     }
 
     private static string PatchPlayerPrefabYaml()
@@ -913,6 +1125,7 @@ public static class PlayerCharacterRigBuilder
         yaml = yaml.Replace(
             "guid: 93edeac14d0000b48881d531f5454a89",
             "guid: " + RiggedPrefabGuid);
+        yaml = yaml.Replace("value: -0.013023615", "value: 0");
 
         const string animationStateId = "3340119340010000101";
         const string thirdPersonId = "3340119340010000102";

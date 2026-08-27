@@ -69,6 +69,9 @@ public class PlayerAnimationState : NetworkBehaviour
     public bool IsAiming => isAiming.Value;
     public bool IsThrowingGrenade => isThrowingGrenade.Value;
     public bool IsCrouching => movement != null && movement.IsCrouched;
+    public bool IsProne => movement != null && movement.IsProne;
+    public bool IsDolphinDiving => movement != null && movement.IsDolphinDiving;
+    public float ProneMoveSpeed => IsProne ? Speed : 0f;
     public bool IsDead => health != null && health.IsDead;
     public bool IsReloading => inventory != null && inventory.IsReloading;
     public float AimPitch => coordinator != null ? coordinator.AimPitch : 0f;

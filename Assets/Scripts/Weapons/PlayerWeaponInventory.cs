@@ -175,6 +175,9 @@ public class PlayerWeaponInventory : NetworkBehaviour
         if (IsLocallyBusy)
             return;
 
+        if (TryGetComponent(out PlayerMovement movement) && movement.BlocksCombat)
+            return;
+
         if (!CanReloadActive())
             return;
 
@@ -182,6 +185,15 @@ public class PlayerWeaponInventory : NetworkBehaviour
         MarkLocalBusy(definition != null ? definition.ReloadTime : 1f);
         coordinator?.NotifyReload();
         ReloadServerRpc();
+    }
+
+    public void InterruptReloadForDive()
+    {
+        if (!IsSpawned || !IsOwner)
+            return;
+
+        localBusyUntil = 0f;
+        InterruptReloadServerRpc();
     }
 
     public void NotifyShotFired()
@@ -251,6 +263,15 @@ public class PlayerWeaponInventory : NetworkBehaviour
     private void ReloadServerRpc()
     {
         StartReload();
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+    private void InterruptReloadServerRpc()
+    {
+        if (reloadRoutine == null && !reloading.Value)
+            return;
+
+        StopInventoryRoutines();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
