@@ -73,6 +73,9 @@ public class PlayerGrenadeThrower : NetworkBehaviour
         if (playerHealth != null && playerHealth.IsDead)
             return;
 
+        if (TryGetComponent(out PlayerMovement movement) && movement.BlocksCombat)
+            return;
+
         if (LocalPlayerMenuState.IsOpen(this))
             return;
 
@@ -109,6 +112,9 @@ public class PlayerGrenadeThrower : NetworkBehaviour
             return;
 
         if (playerHealth != null && playerHealth.IsDead)
+            return;
+
+        if (TryGetComponent(out PlayerMovement movement) && movement.BlocksCombat)
             return;
 
         if (remainingGrenades.Value <= 0 || grenadePrefab == null)

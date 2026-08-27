@@ -21,6 +21,15 @@ public class WeaponPresentationController : NetworkBehaviour
     [SerializeField] private AudioSource audioSource;
     [SerializeField] private PlayerHealth playerHealth;
 
+    [Header("Prone / Dive Presentation")]
+    [SerializeField] private Vector3 proneLocalPosition = new Vector3(0f, -0.04f, 0.02f);
+    [SerializeField] private Vector3 proneLocalEuler = new Vector3(6f, 0f, 0f);
+    [SerializeField] private Vector3 diveLocalPosition = new Vector3(0.02f, -0.12f, -0.06f);
+    [SerializeField] private Vector3 diveLocalEuler = new Vector3(18f, 8f, -12f);
+
+    private static readonly int IsProneHash = Animator.StringToHash("IsProne");
+    private static readonly int IsDolphinDivingHash = Animator.StringToHash("IsDolphinDiving");
+
     private readonly List<GameObject> activeMuzzleEffects = new();
     private readonly HashSet<string> missingAnimationWarnings = new();
     private bool ownerPresentationEnabled;
@@ -38,6 +47,10 @@ public class WeaponPresentationController : NetworkBehaviour
     private Quaternion kickRestLocalRotation;
     private Vector3 mountRestLocalPosition;
     private Quaternion mountRestLocalRotation;
+    private Animator cachedPostureAnimator;
+    private RuntimeAnimatorController cachedPostureController;
+    private bool hasIsProneParameter;
+    private bool hasIsDolphinDivingParameter;
     private Vector3 adsTargetLocalPosition;
     private Quaternion adsTargetLocalRotation;
     private bool aiming;
@@ -47,6 +60,8 @@ public class WeaponPresentationController : NetworkBehaviour
     private float sprintWeight;
     private float holsterWeight;
     private float holsterTarget;
+    private float proneWeight;
+    private float diveWeight;
     private float previousYaw;
     private float previousPitch;
     private Vector3 swayPosition;
@@ -267,6 +282,7 @@ public class WeaponPresentationController : NetworkBehaviour
         muzzlePoint = FindChildByName(instance.transform, "MuzzlePoint");
         weaponAnimator = instance.GetComponentInChildren<Animator>(true);
         ApplyConfiguredAnimator();
+        RefreshPostureParameterCache();
     }
 
     private static void ClearKickChildren(Transform kick)
@@ -411,8 +427,15 @@ public class WeaponPresentationController : NetworkBehaviour
         float holsterDuration = holsterTarget > holsterWeight ? HolsterDuration : UnholsterDuration;
         holsterWeight = Mathf.MoveTowards(holsterWeight, holsterTarget, deltaTime / Mathf.Max(0.05f, holsterDuration));
 
+        bool diving = playerMovement != null && playerMovement.BlocksCombat;
+        bool prone = playerMovement != null && playerMovement.IsProne && !diving;
+        proneWeight = Mathf.MoveTowards(proneWeight, prone ? 1f : 0f, deltaTime / 0.18f);
+        diveWeight = Mathf.MoveTowards(diveWeight, diving ? 1f : 0f, deltaTime / 0.12f);
+
         float sprintT = sprintWeight * sprintWeight * (3f - 2f * sprintWeight) * (1f - aimBlend);
         float holsterT = holsterWeight * holsterWeight * (3f - 2f * holsterWeight);
+        float proneT = proneWeight * proneWeight * (3f - 2f * proneWeight) * (1f - diveWeight);
+        float diveT = diveWeight * diveWeight * (3f - 2f * diveWeight);
 
         Vector3 sprintPos = config != null ? config.SprintLocalPosition : Vector3.zero;
         Vector3 sprintEuler = config != null ? config.SprintLocalEuler : Vector3.zero;
@@ -424,12 +447,54 @@ public class WeaponPresentationController : NetworkBehaviour
             + sprintPos * sprintT
             + sprintSwayPos
             + holsterPos * holsterT
+            + proneLocalPosition * proneT
+            + diveLocalPosition * diveT
             + reloadPositionOffset;
         weaponMount.localRotation = mountRestLocalRotation
             * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(sprintEuler), sprintT)
             * Quaternion.Euler(sprintSwayEuler)
             * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(holsterEuler), holsterT)
+            * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(proneLocalEuler), proneT)
+            * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(diveLocalEuler), diveT)
             * Quaternion.Euler(reloadEulerOffset);
+
+        ApplyFirstPersonPostureParameters(prone, diving);
+    }
+
+    private void ApplyFirstPersonPostureParameters(bool prone, bool diving)
+    {
+        if (weaponAnimator == null)
+            return;
+
+        RefreshPostureParameterCache();
+        if (hasIsProneParameter)
+            weaponAnimator.SetBool(IsProneHash, prone);
+        if (hasIsDolphinDivingParameter)
+            weaponAnimator.SetBool(IsDolphinDivingHash, diving);
+    }
+
+    private void RefreshPostureParameterCache()
+    {
+        if (cachedPostureAnimator == weaponAnimator &&
+            (weaponAnimator == null || weaponAnimator.runtimeAnimatorController == cachedPostureController))
+            return;
+
+        cachedPostureAnimator = weaponAnimator;
+        cachedPostureController = weaponAnimator != null ? weaponAnimator.runtimeAnimatorController : null;
+        hasIsProneParameter = false;
+        hasIsDolphinDivingParameter = false;
+        if (weaponAnimator == null)
+            return;
+
+        AnimatorControllerParameter[] parameters = weaponAnimator.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            int hash = parameters[i].nameHash;
+            if (hash == IsProneHash)
+                hasIsProneParameter = true;
+            else if (hash == IsDolphinDivingHash)
+                hasIsDolphinDivingParameter = true;
+        }
     }
 
     private void TickWeaponMotion(float deltaTime)
@@ -820,6 +885,8 @@ public class WeaponPresentationController : NetworkBehaviour
         sprintWeight = 0f;
         holsterWeight = 0f;
         holsterTarget = 0f;
+        proneWeight = 0f;
+        diveWeight = 0f;
         isMoving = false;
         currentPlayedState = null;
         locomotionLockUntil = 0f;

@@ -38,6 +38,11 @@ public class PlayerCameraEffects : NetworkBehaviour
     [SerializeField] private float minLandingSpeed = 2.5f;
     [SerializeField] private float fullLandingSpeed = 12f;
 
+    [Header("Dolphin Dive")]
+    [SerializeField] private float divePitch = 8f;
+    [SerializeField] private float diveForwardMotion = 0.04f;
+    [SerializeField] private float diveRoll = 2.5f;
+
     [Header("Jump")]
     [SerializeField] private float jumpDepartureAmount = 0.025f;
     [SerializeField] private float jumpRecoverySpeed = 8f;
@@ -89,6 +94,7 @@ public class PlayerCameraEffects : NetworkBehaviour
         {
             movement.Landed += OnLanded;
             movement.Jumped += OnJumped;
+            movement.DolphinDiveLanded += OnDiveLanded;
         }
     }
 
@@ -98,6 +104,7 @@ public class PlayerCameraEffects : NetworkBehaviour
         {
             movement.Landed -= OnLanded;
             movement.Jumped -= OnJumped;
+            movement.DolphinDiveLanded -= OnDiveLanded;
         }
 
         ownerEffectsEnabled = false;
@@ -167,6 +174,14 @@ public class PlayerCameraEffects : NetworkBehaviour
         targetPos.y += landingOffset + jumpOffset;
         targetEuler.x += landingPitchOffset;
 
+        bool diving = movement != null && movement.IsDolphinDiving;
+        if (diving)
+        {
+            targetPos.z += diveForwardMotion;
+            targetEuler.x += divePitch;
+            targetEuler.z += -moveInput.x * diveRoll;
+        }
+
         currentPosition = Vector3.Lerp(currentPosition, targetPos, 1f - Mathf.Exp(-14f * dt));
         currentEuler = Vector3.Lerp(currentEuler, targetEuler, 1f - Mathf.Exp(-12f * dt));
 
@@ -190,6 +205,15 @@ public class PlayerCameraEffects : NetworkBehaviour
         float scale = Mathf.InverseLerp(minLandingSpeed, fullLandingSpeed, downwardSpeed);
         landingOffset = -landingIntensity * Mathf.Lerp(0.35f, 1f, scale);
         landingPitchOffset = landingPitch * Mathf.Lerp(0.35f, 1f, scale);
+    }
+
+    private void OnDiveLanded()
+    {
+        if (!ownerEffectsEnabled)
+            return;
+
+        landingOffset = -landingIntensity * 0.85f;
+        landingPitchOffset = landingPitch * 0.85f;
     }
 
     private void OnJumped()

@@ -445,6 +445,27 @@ MonoBehaviour:
   crouchActivation: 0
   crouchTransitionDuration: 0.4
   roofCheckDistance: 1.2
+  proneHoldDuration: 0.6
+  proneMoveSpeed: 2.2
+  proneControllerHeight: 0.6
+  proneControllerCenter: {x: 0, y: 0.3, z: 0}
+  proneControllerRadius: 0.28
+  proneCameraLocalY: 0.32
+  proneTransitionSpeed: 8
+  proneCameraTransitionSpeed: 8
+  applyPlaceholderPronePose: 1
+  proneVisualEuler: {x: 90, y: 0, z: 0}
+  proneVisualLocalOffset: {x: 0, y: 0, z: 0}
+  dolphinDiveHoldDuration: 0.3
+  minimumDolphinDiveSpeed: 8
+  dolphinDiveForwardForce: 3
+  dolphinDiveUpwardForce: 2
+  dolphinDiveDuration: 0.45
+  dolphinDiveMaxSpeed: 8
+  dolphinDiveAirControl: 0.1
+  dolphinDiveRecoveryDuration: 0.3
+  dolphinDiveCooldown: 1
+  debugMovementLogs: 0
   allowSliding: 1
   slideForce: 300
   slideDuration: 1
@@ -745,6 +766,10 @@ MonoBehaviour:
   weaponAnimator: {fileID: 0}
   audioSource: {fileID: 2227075663333626183}
   playerHealth: {fileID: 3086871669323907386}
+  proneLocalPosition: {x: 0, y: -0.04, z: 0.02}
+  proneLocalEuler: {x: 6, y: 0, z: 0}
+  diveLocalPosition: {x: 0.02, y: -0.12, z: -0.06}
+  diveLocalEuler: {x: 18, y: 8, z: -12}
 --- !u!54 &3350134984236796855
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -845,6 +870,9 @@ MonoBehaviour:
   landingPitch: 2.4
   minLandingSpeed: 2.5
   fullLandingSpeed: 12
+  divePitch: 8
+  diveForwardMotion: 0.04
+  diveRoll: 2.5
   jumpDepartureAmount: 0.025
   jumpRecoverySpeed: 8
   idleSpeedThreshold: 0.35
@@ -1297,6 +1325,7 @@ MonoBehaviour:
   playerHealth: {fileID: 3086871669323907386}
   coordinator: {fileID: 3788039708433434490}
   firePresentationDuration: 0.12
+  evaluateHumanoidAnimation: 1
 --- !u!1 &3625492656395199349
 GameObject:
   m_ObjectHideFlags: 0
@@ -2118,7 +2147,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3507150726923045233, guid: 7c4e9f2a1b8d4560a3e5c719d0f2b846, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0.013023615
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3507150726923045233, guid: 7c4e9f2a1b8d4560a3e5c719d0f2b846, type: 3}
       propertyPath: m_LocalPosition.z
@@ -2151,6 +2180,10 @@ PrefabInstance:
     - target: {fileID: 3507150726923045233, guid: 7c4e9f2a1b8d4560a3e5c719d0f2b846, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4100000001000000064, guid: 7c4e9f2a1b8d4560a3e5c719d0f2b846, type: 3}
+      propertyPath: m_Enabled
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

@@ -13,7 +13,12 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     private static readonly int VerticalVelocityHash = Animator.StringToHash("VerticalVelocity");
     private static readonly int IsGroundedHash = Animator.StringToHash("IsGrounded");
     private static readonly int IsCrouchingHash = Animator.StringToHash("IsCrouching");
+    private static readonly int IsProneHash = Animator.StringToHash("IsProne");
     private static readonly int IsSprintingHash = Animator.StringToHash("IsSprinting");
+    private static readonly int IsDolphinDivingHash = Animator.StringToHash("IsDolphinDiving");
+    private static readonly int ProneMoveSpeedHash = Animator.StringToHash("ProneMoveSpeed");
+    private static readonly int DolphinDiveTriggerHash = Animator.StringToHash("DolphinDive");
+    private static readonly int DiveTriggerHash = Animator.StringToHash("DiveTrigger");
     private static readonly int IsAimingHash = Animator.StringToHash("IsAiming");
     private static readonly int IsReloadingHash = Animator.StringToHash("IsReloading");
     private static readonly int IsFiringHash = Animator.StringToHash("IsFiring");
@@ -28,9 +33,11 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     [SerializeField] private PlayerHealth playerHealth;
     [SerializeField] private WeaponPresentationCoordinator coordinator;
     [SerializeField] private float firePresentationDuration = 0.12f;
+    [SerializeField] private bool evaluateHumanoidAnimation = true;
 
     private bool appliedDead;
     private float fireUntil;
+    private bool wasDolphinDiving;
 
     public Animator ThirdPersonAnimator => thirdPersonAnimator;
 
@@ -44,6 +51,11 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
             coordinator = GetComponent<WeaponPresentationCoordinator>();
         if (thirdPersonAnimator == null)
             thirdPersonAnimator = FindThirdPersonAnimator();
+
+        // Keep the Animator enabled once the visual uses a T-pose Humanoid
+        // rest pose. Disable this flag only if a bad avatar is reintroduced.
+        if (thirdPersonAnimator != null && !evaluateHumanoidAnimation)
+            thirdPersonAnimator.enabled = false;
     }
 
     private void OnEnable()
@@ -62,7 +74,7 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     {
         if (thirdPersonAnimator == null)
             thirdPersonAnimator = FindThirdPersonAnimator();
-        if (thirdPersonAnimator == null)
+        if (thirdPersonAnimator == null || !thirdPersonAnimator.enabled)
             return;
 
         bool dead = animationState != null ? animationState.IsDead : playerHealth != null && playerHealth.IsDead;
@@ -74,6 +86,7 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     {
         fireUntil = 0f;
         appliedDead = false;
+        wasDolphinDiving = false;
         if (thirdPersonAnimator == null)
             return;
 
@@ -117,7 +130,16 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         thirdPersonAnimator.SetFloat(VerticalVelocityHash, animationState.VerticalVelocity);
         thirdPersonAnimator.SetBool(IsGroundedHash, animationState.IsGrounded);
         thirdPersonAnimator.SetBool(IsCrouchingHash, animationState.IsCrouching);
-        thirdPersonAnimator.SetBool(IsSprintingHash, animationState.IsSprinting);
+        thirdPersonAnimator.SetBool(IsProneHash, animationState.IsProne);
+        thirdPersonAnimator.SetBool(IsSprintingHash, animationState.IsSprinting && !animationState.IsProne);
+        thirdPersonAnimator.SetBool(IsDolphinDivingHash, animationState.IsDolphinDiving);
+        thirdPersonAnimator.SetFloat(ProneMoveSpeedHash, animationState.ProneMoveSpeed);
+        if (animationState.IsDolphinDiving && !wasDolphinDiving)
+        {
+            thirdPersonAnimator.SetTrigger(DolphinDiveTriggerHash);
+            thirdPersonAnimator.SetTrigger(DiveTriggerHash);
+        }
+        wasDolphinDiving = animationState.IsDolphinDiving;
         thirdPersonAnimator.SetBool(IsAimingHash, animationState.IsAiming);
         thirdPersonAnimator.SetBool(IsReloadingHash, animationState.IsReloading);
         thirdPersonAnimator.SetBool(IsFiringHash, firing);
