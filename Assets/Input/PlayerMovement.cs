@@ -59,7 +59,7 @@ public class PlayerMovement : NetworkBehaviour
     [SerializeField] private float proneCameraLocalY = 0.32f;
     [SerializeField] private float proneTransitionSpeed = 8f;
     [SerializeField] private float proneCameraTransitionSpeed = 8f;
-    [SerializeField] private bool applyPlaceholderPronePose = true;
+    [SerializeField] private bool applyPlaceholderPronePose;
     [SerializeField] private Vector3 proneVisualEuler = new Vector3(90f, 0f, 0f);
     [SerializeField] private Vector3 proneVisualLocalOffset;
 
@@ -171,6 +171,7 @@ public class PlayerMovement : NetworkBehaviour
 
     public event Action<float> Landed;
     public event Action Jumped;
+    public bool LastJumpFromSprint { get; private set; }
     public event Action DolphinDiveStarted;
     public event Action DolphinDiveLanded;
 
@@ -691,6 +692,8 @@ public class PlayerMovement : NetworkBehaviour
 
         if (!CanJump())
             return;
+
+        LastJumpFromSprint = IsSprinting && HorizontalVelocity().magnitude >= 0.2f;
 
         Vector3 velocity = rb.linearVelocity;
         velocity.y = 0f;

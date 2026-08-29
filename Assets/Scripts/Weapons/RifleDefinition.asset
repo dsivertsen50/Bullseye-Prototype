@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: AK
   inventoryRole: 0
   firstPersonPrefab: {fileID: 5204278731374287686, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
-  worldPrefab: {fileID: 5204278731374287686, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
+  worldPrefab: {fileID: 5694393423762102552, guid: 19e4f507dc07f6143bc047d381d14181, type: 3}
   pickupPrefab: {fileID: 5204278731374287686, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
   presentation: {fileID: 11400000, guid: b76e6696163ad2f419cb0ed8c9dca35c, type: 2}
   magazineSize: 30
@@ -89,6 +89,37 @@ MonoBehaviour:
   worldLocalEuler: {x: 0, y: 0, z: 0}
   worldLocalScale: {x: 1, y: 1, z: 1}
   worldStanceHeightOffset: 0.2
+  thirdPersonClass: 1
+  thirdPersonPose:
+    rightHandLocalPosition: {x: 0, y: 0, z: 0}
+    rightHandLocalEuler: {x: 0, y: 0, z: -8}
+    rightHandLocalScale: {x: 1, y: 1, z: 1}
+    holdLocalPosition: {x: 0.22, y: -0.04, z: 0.48}
+    holdLocalEuler: {x: -4, y: 6, z: 0}
+    aimHoldLocalPosition: {x: 0.2, y: 0.04, z: 0.52}
+    aimHoldLocalEuler: {x: -8, y: 4, z: 0}
+    aimRightHandLocalPosition: {x: 0, y: 0, z: 0}
+    aimRightHandLocalEuler: {x: 0, y: 0, z: 0}
+    defaultWeight: 1
+    sprintWeight: 0.22
+    crouchWeight: 1
+    proneWeight: 0.5
+    diveWeight: 0.12
+    jumpWeight: 0.85
+    rightArmReach: 0.9
+    leftArmReach: 0.72
+    maxAimPitch: 50
+    spineAimWeight: 0.62
+    upperChestAimShare: 0.45
+    recoilPitch: 5
+    recoilRightRoll: 4
+    recoilYaw: 1.5
+    recoilInTime: 0.035
+    recoilOutTime: 0.09
   pickupLocalPosition: {x: 0, y: 0, z: 0}
   pickupLocalEuler: {x: 0, y: 35, z: 90}
   pickupLocalScale: {x: 1.15, y: 1.15, z: 1.15}
+  fitPickupColliderToMesh: 1
+  pickupPhysicsBoxSize: {x: 0, y: 0, z: 0}
+  pickupPhysicsBoxCenter: {x: 0, y: 0, z: 0}
+  pickupColliderMinHeight: 0.05

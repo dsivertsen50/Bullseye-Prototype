@@ -23,6 +23,7 @@ public class WorldWeaponView : NetworkBehaviour
     [SerializeField] private PlayerMovement playerMovement;
     [SerializeField] private float aimPitchSmoothTime = 0.08f;
     [SerializeField] private float aimPitchSnapDegrees = 25f;
+    [SerializeField] private ThirdPersonWeaponRig thirdPersonRig;
 
     private readonly List<GameObject> activeMuzzleEffects = new();
     private bool remotePresentationEnabled;
@@ -30,10 +31,17 @@ public class WorldWeaponView : NetworkBehaviour
     private Coroutine kickRoutine;
     private Vector3 kickRestLocalPosition;
     private Quaternion kickRestLocalRotation;
-    private float displayedAimPitch;
     private WeaponPresentationCoordinator coordinator;
+    private ThirdPersonWeaponVisual currentVisual;
 
     public Transform WorldWeaponRoot => worldWeaponRoot;
+    public Transform WeaponHandAnchor => weaponHandAnchor;
+    public WeaponDefinition Definition => definition;
+    public bool IsRemotePresentationActive => remotePresentationEnabled;
+    public ThirdPersonWeaponVisual CurrentVisual => currentVisual;
+    public Transform LeftHandIkTarget => currentVisual != null ? currentVisual.LeftHandIkTarget : null;
+    public ThirdPersonWeaponPose ActiveThirdPersonPose =>
+        definition != null ? definition.ThirdPersonPose : null;
 
     private WeaponPresentationConfig Config =>
         definition != null ? definition.Presentation : null;
@@ -46,6 +54,8 @@ public class WorldWeaponView : NetworkBehaviour
             playerMovement = GetComponent<PlayerMovement>();
         if (coordinator == null)
             coordinator = GetComponent<WeaponPresentationCoordinator>();
+        if (thirdPersonRig == null)
+            thirdPersonRig = GetComponent<ThirdPersonWeaponRig>();
 
         ResolveHierarchyFallbacks();
         CacheRestPoses();
@@ -57,7 +67,6 @@ public class WorldWeaponView : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         remotePresentationEnabled = !IsOwner;
-        displayedAimPitch = coordinator != null ? coordinator.AimPitch : 0f;
         if (!remotePresentationEnabled)
         {
             SetWorldWeaponActive(false);
@@ -65,10 +74,10 @@ public class WorldWeaponView : NetworkBehaviour
             return;
         }
 
-        ApplyWorldPose();
+        BindThirdPersonVisual();
         RefreshRemoteVisibility();
         ResetPresentation();
-        ApplyAimPitch(true);
+        thirdPersonRig?.NotifyWeaponChanged();
     }
 
     public override void OnNetworkDespawn()
@@ -92,8 +101,6 @@ public class WorldWeaponView : NetworkBehaviour
 
         wasDead = dead;
         RefreshRemoteVisibility();
-        ApplyWorldPose();
-        ApplyAimPitch(false);
     }
 
     public void ApplyDefinition(WeaponDefinition next)
@@ -106,8 +113,9 @@ public class WorldWeaponView : NetworkBehaviour
         CacheRestPoses();
         PrepareAudioSource();
         PreparePresentationObject();
-        ApplyWorldPose();
+        BindThirdPersonVisual();
         ResetPresentation();
+        thirdPersonRig?.NotifyWeaponChanged();
     }
 
     public void PlayFirePresentation()
@@ -116,10 +124,8 @@ public class WorldWeaponView : NetworkBehaviour
             return;
 
         WeaponPresentationConfig config = Config;
-        PlayAnimationState(config != null ? config.FireAnimationState : "Fire", config != null ? config.FireAnimationSpeed : 1f);
         PlayClip(config != null ? config.FireSfx : null, config != null ? config.WorldFireSfxVolume : 1f);
         SpawnMuzzleEffect();
-        PlayProceduralFireKick();
     }
 
     public void PlayReloadPresentation()
@@ -137,7 +143,6 @@ public class WorldWeaponView : NetworkBehaviour
         StopKick();
         RestoreKickRestPose();
         ClearTransientEffects();
-        displayedAimPitch = coordinator != null ? coordinator.AimPitch : 0f;
         PlayAnimationState(Config != null ? Config.IdleAnimationState : "Idle", 1f);
     }
 
@@ -159,6 +164,7 @@ public class WorldWeaponView : NetworkBehaviour
 
         muzzlePoint = null;
         weaponAnimator = null;
+        currentVisual = null;
 
         if (next == null || next.WorldPrefab == null)
             return;
@@ -169,7 +175,12 @@ public class WorldWeaponView : NetworkBehaviour
         instance.transform.localScale = Vector3.one;
         ApplyLayerRecursively(instance, WorldWeaponLayerName);
         DisableGameplayCollision(instance);
-        muzzlePoint = FindChildByName(instance.transform, "MuzzlePoint");
+        currentVisual = instance.GetComponent<ThirdPersonWeaponVisual>();
+        if (currentVisual != null)
+            currentVisual.ResolveFallbacks();
+        muzzlePoint = currentVisual != null && currentVisual.Muzzle != null
+            ? currentVisual.Muzzle
+            : FindChildByName(instance.transform, "Muzzle") ?? FindChildByName(instance.transform, "MuzzlePoint");
         weaponAnimator = instance.GetComponentInChildren<Animator>(true);
         WeaponPresentationConfig config = next != null ? next.Presentation : null;
         if (weaponAnimator != null && config != null && config.AnimatorController != null)
@@ -192,8 +203,23 @@ public class WorldWeaponView : NetworkBehaviour
     {
         ResetPresentation();
         SetWorldWeaponActive(true);
-        ApplyWorldPose();
-        ApplyAimPitch(true);
+        thirdPersonRig?.ResetAfterRespawn();
+        thirdPersonRig?.NotifyWeaponChanged();
+    }
+
+    public void BindThirdPersonVisual()
+    {
+        if (weaponKick == null)
+            ResolveHierarchyFallbacks();
+        if (currentVisual == null && weaponKick != null)
+            currentVisual = weaponKick.GetComponentInChildren<ThirdPersonWeaponVisual>(true);
+        if (currentVisual != null)
+            currentVisual.ResolveFallbacks();
+        if (muzzlePoint == null && currentVisual != null)
+            muzzlePoint = currentVisual.Muzzle;
+        if (muzzlePoint == null)
+            muzzlePoint = FindChildByName(weaponKick != null ? weaponKick : worldWeaponRoot, "Muzzle")
+                ?? FindChildByName(weaponKick != null ? weaponKick : worldWeaponRoot, "MuzzlePoint");
     }
 
     private void RefreshRemoteVisibility()
@@ -206,48 +232,6 @@ public class WorldWeaponView : NetworkBehaviour
     {
         if (weaponHandAnchor != null && weaponHandAnchor.gameObject.activeSelf != active)
             weaponHandAnchor.gameObject.SetActive(active);
-    }
-
-    private void ApplyWorldPose()
-    {
-        if (weaponHandAnchor == null)
-            return;
-
-        Vector3 position = definition != null ? definition.WorldLocalPosition : weaponHandAnchor.localPosition;
-        Vector3 euler = definition != null ? definition.WorldLocalEuler : weaponHandAnchor.localEulerAngles;
-        Vector3 scale = definition != null ? definition.WorldLocalScale : Vector3.one;
-        float stanceOffset = definition != null ? definition.WorldStanceHeightOffset : 0.28f;
-
-        Transform follow = stanceFollow;
-        if (follow == null && playerMovement != null)
-            follow = playerMovement.BodyVisual;
-
-        if (follow != null)
-            position.y = follow.localPosition.y + stanceOffset;
-
-        weaponHandAnchor.localPosition = position;
-        weaponHandAnchor.localRotation = Quaternion.Euler(euler);
-        weaponHandAnchor.localScale = scale;
-    }
-
-    private void ApplyAimPitch(bool snap)
-    {
-        if (worldWeaponRoot == null)
-            return;
-
-        float target = coordinator != null ? coordinator.AimPitch : 0f;
-        if (snap || Mathf.Abs(target - displayedAimPitch) >= aimPitchSnapDegrees)
-        {
-            displayedAimPitch = target;
-        }
-        else
-        {
-            float duration = Mathf.Max(0.0001f, aimPitchSmoothTime);
-            float alpha = 1f - Mathf.Exp(-Time.deltaTime / duration);
-            displayedAimPitch = Mathf.Lerp(displayedAimPitch, target, alpha);
-        }
-
-        worldWeaponRoot.localRotation = Quaternion.Euler(displayedAimPitch, 0f, 0f);
     }
 
     private void PlayProceduralFireKick()
@@ -397,7 +381,10 @@ public class WorldWeaponView : NetworkBehaviour
             weaponKick = worldWeaponRoot.Find("WeaponKick");
 
         if (muzzlePoint == null)
-            muzzlePoint = FindChildByName(weaponKick != null ? weaponKick : worldWeaponRoot, "MuzzlePoint");
+        {
+            Transform search = weaponKick != null ? weaponKick : worldWeaponRoot;
+            muzzlePoint = FindChildByName(search, "Muzzle") ?? FindChildByName(search, "MuzzlePoint");
+        }
 
         if (weaponAnimator == null && weaponKick != null)
             weaponAnimator = weaponKick.GetComponentInChildren<Animator>(true);
