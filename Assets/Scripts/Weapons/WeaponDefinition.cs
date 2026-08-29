@@ -43,6 +43,10 @@ public class WeaponDefinition : ScriptableObject
     [SerializeField] private Vector3 worldLocalScale = Vector3.one;
     [SerializeField] private float worldStanceHeightOffset = 0.28f;
 
+    [Header("Third-Person Pose")]
+    [SerializeField] private ThirdPersonWeaponClass thirdPersonClass = ThirdPersonWeaponClass.Pistol;
+    [SerializeField] private ThirdPersonWeaponPose thirdPersonPose;
+
     [Header("Ground Pickup Pose")]
     [SerializeField] private Vector3 pickupLocalPosition = new(0f, 0.08f, 0f);
     [SerializeField] private Vector3 pickupLocalEuler = new(0f, 35f, 90f);
@@ -88,6 +92,8 @@ public class WeaponDefinition : ScriptableObject
     public Vector3 WorldLocalEuler => worldLocalEuler;
     public Vector3 WorldLocalScale => worldLocalScale;
     public float WorldStanceHeightOffset => worldStanceHeightOffset;
+    public ThirdPersonWeaponClass ThirdPersonClass => thirdPersonClass;
+    public ThirdPersonWeaponPose ThirdPersonPose => thirdPersonPose ??= ThirdPersonWeaponPose.CreateDefault(thirdPersonClass);
     public Vector3 PickupLocalPosition => pickupLocalPosition;
     public Vector3 PickupLocalEuler => pickupLocalEuler;
     public Vector3 PickupLocalScale => pickupLocalScale;
@@ -110,5 +116,6 @@ public class WeaponDefinition : ScriptableObject
         damageSettings.Validate();
         accuracy ??= new WeaponAccuracySettings();
         accuracy.Validate();
+        thirdPersonPose ??= ThirdPersonWeaponPose.CreateDefault(thirdPersonClass);
     }
 }

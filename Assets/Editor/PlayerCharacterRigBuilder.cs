@@ -8,7 +8,7 @@ using UnityEngine;
 
 /// <summary>
 /// Builds a prototype Humanoid rig for Player Character V1 without
-/// overwriting the original unrigged FBX. Menu: Bullseye/Rebuild Player Character Rig
+/// overwriting the original unrigged FBX.
 /// </summary>
 public static class PlayerCharacterRigBuilder
 {
@@ -24,13 +24,6 @@ public static class PlayerCharacterRigBuilder
     public const long RootGameObjectFileId = 1555850018738510906;
     public const long RootTransformFileId = 3507150726923045233;
     public const float TargetHeight = 2f;
-
-    [MenuItem("Bullseye/Rebuild Player Character Rig")]
-    public static void RebuildFromMenu()
-    {
-        string report = Build();
-        Debug.Log(report);
-    }
 
     public static string Build()
     {

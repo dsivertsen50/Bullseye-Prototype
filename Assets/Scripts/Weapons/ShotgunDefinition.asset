@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: Shotgun
   inventoryRole: 0
   firstPersonPrefab: {fileID: 8089494980076550529, guid: 1999fbf616709a54b9aa6d52ce4467ca, type: 3}
-  worldPrefab: {fileID: 8089494980076550529, guid: 1999fbf616709a54b9aa6d52ce4467ca, type: 3}
+  worldPrefab: {fileID: 9208807647751335501, guid: 378a674c97ede314ca04c5ad5f212a69, type: 3}
   pickupPrefab: {fileID: 8089494980076550529, guid: 1999fbf616709a54b9aa6d52ce4467ca, type: 3}
   presentation: {fileID: 11400000, guid: 34ae612b026561e45b5082020de2a8b4, type: 2}
   magazineSize: 6
@@ -89,6 +89,37 @@ MonoBehaviour:
   worldLocalEuler: {x: 0, y: 0, z: 0}
   worldLocalScale: {x: 1, y: 1, z: 1}
   worldStanceHeightOffset: 0.2
+  thirdPersonClass: 2
+  thirdPersonPose:
+    rightHandLocalPosition: {x: 0, y: 0, z: 0}
+    rightHandLocalEuler: {x: 0, y: 0, z: -6}
+    rightHandLocalScale: {x: 1, y: 1, z: 1}
+    holdLocalPosition: {x: 0.23, y: -0.05, z: 0.47}
+    holdLocalEuler: {x: -3, y: 6, z: 0}
+    aimHoldLocalPosition: {x: 0.2, y: 0.03, z: 0.51}
+    aimHoldLocalEuler: {x: -7, y: 4, z: 0}
+    aimRightHandLocalPosition: {x: 0, y: 0, z: 0}
+    aimRightHandLocalEuler: {x: 0, y: 0, z: 0}
+    defaultWeight: 1
+    sprintWeight: 0.22
+    crouchWeight: 1
+    proneWeight: 0.5
+    diveWeight: 0.12
+    jumpWeight: 0.85
+    rightArmReach: 0.89
+    leftArmReach: 0.7
+    maxAimPitch: 50
+    spineAimWeight: 0.62
+    upperChestAimShare: 0.45
+    recoilPitch: 9
+    recoilRightRoll: 6
+    recoilYaw: 1.5
+    recoilInTime: 0.035
+    recoilOutTime: 0.12
   pickupLocalPosition: {x: 0, y: 0, z: 0}
   pickupLocalEuler: {x: 0, y: 35, z: 90}
   pickupLocalScale: {x: 1.15, y: 1.15, z: 1.15}
+  fitPickupColliderToMesh: 1
+  pickupPhysicsBoxSize: {x: 0, y: 0, z: 0}
+  pickupPhysicsBoxCenter: {x: 0, y: 0, z: 0}
+  pickupColliderMinHeight: 0.05

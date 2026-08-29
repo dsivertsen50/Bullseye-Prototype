@@ -7,6 +7,13 @@ using UnityEngine;
 [DefaultExecutionOrder(100)]
 public class PlayerThirdPersonAnimator : MonoBehaviour
 {
+    private const string StandingIdleState = "Standing Idle";
+
+    private static readonly int MoveXHash = Animator.StringToHash("MoveX");
+    private static readonly int MoveYHash = Animator.StringToHash("MoveY");
+    private static readonly int MoveSpeedHash = Animator.StringToHash("MoveSpeed");
+    private static readonly int LocomotionPlaySpeedHash = Animator.StringToHash("LocomotionPlaySpeed");
+    private static readonly int IsMovingHash = Animator.StringToHash("IsMoving");
     private static readonly int SpeedHash = Animator.StringToHash("Speed");
     private static readonly int ForwardSpeedHash = Animator.StringToHash("ForwardSpeed");
     private static readonly int StrafeSpeedHash = Animator.StringToHash("StrafeSpeed");
@@ -27,6 +34,12 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     private static readonly int AimPitchHash = Animator.StringToHash("AimPitch");
     private static readonly int CurrentWeaponHash = Animator.StringToHash("CurrentWeapon");
     private static readonly int FireTriggerHash = Animator.StringToHash("Fire");
+    private static readonly int TurnSpeedHash = Animator.StringToHash("TurnSpeed");
+    private static readonly int IsTurningLeftHash = Animator.StringToHash("IsTurningLeft");
+    private static readonly int IsTurningRightHash = Animator.StringToHash("IsTurningRight");
+    private static readonly int IsAirborneHash = Animator.StringToHash("IsAirborne");
+    private static readonly int JumpFromSprintHash = Animator.StringToHash("JumpFromSprint");
+    private static readonly int JumpTriggerHash = Animator.StringToHash("Jump");
 
     [SerializeField] private Animator thirdPersonAnimator;
     [SerializeField] private PlayerAnimationState animationState;
@@ -34,10 +47,41 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     [SerializeField] private WeaponPresentationCoordinator coordinator;
     [SerializeField] private float firePresentationDuration = 0.12f;
     [SerializeField] private bool evaluateHumanoidAnimation = true;
+    [SerializeField] private float parameterDampTime = 0.08f;
+    [SerializeField] private float walkReferenceSpeed = 3.25f;
+    [SerializeField] private float sprintReferenceSpeed = 9f;
+    [SerializeField] private float crouchReferenceSpeed = 2.2f;
+    [SerializeField] private Vector2 locomotionPlaySpeedRange = new Vector2(0.8f, 2.2f);
+
+    [Header("Head Look")]
+    [SerializeField] private bool enableHeadLook = true;
+    [SerializeField, Range(0.1f, 0.7f)] private float headPitchScale = 0.38f;
+    [SerializeField] private float maxHeadPitch = 22f;
+    [SerializeField] private float maxHeadYaw = 12f;
+    [SerializeField] private float headLookSmoothTime = 0.16f;
+    [SerializeField, Range(0f, 0.6f)] private float neckShare = 0.32f;
+
+    [Header("Debug (runtime)")]
+    [SerializeField] private string debugAnimatorState;
+    [SerializeField] private float debugMoveX;
+    [SerializeField] private float debugMoveY;
+    [SerializeField] private float debugMoveSpeed;
+    [SerializeField] private bool debugIsSprinting;
+    [SerializeField] private bool debugIsCrouching;
+    [SerializeField] private bool debugIsProne;
+    [SerializeField] private float debugTurnSpeed;
+    [SerializeField] private string debugJump;
 
     private bool appliedDead;
     private float fireUntil;
     private bool wasDolphinDiving;
+    private int lastJumpSerial;
+    private bool hasJumpSerial;
+    private float laggedPitch;
+    private float laggedLookYaw;
+    private float pitchLookVelocity;
+    private float yawLookVelocity;
+    private bool hasLaggedLookYaw;
 
     public Animator ThirdPersonAnimator => thirdPersonAnimator;
 
@@ -56,6 +100,8 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         // rest pose. Disable this flag only if a bad avatar is reintroduced.
         if (thirdPersonAnimator != null && !evaluateHumanoidAnimation)
             thirdPersonAnimator.enabled = false;
+        if (thirdPersonAnimator != null)
+            thirdPersonAnimator.applyRootMotion = false;
     }
 
     private void OnEnable()
@@ -80,6 +126,7 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         bool dead = animationState != null ? animationState.IsDead : playerHealth != null && playerHealth.IsDead;
         ApplyDeathFreeze(dead);
         ApplyGameplayParameters(dead);
+        ApplyHeadLook(dead);
     }
 
     public void ResetAfterRespawn()
@@ -87,13 +134,19 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         fireUntil = 0f;
         appliedDead = false;
         wasDolphinDiving = false;
+        lastJumpSerial = animationState != null ? animationState.JumpSerial : 0;
+        hasJumpSerial = true;
+        laggedPitch = 0f;
+        pitchLookVelocity = 0f;
+        yawLookVelocity = 0f;
+        hasLaggedLookYaw = false;
         if (thirdPersonAnimator == null)
             return;
 
         thirdPersonAnimator.speed = 1f;
         thirdPersonAnimator.applyRootMotion = false;
         if (thirdPersonAnimator.runtimeAnimatorController != null)
-            thirdPersonAnimator.Play("Idle", 0, 0f);
+            thirdPersonAnimator.Play(StandingIdleState, 0, 0f);
     }
 
     private void ApplyDeathFreeze(bool dead)
@@ -124,6 +177,13 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
             return;
 
         bool firing = Time.time < fireUntil;
+        thirdPersonAnimator.applyRootMotion = false;
+        float damp = Mathf.Max(0f, parameterDampTime);
+        thirdPersonAnimator.SetFloat(MoveXHash, animationState.MoveX, damp, Time.deltaTime);
+        thirdPersonAnimator.SetFloat(MoveYHash, animationState.MoveY, damp, Time.deltaTime);
+        thirdPersonAnimator.SetFloat(MoveSpeedHash, animationState.MoveSpeed);
+        thirdPersonAnimator.SetFloat(LocomotionPlaySpeedHash, ResolveLocomotionPlaySpeed());
+        thirdPersonAnimator.SetBool(IsMovingHash, animationState.IsMoving);
         thirdPersonAnimator.SetFloat(SpeedHash, animationState.Speed);
         thirdPersonAnimator.SetFloat(ForwardSpeedHash, animationState.ForwardSpeed);
         thirdPersonAnimator.SetFloat(StrafeSpeedHash, animationState.StrafeSpeed);
@@ -131,9 +191,24 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         thirdPersonAnimator.SetBool(IsGroundedHash, animationState.IsGrounded);
         thirdPersonAnimator.SetBool(IsCrouchingHash, animationState.IsCrouching);
         thirdPersonAnimator.SetBool(IsProneHash, animationState.IsProne);
-        thirdPersonAnimator.SetBool(IsSprintingHash, animationState.IsSprinting && !animationState.IsProne);
+        thirdPersonAnimator.SetBool(IsSprintingHash, animationState.IsSprinting && !animationState.IsProne && !animationState.IsCrouching);
         thirdPersonAnimator.SetBool(IsDolphinDivingHash, animationState.IsDolphinDiving);
         thirdPersonAnimator.SetFloat(ProneMoveSpeedHash, animationState.ProneMoveSpeed);
+        thirdPersonAnimator.SetFloat(TurnSpeedHash, animationState.TurnSpeed, damp, Time.deltaTime);
+        thirdPersonAnimator.SetBool(IsTurningLeftHash, animationState.IsTurningLeft);
+        thirdPersonAnimator.SetBool(IsTurningRightHash, animationState.IsTurningRight);
+        thirdPersonAnimator.SetBool(IsAirborneHash, animationState.IsAirborne);
+        thirdPersonAnimator.SetBool(JumpFromSprintHash, animationState.JumpFromSprint);
+        if (!hasJumpSerial)
+        {
+            lastJumpSerial = animationState.JumpSerial;
+            hasJumpSerial = true;
+        }
+        else if (animationState.JumpSerial != lastJumpSerial)
+        {
+            lastJumpSerial = animationState.JumpSerial;
+            thirdPersonAnimator.SetTrigger(JumpTriggerHash);
+        }
         if (animationState.IsDolphinDiving && !wasDolphinDiving)
         {
             thirdPersonAnimator.SetTrigger(DolphinDiveTriggerHash);
@@ -147,6 +222,115 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         thirdPersonAnimator.SetBool(IsDeadHash, dead);
         thirdPersonAnimator.SetFloat(AimPitchHash, animationState.AimPitch);
         thirdPersonAnimator.SetInteger(CurrentWeaponHash, Animator.StringToHash(animationState.CurrentWeapon));
+        WriteDebug();
+    }
+
+    private float ResolveLocomotionPlaySpeed()
+    {
+        float reference = walkReferenceSpeed;
+        if (animationState.IsProne)
+            return 1f;
+        if (animationState.IsCrouching)
+            reference = crouchReferenceSpeed;
+        else if (animationState.IsSprinting)
+            reference = sprintReferenceSpeed;
+
+        if (reference <= 0.01f || !animationState.IsMoving)
+            return 1f;
+
+        float speed = animationState.MoveSpeed / reference;
+        return Mathf.Clamp(speed, locomotionPlaySpeedRange.x, locomotionPlaySpeedRange.y);
+    }
+
+    private void ApplyHeadLook(bool dead)
+    {
+        if (!enableHeadLook || dead || thirdPersonAnimator == null || !thirdPersonAnimator.enabled)
+            return;
+        if (animationState != null && (animationState.IsProne || animationState.IsDolphinDiving))
+            return;
+
+        Transform head = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.Head);
+        if (head == null)
+            return;
+
+        float bodyYaw = transform.eulerAngles.y;
+        if (!hasLaggedLookYaw)
+        {
+            laggedLookYaw = bodyYaw;
+            hasLaggedLookYaw = true;
+        }
+
+        float targetPitch = 0f;
+        if (animationState != null)
+            targetPitch = Mathf.Clamp(animationState.AimPitch * headPitchScale, -maxHeadPitch, maxHeadPitch);
+        if (animationState != null && animationState.IsCrouching)
+            targetPitch *= 0.55f;
+
+        float smooth = Mathf.Max(0.04f, headLookSmoothTime);
+        laggedPitch = Mathf.SmoothDamp(laggedPitch, targetPitch, ref pitchLookVelocity, smooth);
+        laggedLookYaw = Mathf.SmoothDampAngle(laggedLookYaw, bodyYaw, ref yawLookVelocity, smooth);
+        float extraYaw = Mathf.Clamp(Mathf.DeltaAngle(bodyYaw, laggedLookYaw), -maxHeadYaw, maxHeadYaw);
+
+        Vector3 pitchAxis = transform.right;
+        Vector3 yawAxis = Vector3.up;
+        Transform neck = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.Neck);
+        if (neck != null && neckShare > 0.01f)
+        {
+            neck.rotation = Quaternion.AngleAxis(extraYaw * neckShare, yawAxis) *
+                Quaternion.AngleAxis(laggedPitch * neckShare, pitchAxis) *
+                neck.rotation;
+        }
+
+        float headShare = 1f - Mathf.Clamp01(neckShare);
+        head.rotation = Quaternion.AngleAxis(extraYaw * headShare, yawAxis) *
+            Quaternion.AngleAxis(laggedPitch * headShare, pitchAxis) *
+            head.rotation;
+    }
+
+    private void WriteDebug()
+    {
+        debugMoveX = animationState.MoveX;
+        debugMoveY = animationState.MoveY;
+        debugMoveSpeed = animationState.MoveSpeed;
+        debugIsSprinting = animationState.IsSprinting;
+        debugIsCrouching = animationState.IsCrouching;
+        debugIsProne = animationState.IsProne;
+        debugTurnSpeed = animationState.TurnSpeed;
+        debugJump = animationState.JumpFromSprint ? "sprint" : "idle";
+
+        if (thirdPersonAnimator == null || !thirdPersonAnimator.isActiveAndEnabled)
+        {
+            debugAnimatorState = string.Empty;
+            return;
+        }
+
+        AnimatorStateInfo info = thirdPersonAnimator.GetCurrentAnimatorStateInfo(0);
+        debugAnimatorState = InfoToStateName(info);
+    }
+
+    private static string InfoToStateName(AnimatorStateInfo info)
+    {
+        if (info.IsName("Standing Idle")) return "Standing Idle";
+        if (info.IsName("Standing Locomotion")) return "Standing Locomotion";
+        if (info.IsName("Sprint Forward")) return "Sprint Forward";
+        if (info.IsName("Standing to Crouching")) return "Standing to Crouching";
+        if (info.IsName("Crouching Idle")) return "Crouching Idle";
+        if (info.IsName("Crouching Locomotion")) return "Crouching Locomotion";
+        if (info.IsName("Crouching to Standing")) return "Crouching to Standing";
+        if (info.IsName("Crouching to Prone")) return "Crouching to Prone";
+        if (info.IsName("Prone Idle")) return "Prone Idle";
+        if (info.IsName("Prone Forward")) return "Prone Forward";
+        if (info.IsName("Prone Backward")) return "Prone Backward";
+        if (info.IsName("Prone Left Turn")) return "Prone Left Turn";
+        if (info.IsName("Prone Right Turn")) return "Prone Right Turn";
+        if (info.IsName("Prone Locomotion")) return "Prone Locomotion";
+        if (info.IsName("Prone to Crouching")) return "Prone to Crouching";
+        if (info.IsName("Idle to Jump")) return "Idle to Jump";
+        if (info.IsName("Sprint to Jump")) return "Sprint to Jump";
+        if (info.IsName("Airborne Slack")) return "Airborne (pending)";
+        if (info.IsName("Airborne (pending)")) return "Airborne (pending)";
+        if (info.IsName("Dolphin Dive (pending)")) return "Dolphin Dive (pending)";
+        return info.shortNameHash.ToString();
     }
 
     private void OnFired()
