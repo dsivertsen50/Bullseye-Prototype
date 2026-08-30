@@ -18,6 +18,15 @@ public class ThirdPersonWeaponVisual : MonoBehaviour
     public Transform RightHandGrip => rightHandGrip;
     public Transform AimTarget => aimTarget;
 
+    public void ApplyLeftHandLocal(Vector3 localPosition, Vector3 localEuler)
+    {
+        if (leftHandIkTarget == null)
+            return;
+
+        leftHandIkTarget.localPosition = localPosition;
+        leftHandIkTarget.localRotation = Quaternion.Euler(localEuler);
+    }
+
     public void Assign(Transform leftHand, Transform muzzlePoint, Transform grip = null, Transform aim = null)
     {
         leftHandIkTarget = leftHand;

@@ -1543,7 +1543,7 @@ MonoBehaviour:
   switchBlendTime: 0.1
   rightElbowPoleOffset: {x: 0.42, y: -0.16, z: -0.08}
   leftElbowPoleOffset: {x: -0.28, y: -0.18, z: 0.02}
-  drawGizmos: 0
+  drawGizmos: 1
   debugPoseWeight: 0
   debugWeapon: 
 --- !u!1 &3625492656395199349

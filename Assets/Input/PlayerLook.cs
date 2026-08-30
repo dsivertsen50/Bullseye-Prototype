@@ -11,10 +11,13 @@ public class PlayerLook : MonoBehaviour
     [SerializeField] private float controllerSensitivityX = 35f;
     [SerializeField] private float controllerSensitivityY = 35f;
     [SerializeField, Range(20f, 89.7f)] private float maxCameraAngle = 89.7f;
-    [SerializeField, Range(0.1f, 1f)] private float aimingSensitivityMultiplier = 0.4f;
+    [SerializeField, Range(0.1f, 1f)]
+    [Tooltip("Gameplay look scale while Aim/Zoom is active. Applied on top of the player's look sensitivity, not replaced by it.")]
+    private float aimingSensitivityMultiplier = 0.4f;
 
     private float yaw;
     private float pitch;
+    private float currentSensitivityMultiplier = 1f;
     private Rigidbody rb;
     private PlayerHealth playerHealth;
     private PlayerAimZoom playerAimZoom;
@@ -67,13 +70,19 @@ public class PlayerLook : MonoBehaviour
     private void Update()
     {
         if (playerHealth != null && playerHealth.IsDead)
+        {
+            currentSensitivityMultiplier = 1f;
             return;
+        }
 
         if (LocalPlayerMenuState.IsOpen(this))
+        {
+            currentSensitivityMultiplier = 1f;
             return;
+        }
 
         Vector2 input = lookAction.action.ReadValue<Vector2>();
-        float sensitivityMultiplier = IsAiming() ? aimingSensitivityMultiplier : 1f;
+        float sensitivityMultiplier = TickAimSensitivity();
         float invert = PlayerGameSettings.InvertY ? -1f : 1f;
 
         float yawDelta;
@@ -101,7 +110,27 @@ public class PlayerLook : MonoBehaviour
     {
         yaw = 0f;
         pitch = 0f;
+        currentSensitivityMultiplier = 1f;
         ApplyRotation();
+    }
+
+    private float TickAimSensitivity()
+    {
+        float aimedScale = GetAimedLookScale();
+        float target = IsAiming() ? aimedScale : 1f;
+        float duration = playerAimZoom != null ? playerAimZoom.ZoomTransitionDuration : 0.15f;
+        float span = Mathf.Max(0.0001f, Mathf.Abs(1f - aimedScale));
+        currentSensitivityMultiplier = Mathf.MoveTowards(
+            currentSensitivityMultiplier,
+            target,
+            (span / duration) * Time.deltaTime);
+        return currentSensitivityMultiplier;
+    }
+
+    private float GetAimedLookScale()
+    {
+        float playerAim = Mathf.Clamp(PlayerGameSettings.AimSensitivityMultiplier, 0.1f, 1f);
+        return aimingSensitivityMultiplier * playerAim;
     }
 
     private void ApplyRecoil(float recoilPitch, float recoilYaw)
@@ -139,6 +168,5 @@ public class PlayerLook : MonoBehaviour
         sensitivityY = PlayerGameSettings.MouseSensitivityY;
         controllerSensitivityX = PlayerGameSettings.ControllerSensitivityX;
         controllerSensitivityY = PlayerGameSettings.ControllerSensitivityY;
-        aimingSensitivityMultiplier = PlayerGameSettings.AimSensitivityMultiplier;
     }
 }

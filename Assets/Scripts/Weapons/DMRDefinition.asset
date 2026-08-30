@@ -10,22 +10,22 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: aaef68a99298539408f734afed3d7b48, type: 3}
-  m_Name: RifleDefinition
+  m_Name: DMRDefinition
   m_EditorClassIdentifier: Assembly-CSharp::WeaponDefinition
-  weaponId: rifle
-  displayName: AK
+  weaponId: dmr
+  displayName: DMR
   inventoryRole: 0
-  firstPersonPrefab: {fileID: 5204278731374287686, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
-  worldPrefab: {fileID: 5694393423762102552, guid: 19e4f507dc07f6143bc047d381d14181, type: 3}
-  pickupPrefab: {fileID: 5204278731374287686, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
-  presentation: {fileID: 11400000, guid: b76e6696163ad2f419cb0ed8c9dca35c, type: 2}
+  firstPersonPrefab: {fileID: 6101827364091827364, guid: 5d2a8b1c4e6f7093a1b2c3d4e5f60718, type: 3}
+  worldPrefab: {fileID: 7201928475102938475, guid: 6e3b9c2d5f7081a4b2c3d4e5f6071920, type: 3}
+  pickupPrefab: {fileID: 6101827364091827364, guid: 5d2a8b1c4e6f7093a1b2c3d4e5f60718, type: 3}
+  presentation: {fileID: 11400000, guid: 8f3a2c1e9d4b5a6780c1d2e3f4a5b6c7, type: 2}
   magazineSize: 30
   startingMagazineAmmo: 30
   startingReserveAmmo: 90
   maximumReserveAmmo: 180
   unlimitedReserve: 0
   fireRate: 0.1
-  automatic: 1
+  automatic: 0
   reloadTime: 2.1
   damageSettings:
     hitscanMode: 0
@@ -91,26 +91,33 @@ MonoBehaviour:
   worldStanceHeightOffset: 0.2
   thirdPersonClass: 1
   thirdPersonPose:
-    rightHandLocalPosition: {x: 0, y: 0, z: 0}
-    rightHandLocalEuler: {x: 0, y: 0, z: -8}
-    rightHandLocalScale: {x: 1, y: 1, z: 1}
-    holdLocalPosition: {x: 0.22, y: -0.04, z: 0.48}
-    holdLocalEuler: {x: -4, y: 6, z: 0}
-    aimHoldLocalPosition: {x: 0.2, y: 0.04, z: 0.52}
-    aimHoldLocalEuler: {x: -8, y: 4, z: 0}
-    aimRightHandLocalPosition: {x: 0, y: 0, z: 0}
-    aimRightHandLocalEuler: {x: 0, y: 0, z: 0}
+    gunPosition: {x: 0.175, y: 0.05, z: 0.55}
+    gunEuler: {x: 0, y: 0, z: -8}
+    gunScale: {x: 1.15, y: 1.15, z: 1.15}
+    aimGunPosition: {x: 0.135, y: 0.13, z: 0.49}
+    aimGunEuler: {x: 0, y: 0, z: -8}
+    rightHandPosition: {x: 0.2, y: -0.3, z: 0.5}
+    rightWristEuler: {x: 30, y: 0, z: 20}
+    rightArmReach: 0.7
+    rightElbowYaw: 108
+    aimRightHandPosition: {x: 0.16, y: -0.22, z: 0.44}
+    aimRightWristEuler: {x: 30, y: 0, z: 20}
+    leftHandPosition: {x: 0.3, y: -0.25, z: 0.7}
+    leftWristEuler: {x: 50, y: 45, z: -10}
+    leftArmReach: 0.98
+    leftElbowYaw: -133
+    aimLeftHandPosition: {x: 0.26, y: -0.17, z: 0.64}
+    aimLeftWristEuler: {x: 50, y: 45, z: -10}
     defaultWeight: 1
     sprintWeight: 0.22
     crouchWeight: 1
     proneWeight: 0.5
     diveWeight: 0.12
     jumpWeight: 0.85
-    rightArmReach: 0.9
-    leftArmReach: 0.72
     maxAimPitch: 50
     spineAimWeight: 0.62
     upperChestAimShare: 0.45
+    aimRaisePitch: 0
     recoilPitch: 5
     recoilRightRoll: 4
     recoilYaw: 1.5
@@ -118,7 +125,7 @@ MonoBehaviour:
     recoilOutTime: 0.09
   pickupLocalPosition: {x: 0, y: 0, z: 0}
   pickupLocalEuler: {x: 0, y: 35, z: 90}
-  pickupLocalScale: {x: 1.15, y: 1.15, z: 1.15}
+  pickupLocalScale: {x: 1, y: 1, z: 1}
   fitPickupColliderToMesh: 1
   pickupPhysicsBoxSize: {x: 0, y: 0, z: 0}
   pickupPhysicsBoxCenter: {x: 0, y: 0, z: 0}

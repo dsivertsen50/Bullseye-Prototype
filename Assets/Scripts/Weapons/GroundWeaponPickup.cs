@@ -58,6 +58,7 @@ public class GroundWeaponPickup : NetworkBehaviour
     private BoxCollider physicsCollider;
     private Coroutine dropperIgnoreRoutine;
 
+    public WeaponCatalog Catalog => catalog;
     public WeaponDefinition Definition => catalog != null ? catalog.Get(catalogIndex.Value) : definition;
     public string WeaponId => Definition != null ? Definition.WeaponId : string.Empty;
     public int Magazine => magazine.Value;
@@ -96,6 +97,7 @@ public class GroundWeaponPickup : NetworkBehaviour
             return null;
 
         GroundWeaponPickup instance = Instantiate(prefab, position, rotation);
+        instance.gameObject.name = "GroundWeaponPickup_" + definition.DisplayName;
         instance.definition = definition;
         instance.catalog = instance.catalog != null ? instance.catalog : prefab.catalog;
         instance.pendingDefinition = definition;

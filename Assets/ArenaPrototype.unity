@@ -1385,13 +1385,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PrototypeGroundWeaponLayout
   pickupPrefab: {fileID: 8950170290788740471, guid: d0779b8114fad6a40b2cac1358fc2775, type: 3}
   shotgun: {fileID: 11400000, guid: 70865145b36d2104ea18fddac012ce10, type: 2}
-  rifle: {fileID: 11400000, guid: d3be3e4c122c42a4e9ada205a6634f82, type: 2}
+  ak: {fileID: 11400000, guid: d3be3e4c122c42a4e9ada205a6634f82, type: 2}
+  dmr: {fileID: 11400000, guid: 3c7e91a04f2b4d6e8a1c5b0d9e7f2a14, type: 2}
   shotgunPositions:
   - {x: 2.4, y: 0.45, z: -2.2}
   - {x: -2.4, y: 0.45, z: -2.2}
-  riflePositions:
+  akPositions:
   - {x: 2.4, y: 0.45, z: 2.2}
   - {x: -2.4, y: 0.45, z: 2.2}
+  dmrPositions:
+  - {x: 1.6, y: 0.7, z: 2.2}
+  - {x: 1.6, y: 0.7, z: -2.2}
 --- !u!1 &1614980135
 GameObject:
   m_ObjectHideFlags: 0

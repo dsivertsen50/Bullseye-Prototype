@@ -206,13 +206,13 @@ public static class ControlsGuideFormatter
             "Move  —  Left Stick\n" +
             "Look  —  Right Stick\n" +
             "Fire  —  Right Trigger\n" +
-            "Aim / Zoom  —  Right Stick Click\n" +
+            "Aim / Zoom  —  Left Trigger\n" +
             "Sprint  —  Left Stick Click\n" +
             "Jump  —  South Button (A)\n" +
-            "Grenade  —  Left Trigger\n" +
+            "Grenade  —  Left Shoulder\n" +
             "Crouch  —  East Button (B)\n" +
             "Reload / Interact  —  West Button (X)\n" +
-            "Switch Weapon  —  North Button (Y) / Shoulder Buttons\n" +
+            "Switch Weapon  —  North Button (Y) / Right Shoulder\n" +
             "Pause  —  Menu Button";
     }
 }

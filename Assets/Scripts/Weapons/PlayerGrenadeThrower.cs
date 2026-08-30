@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 
 /// <summary>
 /// Owner input and server-authoritative grenade spawning.
-/// Keyboard: C. Gamepad: Left Trigger. Left Trigger was unused.
+/// Keyboard: C. Gamepad: Left Shoulder / LB.
 /// </summary>
 public class PlayerGrenadeThrower : NetworkBehaviour
 {

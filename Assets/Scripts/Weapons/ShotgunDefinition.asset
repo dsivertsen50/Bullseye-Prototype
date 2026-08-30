@@ -91,26 +91,33 @@ MonoBehaviour:
   worldStanceHeightOffset: 0.2
   thirdPersonClass: 2
   thirdPersonPose:
-    rightHandLocalPosition: {x: 0, y: 0, z: 0}
-    rightHandLocalEuler: {x: 0, y: 0, z: -6}
-    rightHandLocalScale: {x: 1, y: 1, z: 1}
-    holdLocalPosition: {x: 0.23, y: -0.05, z: 0.47}
-    holdLocalEuler: {x: -3, y: 6, z: 0}
-    aimHoldLocalPosition: {x: 0.2, y: 0.03, z: 0.51}
-    aimHoldLocalEuler: {x: -7, y: 4, z: 0}
-    aimRightHandLocalPosition: {x: 0, y: 0, z: 0}
-    aimRightHandLocalEuler: {x: 0, y: 0, z: 0}
+    gunPosition: {x: 0.1, y: 0.1, z: 0.5}
+    gunEuler: {x: 0, y: 0, z: -6}
+    gunScale: {x: 1.15, y: 1.15, z: 1.15}
+    aimGunPosition: {x: 0.06, y: 0.18, z: 0.44}
+    aimGunEuler: {x: 0, y: 0, z: -6}
+    rightHandPosition: {x: 0.1, y: -0.1, z: 0.4}
+    rightWristEuler: {x: 50, y: 0, z: 10}
+    rightArmReach: 0.675
+    rightElbowYaw: 129
+    aimRightHandPosition: {x: 0.06, y: -0.02, z: 0.34}
+    aimRightWristEuler: {x: 50, y: 0, z: 10}
+    leftHandPosition: {x: 0, y: 0, z: 0.5}
+    leftWristEuler: {x: 50, y: 50, z: 0}
+    leftArmReach: 0.98
+    leftElbowYaw: -162
+    aimLeftHandPosition: {x: -0.04, y: 0.08, z: 0.44}
+    aimLeftWristEuler: {x: 50, y: 50, z: 0}
     defaultWeight: 1
     sprintWeight: 0.22
     crouchWeight: 1
     proneWeight: 0.5
     diveWeight: 0.12
     jumpWeight: 0.85
-    rightArmReach: 0.89
-    leftArmReach: 0.7
     maxAimPitch: 50
     spineAimWeight: 0.62
     upperChestAimShare: 0.45
+    aimRaisePitch: 0
     recoilPitch: 9
     recoilRightRoll: 6
     recoilYaw: 1.5

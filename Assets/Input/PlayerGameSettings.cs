@@ -14,7 +14,7 @@ public static class PlayerGameSettings
     private const string MouseYKey = "Bullseye_MouseSensY";
     private const string ControllerXKey = "Bullseye_ControllerSensX";
     private const string ControllerYKey = "Bullseye_ControllerSensY";
-    private const string AimSensitivityKey = "Bullseye_AimSensitivity";
+    private const string AimSensitivityKey = "Bullseye_AimLookScale";
     private const string InvertYKey = "Bullseye_InvertY";
     private const string MasterVolumeKey = "Bullseye_MasterVolume";
     private const string SfxVolumeKey = "Bullseye_SFXVolume";
@@ -30,7 +30,7 @@ public static class PlayerGameSettings
     public const float DefaultControllerSensitivity = 35f;
     public const float MinControllerSensitivity = 5f;
     public const float MaxControllerSensitivity = 200f;
-    public const float DefaultAimSensitivity = 0.4f;
+    public const float DefaultAimSensitivity = 1f;
     public const float DefaultMasterVolume = 1f;
     public const float DefaultSfxVolume = 1f;
     public const float DefaultMusicVolume = 1f;

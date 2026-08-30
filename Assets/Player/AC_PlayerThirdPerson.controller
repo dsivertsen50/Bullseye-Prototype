@@ -394,7 +394,7 @@ BlendTree:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: StandingLocomotion_ReplaceStrafeClips
+  m_Name: StandingLocomotion
   m_Childs:
   - serializedVersion: 2
     m_Motion: {fileID: -203655887218126122, guid: ad5299fb3f7cdb9499fbf0ba764a4ed0, type: 3}
@@ -416,12 +416,67 @@ BlendTree:
     m_Motion: {fileID: -203655887218126122, guid: 97f68ea48f77ca14480bdc571c2d1f30, type: 3}
     m_Threshold: 0
     m_Position: {x: 0, y: -1}
+    m_TimeScale: 1.3
+    m_CycleOffset: 0
+    m_DirectBlendParameter: Blend
+    m_Mirror: 0
+  - serializedVersion: 2
+    m_Motion: {fileID: -203655887218126122, guid: 88456c4a782399442a4d24ce0119824c, type: 3}
+    m_Threshold: 0
+    m_Position: {x: -1, y: 0}
     m_TimeScale: 1.2
     m_CycleOffset: 0
     m_DirectBlendParameter: Blend
     m_Mirror: 0
   - serializedVersion: 2
-    m_Motion: {fileID: -203655887218126122, guid: 410b536a090edef4b98947e651ca0e72, type: 3}
+    m_Motion: {fileID: -203655887218126122, guid: 4b7a2ede197e16646af1b4e5aa1b312f, type: 3}
+    m_Threshold: 0
+    m_Position: {x: 1, y: 0}
+    m_TimeScale: 1.2
+    m_CycleOffset: 0
+    m_DirectBlendParameter: Blend
+    m_Mirror: 0
+  m_BlendParameter: MoveX
+  m_BlendParameterY: MoveY
+  m_MinThreshold: 0
+  m_MaxThreshold: 1
+  m_UseAutomaticThresholds: 0
+  m_NormalizedBlendValues: 0
+  m_BlendType: 2
+--- !u!206 &-4401928374650192837
+BlendTree:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: SprintLocomotion
+  m_Childs:
+  - serializedVersion: 2
+    m_Motion: {fileID: -203655887218126122, guid: 0bee5ee7ee030ab4980f87b3008dd190, type: 3}
+    m_Threshold: 0
+    m_Position: {x: 0, y: 1}
+    m_TimeScale: 1
+    m_CycleOffset: 0
+    m_DirectBlendParameter: Blend
+    m_Mirror: 0
+  - serializedVersion: 2
+    m_Motion: {fileID: -203655887218126122, guid: 9c51d91494f799e41ab4fee8ee4a7164, type: 3}
+    m_Threshold: 0
+    m_Position: {x: -1, y: 0.2}
+    m_TimeScale: 1
+    m_CycleOffset: 0
+    m_DirectBlendParameter: Blend
+    m_Mirror: 0
+  - serializedVersion: 2
+    m_Motion: {fileID: -203655887218126122, guid: e2039bec2adbabd429dd9cb4e8cde937, type: 3}
+    m_Threshold: 0
+    m_Position: {x: 1, y: 0.2}
+    m_TimeScale: 1
+    m_CycleOffset: 0
+    m_DirectBlendParameter: Blend
+    m_Mirror: 0
+  - serializedVersion: 2
+    m_Motion: {fileID: -203655887218126122, guid: 9c51d91494f799e41ab4fee8ee4a7164, type: 3}
     m_Threshold: 0
     m_Position: {x: -1, y: 0}
     m_TimeScale: 1
@@ -429,10 +484,18 @@ BlendTree:
     m_DirectBlendParameter: Blend
     m_Mirror: 0
   - serializedVersion: 2
-    m_Motion: {fileID: -203655887218126122, guid: 410b536a090edef4b98947e651ca0e72, type: 3}
+    m_Motion: {fileID: -203655887218126122, guid: e2039bec2adbabd429dd9cb4e8cde937, type: 3}
     m_Threshold: 0
     m_Position: {x: 1, y: 0}
     m_TimeScale: 1
+    m_CycleOffset: 0
+    m_DirectBlendParameter: Blend
+    m_Mirror: 0
+  - serializedVersion: 2
+    m_Motion: {fileID: -203655887218126122, guid: 97f68ea48f77ca14480bdc571c2d1f30, type: 3}
+    m_Threshold: 0
+    m_Position: {x: 0, y: -1}
+    m_TimeScale: 1.8
     m_CycleOffset: 0
     m_DirectBlendParameter: Blend
     m_Mirror: 0
@@ -2672,7 +2735,7 @@ AnimatorState:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Sprint Forward
+  m_Name: Sprint Locomotion
   m_Speed: 1
   m_CycleOffset: 0
   m_Transitions:
@@ -2689,7 +2752,7 @@ AnimatorState:
   m_MirrorParameterActive: 0
   m_CycleOffsetParameterActive: 0
   m_TimeParameterActive: 0
-  m_Motion: {fileID: -203655887218126122, guid: 0bee5ee7ee030ab4980f87b3008dd190, type: 3}
+  m_Motion: {fileID: -4401928374650192837}
   m_Tag: 
   m_SpeedParameter: LocomotionPlaySpeed
   m_MirrorParameter: 
