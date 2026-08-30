@@ -21,7 +21,10 @@ public static class PlayerLocomotionAnimatorBuilder
     private const float TransitionExit = 0.88f;
     private const float WalkingForwardPlayback = 1.2f;
     private const float WalkingBackwardPlayback = 1.3f;
+    private const float WalkingStrafePlayback = 1.2f;
+    private const float SprintBackwardFallbackPlayback = 1.8f;
     private const float ProneCrawlPlayback = 1.5f;
+    private const string Req040AppliedPref = "Bullseye.REQ040.StrafeIntegrationApplied";
     private const string IdleJumpTakeoffPath = "Assets/Player/Animations/IdleJumpTakeoff.anim";
     private const string SprintJumpTakeoffPath = "Assets/Player/Animations/SprintJumpTakeoff.anim";
 
@@ -35,6 +38,52 @@ public static class PlayerLocomotionAnimatorBuilder
     public static void Apply036AFromMenu()
     {
         Debug.Log(Build());
+    }
+
+    [MenuItem("Bullseye/Apply REQ-040 Strafe Animation Integration")]
+    public static void Apply040FromMenu()
+    {
+        Debug.Log(Build());
+    }
+
+    public static void BuildBatch()
+    {
+        string result = Build();
+        Debug.Log(result);
+        if (result.StartsWith("FAILED"))
+            EditorApplication.Exit(1);
+    }
+
+    [InitializeOnLoadMethod]
+    private static void AutoApplyReq040IfNeeded()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode)
+            return;
+
+        EditorApplication.delayCall += () =>
+        {
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+                return;
+            if (EditorPrefs.GetBool(Req040AppliedPref, false))
+                return;
+            if (!StrafeClipFilesExist())
+                return;
+
+            if (ControllerHasSprintLocomotionTree())
+            {
+                Avatar sourceAvatar = LoadAvatar(TPosePath);
+                if (sourceAvatar != null)
+                    ConfigureClipImports(sourceAvatar, StrafeClipFileNames);
+                EditorPrefs.SetBool(Req040AppliedPref, true);
+                Debug.Log("REQ-040: strafe clips already wired; configured Humanoid loop/root import settings.");
+                return;
+            }
+
+            string result = Build();
+            Debug.Log("REQ-040 strafe integration: " + result);
+            if (!result.StartsWith("FAILED"))
+                EditorPrefs.SetBool(Req040AppliedPref, true);
+        };
     }
 
     public static string Build()
@@ -69,17 +118,29 @@ public static class PlayerLocomotionAnimatorBuilder
             "Locomotion animator rebuilt.\n" +
             importLog + "\n" +
             "Controller=" + ControllerPath + "\n" +
-            "States: Standing, Crouch, Prone crawl/turn/exit, Idle/Sprint jump, Airborne fallback.\n" +
+            "States: Standing 2D walk/strafe, Sprint 2D loco, Crouch, Prone, Idle/Sprint jump.\n" +
             "Walk forward=" + WalkingForwardPlayback.ToString("0.00") +
             "x back=" + WalkingBackwardPlayback.ToString("0.00") +
+            "x strafe=" + WalkingStrafePlayback.ToString("0.00") +
             "x prone crawl=" + ProneCrawlPlayback.ToString("0.00") + "x";
     }
 
-    private static string ConfigureClipImports(Avatar sourceAvatar)
+    private static readonly string[] StrafeClipFileNames =
+    {
+        "Walking Left Strafe.fbx",
+        "Walking Right Strafe.fbx",
+        "Sprinting Left Strafe.fbx",
+        "Sprinting Right Strafe.fbx"
+    };
+
+    private static string ConfigureClipImports(Avatar sourceAvatar, string[] onlyFileNames = null)
     {
         int configured = 0;
         foreach (ClipImport clip in ClipImports)
         {
+            if (onlyFileNames != null && !onlyFileNames.Contains(clip.fileName))
+                continue;
+
             string path = AnimationFolder + "/" + clip.fileName;
             ModelImporter importer = AssetImporter.GetAtPath(path) as ModelImporter;
             if (importer == null)
@@ -225,9 +286,13 @@ public static class PlayerLocomotionAnimatorBuilder
             CreateStandingLocomotionTree(clips),
             new Vector3(480f, 80f, 0f),
             true);
-        graph.Sprint = AddState(standing, "Sprint Forward", clips["SprintForward"], new Vector3(480f, -40f, 0f), true);
-        AddState(standing, "Walking Left (pending)", clips["WalkingForward"], new Vector3(720f, 20f, 0f));
-        AddState(standing, "Walking Right (pending)", clips["WalkingForward"], new Vector3(720f, 140f, 0f));
+        graph.Sprint = AddState(
+            standing,
+            "Sprint Locomotion",
+            CreateSprintLocomotionTree(clips),
+            new Vector3(480f, -40f, 0f),
+            true);
+        AddState(standing, "Sprinting Backward (pending)", clips["WalkingBackward"], new Vector3(720f, -40f, 0f));
         standing.defaultState = graph.StandingIdle;
 
         graph.StandingToCrouching = AddState(root, "Standing to Crouching", clips["StandingToCrouching"], new Vector3(320f, 230f, 0f));
@@ -486,21 +551,41 @@ public static class PlayerLocomotionAnimatorBuilder
 
     private static BlendTree CreateStandingLocomotionTree(Dictionary<string, AnimationClip> clips)
     {
-        BlendTree tree = CreateBlendTree("StandingLocomotion_ReplaceStrafeClips");
+        BlendTree tree = CreateBlendTree("StandingLocomotion");
         tree.AddChild(clips["StandingIdle"], new Vector2(0f, 0f));
         tree.AddChild(clips["WalkingForward"], new Vector2(0f, 1f));
         tree.AddChild(clips["WalkingBackward"], new Vector2(0f, -1f));
-        tree.AddChild(clips["WalkingForward"], new Vector2(-1f, 0f));
-        tree.AddChild(clips["WalkingForward"], new Vector2(1f, 0f));
+        tree.AddChild(clips["WalkingLeftStrafe"], new Vector2(-1f, 0f));
+        tree.AddChild(clips["WalkingRightStrafe"], new Vector2(1f, 0f));
         ChildMotion[] children = tree.children;
         for (int i = 0; i < children.Length; i++)
         {
-            if (Mathf.Abs(children[i].position.x) > 0.01f)
-                continue;
-            if (children[i].position.y > 0.5f)
+            if (Mathf.Abs(children[i].position.x) > 0.5f)
+                children[i].timeScale = WalkingStrafePlayback;
+            else if (children[i].position.y > 0.5f)
                 children[i].timeScale = WalkingForwardPlayback;
             else if (children[i].position.y < -0.5f)
                 children[i].timeScale = WalkingBackwardPlayback;
+        }
+
+        tree.children = children;
+        return tree;
+    }
+
+    private static BlendTree CreateSprintLocomotionTree(Dictionary<string, AnimationClip> clips)
+    {
+        BlendTree tree = CreateBlendTree("SprintLocomotion");
+        tree.AddChild(clips["SprintForward"], new Vector2(0f, 1f));
+        tree.AddChild(clips["SprintingLeftStrafe"], new Vector2(-1f, 0.2f));
+        tree.AddChild(clips["SprintingRightStrafe"], new Vector2(1f, 0.2f));
+        tree.AddChild(clips["SprintingLeftStrafe"], new Vector2(-1f, 0f));
+        tree.AddChild(clips["SprintingRightStrafe"], new Vector2(1f, 0f));
+        tree.AddChild(clips["WalkingBackward"], new Vector2(0f, -1f));
+        ChildMotion[] children = tree.children;
+        for (int i = 0; i < children.Length; i++)
+        {
+            if (children[i].position.y < -0.5f)
+                children[i].timeScale = SprintBackwardFallbackPlayback;
         }
 
         tree.children = children;
@@ -690,12 +775,38 @@ public static class PlayerLocomotionAnimatorBuilder
         return AssetDatabase.LoadAllAssetsAtPath(path).OfType<Avatar>().FirstOrDefault();
     }
 
+    private static bool StrafeClipFilesExist()
+    {
+        for (int i = 0; i < StrafeClipFileNames.Length; i++)
+        {
+            if (AssetDatabase.LoadAssetAtPath<Object>(AnimationFolder + "/" + StrafeClipFileNames[i]) == null)
+                return false;
+        }
+
+        return true;
+    }
+
+    private static bool ControllerHasSprintLocomotionTree()
+    {
+        foreach (Object asset in AssetDatabase.LoadAllAssetsAtPath(ControllerPath))
+        {
+            if (asset is BlendTree tree && tree.name == "SprintLocomotion")
+                return true;
+        }
+
+        return false;
+    }
+
     private static readonly ClipImport[] ClipImports =
     {
         new ClipImport("Standing Idle.fbx", "StandingIdle", true),
         new ClipImport("Walking Forward.fbx", "WalkingForward", true),
         new ClipImport("Walking Backward.fbx", "WalkingBackward", true),
+        new ClipImport("Walking Left Strafe.fbx", "WalkingLeftStrafe", true),
+        new ClipImport("Walking Right Strafe.fbx", "WalkingRightStrafe", true),
         new ClipImport("Sprint Forward.fbx", "SprintForward", true),
+        new ClipImport("Sprinting Left Strafe.fbx", "SprintingLeftStrafe", true),
+        new ClipImport("Sprinting Right Strafe.fbx", "SprintingRightStrafe", true),
         new ClipImport("Standing to Crouching.fbx", "StandingToCrouching", false),
         new ClipImport("Crouching Idle.fbx", "CrouchingIdle", true),
         new ClipImport("Crouching Walk Forward.fbx", "CrouchingWalkForward", true),

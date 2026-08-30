@@ -20,6 +20,8 @@ public class PlayerAimZoom : MonoBehaviour
 
     public bool IsAiming { get; private set; }
 
+    public float ZoomTransitionDuration => Mathf.Max(0.0001f, zoomTransitionDuration);
+
     public float FovReduction
     {
         get => fovReduction;
@@ -86,13 +88,31 @@ public class PlayerAimZoom : MonoBehaviour
 
     private bool ReadAimInput()
     {
+        // Left Trigger is hold-to-aim. Mouse / keyboard keep the serialized toggle-or-hold setting.
+        if (IsGamepadAimHeld())
+        {
+            aimToggledOn = false;
+            return true;
+        }
+
         if (aimActivation == InputActivationMode.Hold)
             return aimAction.action.IsPressed();
 
-        if (aimAction.action.WasPressedThisFrame())
+        if (aimAction.action.WasPressedThisFrame() && !IsGamepadAimControl())
             aimToggledOn = !aimToggledOn;
 
         return aimToggledOn;
+    }
+
+    private bool IsGamepadAimHeld()
+    {
+        return aimAction.action.IsPressed() && IsGamepadAimControl();
+    }
+
+    private bool IsGamepadAimControl()
+    {
+        InputControl control = aimAction.action.activeControl;
+        return control != null && control.device is Gamepad;
     }
 
     private void ApplyFov(float targetFov)

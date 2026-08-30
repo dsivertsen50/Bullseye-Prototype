@@ -312,7 +312,8 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     {
         if (info.IsName("Standing Idle")) return "Standing Idle";
         if (info.IsName("Standing Locomotion")) return "Standing Locomotion";
-        if (info.IsName("Sprint Forward")) return "Sprint Forward";
+        if (info.IsName("Sprint Locomotion")) return "Sprint Locomotion";
+        if (info.IsName("Sprint Forward")) return "Sprint Locomotion";
         if (info.IsName("Standing to Crouching")) return "Standing to Crouching";
         if (info.IsName("Crouching Idle")) return "Crouching Idle";
         if (info.IsName("Crouching Locomotion")) return "Crouching Locomotion";

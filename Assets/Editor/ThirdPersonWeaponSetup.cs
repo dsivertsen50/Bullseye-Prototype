@@ -13,6 +13,7 @@ public static class ThirdPersonWeaponSetup
     public const string MaskPath = MaskFolder + "/UpperBodyWeapon.mask";
     public const string PistolPath = PrefabFolder + "/ThirdPerson_Pistol.prefab";
     public const string RiflePath = PrefabFolder + "/ThirdPerson_AK.prefab";
+    public const string DmrPath = PrefabFolder + "/ThirdPerson_DMR.prefab";
     public const string ShotgunPath = PrefabFolder + "/ThirdPerson_Shotgun.prefab";
 
     [MenuItem("Bullseye/Weapons/Setup Third-Person Weapon Alignment")]
@@ -44,10 +45,14 @@ public static class ThirdPersonWeaponSetup
             ThirdPersonWeaponClass.Pistol,
             ThirdPersonWeaponPose.CreateDefault(ThirdPersonWeaponClass.Pistol));
         ConfigureDefinition(
-            "Assets/Scripts/Weapons/RifleDefinition.asset",
+            ResolveAkDefinitionPath(),
             rifle,
             ThirdPersonWeaponClass.Rifle,
             ThirdPersonWeaponPose.CreateDefault(ThirdPersonWeaponClass.Rifle));
+
+        GameObject dmrSource = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Weapons/DMR/Prefabs/DMR_Gameplay.prefab");
+        if (dmrSource != null)
+            CreateWrapper("ThirdPerson_DMR", dmrSource, DmrPath, new Vector3(0.02f, -0.02f, 0.22f));
         ConfigureDefinition(
             "Assets/Scripts/Weapons/ShotgunDefinition.asset",
             shotgun,
@@ -62,7 +67,7 @@ public static class ThirdPersonWeaponSetup
         return "OK: third-person weapon alignment assets updated";
     }
 
-    private static GameObject CreateWrapper(string name, GameObject source, string path, Vector3 leftHandLocal)
+    public static GameObject CreateWrapper(string name, GameObject source, string path, Vector3 leftHandLocal)
     {
         GameObject root = new GameObject(name);
         try
@@ -118,15 +123,21 @@ public static class ThirdPersonWeaponSetup
         so.FindProperty("worldPrefab").objectReferenceValue = worldPrefab;
         so.FindProperty("thirdPersonClass").enumValueIndex = (int)weaponClass;
         SerializedProperty poseProp = so.FindProperty("thirdPersonPose");
-        WriteVector(poseProp.FindPropertyRelative("rightHandLocalPosition"), pose.rightHandLocalPosition);
-        WriteVector(poseProp.FindPropertyRelative("rightHandLocalEuler"), pose.rightHandLocalEuler);
-        WriteVector(poseProp.FindPropertyRelative("rightHandLocalScale"), pose.rightHandLocalScale);
-        WriteVector(poseProp.FindPropertyRelative("holdLocalPosition"), pose.holdLocalPosition);
-        WriteVector(poseProp.FindPropertyRelative("holdLocalEuler"), pose.holdLocalEuler);
-        WriteVector(poseProp.FindPropertyRelative("aimHoldLocalPosition"), pose.aimHoldLocalPosition);
-        WriteVector(poseProp.FindPropertyRelative("aimHoldLocalEuler"), pose.aimHoldLocalEuler);
-        WriteVector(poseProp.FindPropertyRelative("aimRightHandLocalPosition"), pose.aimRightHandLocalPosition);
-        WriteVector(poseProp.FindPropertyRelative("aimRightHandLocalEuler"), pose.aimRightHandLocalEuler);
+        WriteVector(poseProp.FindPropertyRelative("gunPosition"), pose.gunPosition);
+        WriteVector(poseProp.FindPropertyRelative("gunEuler"), pose.gunEuler);
+        WriteVector(poseProp.FindPropertyRelative("gunScale"), pose.gunScale);
+        WriteVector(poseProp.FindPropertyRelative("aimGunPosition"), pose.aimGunPosition);
+        WriteVector(poseProp.FindPropertyRelative("aimGunEuler"), pose.aimGunEuler);
+        WriteVector(poseProp.FindPropertyRelative("rightHandPosition"), pose.rightHandPosition);
+        WriteVector(poseProp.FindPropertyRelative("rightWristEuler"), pose.rightWristEuler);
+        WriteVector(poseProp.FindPropertyRelative("aimRightHandPosition"), pose.aimRightHandPosition);
+        WriteVector(poseProp.FindPropertyRelative("aimRightWristEuler"), pose.aimRightWristEuler);
+        WriteVector(poseProp.FindPropertyRelative("leftHandPosition"), pose.leftHandPosition);
+        WriteVector(poseProp.FindPropertyRelative("leftWristEuler"), pose.leftWristEuler);
+        WriteVector(poseProp.FindPropertyRelative("aimLeftHandPosition"), pose.aimLeftHandPosition);
+        WriteVector(poseProp.FindPropertyRelative("aimLeftWristEuler"), pose.aimLeftWristEuler);
+        poseProp.FindPropertyRelative("rightElbowYaw").floatValue = pose.rightElbowYaw;
+        poseProp.FindPropertyRelative("leftElbowYaw").floatValue = pose.leftElbowYaw;
         poseProp.FindPropertyRelative("defaultWeight").floatValue = pose.defaultWeight;
         poseProp.FindPropertyRelative("sprintWeight").floatValue = pose.sprintWeight;
         poseProp.FindPropertyRelative("crouchWeight").floatValue = pose.crouchWeight;
@@ -247,6 +258,15 @@ public static class ThirdPersonWeaponSetup
         {
             PrefabUtility.UnloadPrefabContents(contents);
         }
+    }
+
+    public static string ResolveAkDefinitionPath()
+    {
+        const string current = "Assets/Scripts/Weapons/AKDefinition.asset";
+        const string legacy = "Assets/Scripts/Weapons/RifleDefinition.asset";
+        if (AssetDatabase.LoadAssetAtPath<WeaponDefinition>(current) != null)
+            return current;
+        return legacy;
     }
 
     private static void WriteVector(SerializedProperty property, Vector3 value)

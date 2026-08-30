@@ -1,0 +1,132 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aaef68a99298539408f734afed3d7b48, type: 3}
+  m_Name: AKDefinition
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponDefinition
+  weaponId: ak
+  displayName: AK
+  inventoryRole: 0
+  firstPersonPrefab: {fileID: 5204278731374287686, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
+  worldPrefab: {fileID: 5694393423762102552, guid: 19e4f507dc07f6143bc047d381d14181, type: 3}
+  pickupPrefab: {fileID: 5204278731374287686, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
+  presentation: {fileID: 11400000, guid: b76e6696163ad2f419cb0ed8c9dca35c, type: 2}
+  magazineSize: 30
+  startingMagazineAmmo: 30
+  startingReserveAmmo: 90
+  maximumReserveAmmo: 180
+  unlimitedReserve: 0
+  fireRate: 0.1
+  automatic: 1
+  reloadTime: 2.1
+  damageSettings:
+    hitscanMode: 0
+    pelletCount: 1
+    baseDamage: 0.5
+    damagePerPellet: 0.5
+    guaranteeLethalHeadshot: 0
+    falloffStart: 16
+    falloffEnd: 40
+    maximumRange: 100
+    beyondMaxRange: 0
+    falloffCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.65
+        value: 0.85
+        inSlope: -0.4
+        outSlope: -0.4
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: -1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    minimumDamageMultiplier: 0.6
+    pelletSpread: 0
+    logDamage: 0
+  accuracy:
+    baseSpread: 12
+    maxSpread: 56
+    bloomPerShot: 3.5
+    bloomRecoveryDelay: 0.06
+    bloomRecoverySpeed: 40
+    sprintSpread: 38
+    sprintSpreadIncreaseSpeed: 80
+    sprintSpreadRecoverySpeed: 60
+    reticleSprite: {fileID: 0}
+    reticleElementLength: 12
+    reticleElementThickness: 2
+  worldLocalPosition: {x: 0.62, y: 0, z: 0.48}
+  worldLocalEuler: {x: 0, y: 0, z: 0}
+  worldLocalScale: {x: 1, y: 1, z: 1}
+  worldStanceHeightOffset: 0.2
+  thirdPersonClass: 1
+  thirdPersonPose:
+    gunPosition: {x: 0.175, y: 0.05, z: 0.55}
+    gunEuler: {x: 0, y: 0, z: -8}
+    gunScale: {x: 1.15, y: 1.15, z: 1.15}
+    aimGunPosition: {x: 0.135, y: 0.13, z: 0.49}
+    aimGunEuler: {x: 0, y: 0, z: -8}
+    rightHandPosition: {x: 0.2, y: -0.3, z: 0.5}
+    rightWristEuler: {x: 30, y: 0, z: 20}
+    rightArmReach: 0.7
+    rightElbowYaw: 108
+    aimRightHandPosition: {x: 0.16, y: -0.22, z: 0.44}
+    aimRightWristEuler: {x: 30, y: 0, z: 20}
+    leftHandPosition: {x: 0.3, y: -0.25, z: 0.7}
+    leftWristEuler: {x: 50, y: 45, z: -10}
+    leftArmReach: 0.98
+    leftElbowYaw: -133
+    aimLeftHandPosition: {x: 0.26, y: -0.17, z: 0.64}
+    aimLeftWristEuler: {x: 50, y: 45, z: -10}
+    defaultWeight: 1
+    sprintWeight: 0.22
+    crouchWeight: 1
+    proneWeight: 0.5
+    diveWeight: 0.12
+    jumpWeight: 0.85
+    maxAimPitch: 50
+    spineAimWeight: 0.62
+    upperChestAimShare: 0.45
+    aimRaisePitch: 0
+    recoilPitch: 5
+    recoilRightRoll: 4
+    recoilYaw: 1.5
+    recoilInTime: 0.035
+    recoilOutTime: 0.09
+  pickupLocalPosition: {x: 0, y: 0, z: 0}
+  pickupLocalEuler: {x: 0, y: 35, z: 90}
+  pickupLocalScale: {x: 1.15, y: 1.15, z: 1.15}
+  fitPickupColliderToMesh: 1
+  pickupPhysicsBoxSize: {x: 0, y: 0, z: 0}
+  pickupPhysicsBoxCenter: {x: 0, y: 0, z: 0}
+  pickupColliderMinHeight: 0.05

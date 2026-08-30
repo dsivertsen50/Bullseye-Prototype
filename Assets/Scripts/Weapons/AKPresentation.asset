@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c73ebe74427f15549ab444c7a33976b5, type: 3}
-  m_Name: RiflePresentation
+  m_Name: AKPresentation
   m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationConfig
   weaponName: AK
   fireSfx: {fileID: 8300000, guid: 14e5c184b373f684a855502954d4b743, type: 3}
