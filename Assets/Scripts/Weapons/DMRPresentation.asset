@@ -47,9 +47,9 @@ MonoBehaviour:
   aimDistance: 0.32
   adsLocalPosition: {x: 0, y: -0.002, z: 0.01}
   adsLocalEuler: {x: 0, y: 0, z: 0}
-  adsBlendDuration: 0.14
-  aimInSpeed: 7.5
-  aimOutSpeed: 6.5
+  adsBlendDuration: 0.2
+  aimInSpeed: 5
+  aimOutSpeed: 6.67
   adsSwayMultiplier: 0.14
   adsBobMultiplier: 0.16
   recoilPitch: 1.1

@@ -79,6 +79,7 @@ public class MainMenuController : MonoBehaviour
 
     private Text hostJoinCodeLabel;
     private Text hostVisibilityNote;
+    private Text hostErrorLabel;
     private Text joinPublicListLabel;
     private Text joinErrorLabel;
     private Text creditsBody;
@@ -117,9 +118,18 @@ public class MainMenuController : MonoBehaviour
             if (!string.IsNullOrEmpty(sessionCoordinator.LastError))
             {
                 string error = sessionCoordinator.LastError;
+                bool hostFailed = sessionCoordinator.LastErrorKind == GameSessionCoordinator.PendingSessionKind.Host;
                 sessionCoordinator.ClearLastError();
-                ShowScreen(MenuScreen.Join, false);
-                SetJoinError(error);
+                if (hostFailed)
+                {
+                    ShowScreen(MenuScreen.Host, false);
+                    SetHostError(error);
+                }
+                else
+                {
+                    ShowScreen(MenuScreen.Join, false);
+                    SetJoinError(error);
+                }
                 return;
             }
         }
@@ -259,6 +269,7 @@ public class MainMenuController : MonoBehaviour
             reservedJoinCode = LocalSessionRegistry.GenerateJoinCode();
         if (hostJoinCodeLabel != null)
             hostJoinCodeLabel.text = "Join Code  " + reservedJoinCode;
+        SetHostError(null);
         RefreshVisibilityButtons();
     }
 
@@ -273,6 +284,12 @@ public class MainMenuController : MonoBehaviour
     {
         if (joinErrorLabel != null)
             joinErrorLabel.text = message ?? string.Empty;
+    }
+
+    private void SetHostError(string message)
+    {
+        if (hostErrorLabel != null)
+            hostErrorLabel.text = message ?? string.Empty;
     }
 
     private void RefreshVisibilityButtons()
@@ -340,8 +357,7 @@ public class MainMenuController : MonoBehaviour
         if (sessionCoordinator.TryHost(hostVisibility, reservedJoinCode, out string error))
             return;
 
-        if (hostVisibilityNote != null)
-            hostVisibilityNote.text = error;
+        SetHostError(error);
     }
 
     private void JoinFromMenu()
@@ -651,7 +667,9 @@ public class MainMenuController : MonoBehaviour
         hostJoinCodeLabel = MenuUiFactory.CreateLabel(hostPanel.transform, "JoinCode", "Join Code", 28, new Vector2(0f, 50f), new Vector2(640f, 40f));
         hostVisibilityNote = MenuUiFactory.CreateLabel(hostPanel.transform, "VisibilityNote", string.Empty, 18, new Vector2(0f, -20f), new Vector2(640f, 80f));
         startGameButton = MenuUiFactory.CreateButton(hostPanel.transform, "StartGame", "Start Game", new Vector2(0f, -120f), HostFromMenu);
-        hostBackButton = MenuUiFactory.CreateButton(hostPanel.transform, "Back", "Back", new Vector2(0f, -190f), () => ShowScreen(MenuScreen.Play, true));
+        hostErrorLabel = MenuUiFactory.CreateLabel(hostPanel.transform, "Error", string.Empty, 20, new Vector2(0f, -155f), new Vector2(640f, 40f));
+        hostErrorLabel.color = new Color(1f, 0.45f, 0.4f, 1f);
+        hostBackButton = MenuUiFactory.CreateButton(hostPanel.transform, "Back", "Back", new Vector2(0f, -210f), () => ShowScreen(MenuScreen.Play, true));
     }
 
     private void BuildJoinPanel(Transform parent)

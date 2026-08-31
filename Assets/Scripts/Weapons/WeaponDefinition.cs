@@ -37,6 +37,24 @@ public class WeaponDefinition : ScriptableObject
     [Header("Accuracy / Reticle")]
     [SerializeField] private WeaponAccuracySettings accuracy = new();
 
+    [Header("ADS")]
+    [SerializeField, Tooltip("When enabled, ADS applies true camera magnification from Ads Magnification. When disabled, ADS only changes weapon pose and handling.")]
+    private bool usesMagnifiedAds = true;
+    [SerializeField, Min(1f), Tooltip("Optical magnification while ADS. 1.0x is no zoom. 1.15x is a mild sight picture. 2.5x is the current DMR optic.")]
+    private float adsMagnification = 1.15f;
+    [SerializeField, Min(0.01f), Tooltip("Seconds to blend into this weapon's ADS camera, sensitivity, and pose.")]
+    private float adsEnterDuration = 0.18f;
+    [SerializeField, Min(0.01f), Tooltip("Seconds to blend out of this weapon's ADS camera, sensitivity, and pose.")]
+    private float adsExitDuration = 0.15f;
+    [SerializeField, Range(0.05f, 1.5f), Tooltip("Look scale while ADS, applied after mouse/gamepad sensitivity and the player's ADS Sensitivity setting.")]
+    private float adsSensitivityMultiplier = 0.4f;
+    [SerializeField, Tooltip("Hides the first-person weapon while ADS so the view is a scope picture rather than looking down the gun. Does not affect third-person.")]
+    private bool adsHidesViewmodel;
+
+    [Header("Scope Presentation")]
+    [SerializeField, Tooltip("Visual optic overlay while ADS. Independent of Ads Magnification. Leave empty for weapons that only pose-aim.")]
+    private ScopeDefinition scopePresentation;
+
     [Header("World Attachment")]
     [SerializeField] private Vector3 worldLocalPosition = new(0.34f, 0f, 0.38f);
     [SerializeField] private Vector3 worldLocalEuler;
@@ -88,6 +106,14 @@ public class WeaponDefinition : ScriptableObject
     public float ReloadTime => Mathf.Max(0.05f, reloadTime);
     public WeaponDamageSettings DamageSettings => damageSettings ??= new WeaponDamageSettings();
     public WeaponAccuracySettings Accuracy => accuracy ??= new WeaponAccuracySettings();
+    public bool UsesMagnifiedAds => usesMagnifiedAds;
+    public float AdsMagnification => usesMagnifiedAds ? Mathf.Max(1f, adsMagnification) : 1f;
+    public float AdsEnterDuration => Mathf.Max(0.01f, adsEnterDuration);
+    public float AdsExitDuration => Mathf.Max(0.01f, adsExitDuration);
+    public float AdsSensitivityMultiplier => Mathf.Clamp(adsSensitivityMultiplier, 0.05f, 1.5f);
+    public bool AdsHidesViewmodel => adsHidesViewmodel;
+    public ScopeDefinition ScopePresentation => scopePresentation;
+    public bool UsesScopeOverlay => scopePresentation != null && scopePresentation.UsesScopeOverlay;
     public Vector3 WorldLocalPosition => worldLocalPosition;
     public Vector3 WorldLocalEuler => worldLocalEuler;
     public Vector3 WorldLocalScale => worldLocalScale;
@@ -116,6 +142,10 @@ public class WeaponDefinition : ScriptableObject
         damageSettings.Validate();
         accuracy ??= new WeaponAccuracySettings();
         accuracy.Validate();
+        adsMagnification = Mathf.Max(1f, adsMagnification);
+        adsEnterDuration = Mathf.Max(0.01f, adsEnterDuration);
+        adsExitDuration = Mathf.Max(0.01f, adsExitDuration);
+        adsSensitivityMultiplier = Mathf.Clamp(adsSensitivityMultiplier, 0.05f, 1.5f);
         thirdPersonPose ??= ThirdPersonWeaponPose.CreateDefault(thirdPersonClass);
     }
 }

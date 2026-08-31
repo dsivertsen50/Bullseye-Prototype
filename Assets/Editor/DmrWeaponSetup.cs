@@ -393,6 +393,16 @@ public static class DmrWeaponSetup
         so.FindProperty("worldPrefab").objectReferenceValue = world;
         so.FindProperty("pickupPrefab").objectReferenceValue = gameplay;
         so.FindProperty("presentation").objectReferenceValue = presentation;
+        so.FindProperty("usesMagnifiedAds").boolValue = true;
+        so.FindProperty("adsMagnification").floatValue = 2.5f;
+        so.FindProperty("adsEnterDuration").floatValue = 0.2f;
+        so.FindProperty("adsExitDuration").floatValue = 0.15f;
+        so.FindProperty("adsSensitivityMultiplier").floatValue = 0.35f;
+        so.FindProperty("adsHidesViewmodel").boolValue = true;
+        ScopeDefinition scope = AssetDatabase.LoadAssetAtPath<ScopeDefinition>(
+            "Assets/Scripts/Weapons/DMRScopeDefinition.asset");
+        if (scope != null)
+            so.FindProperty("scopePresentation").objectReferenceValue = scope;
         so.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(existing);
         return existing;

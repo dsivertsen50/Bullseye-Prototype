@@ -13,6 +13,7 @@ public class Reticle : NetworkBehaviour
     [SerializeField] private float hitMarkerLength = 20f;
 
     private WeaponAccuracyController accuracy;
+    private PlayerScopeOverlay scopeOverlay;
     private float hitMarkerExpireTime;
     private Texture2D hitMarkerTexture;
     private Texture2D armTexture;
@@ -25,6 +26,7 @@ public class Reticle : NetworkBehaviour
     private void Awake()
     {
         accuracy = GetComponent<WeaponAccuracyController>();
+        scopeOverlay = GetComponent<PlayerScopeOverlay>();
     }
 
     public override void OnDestroy()
@@ -50,7 +52,9 @@ public class Reticle : NetworkBehaviour
 
         float centerX = Screen.width * 0.5f;
         float centerY = Screen.height * 0.5f;
-        DrawSpreadReticle(centerX, centerY);
+        float hipAlpha = scopeOverlay != null ? scopeOverlay.HipFireReticleAlpha : 1f;
+        if (hipAlpha > 0.01f)
+            DrawSpreadReticle(centerX, centerY, hipAlpha);
 
         if (Time.unscaledTime >= hitMarkerExpireTime)
             return;
@@ -64,7 +68,7 @@ public class Reticle : NetworkBehaviour
             marker);
     }
 
-    private void DrawSpreadReticle(float centerX, float centerY)
+    private void DrawSpreadReticle(float centerX, float centerY, float alpha)
     {
         WeaponAccuracySettings settings = accuracy != null ? accuracy.Settings : null;
         float scale = Screen.height / WeaponAccuracySettings.ReferenceScreenHeight;
@@ -78,11 +82,15 @@ public class Reticle : NetworkBehaviour
             : WeaponAccuracySettings.MinimumVisualGap * scale;
         gap = Mathf.Max(WeaponAccuracySettings.MinimumVisualGap, gap);
         Texture texture = ResolveReticleTexture(settings);
+        Color previous = GUI.color;
+        GUI.color = new Color(1f, 1f, 1f, Mathf.Clamp01(alpha));
 
         DrawArm(texture, centerX - thickness * 0.5f, centerY - gap - length, thickness, length);
         DrawArm(texture, centerX - thickness * 0.5f, centerY + gap, thickness, length);
         DrawArm(texture, centerX - gap - length, centerY - thickness * 0.5f, length, thickness);
         DrawArm(texture, centerX + gap, centerY - thickness * 0.5f, length, thickness);
+
+        GUI.color = previous;
     }
 
     private static void DrawArm(Texture texture, float x, float y, float width, float height)

@@ -20,6 +20,10 @@ public class FirstPersonWeaponView : NetworkBehaviour
     [SerializeField] private float overlayNearClip = 0.01f;
 
     private Camera weaponOverlayCamera;
+    private PlayerWeaponInventory inventory;
+    private WeaponPresentationController weaponPresentation;
+    private PlayerAimZoom playerAimZoom;
+    private PlayerScopeOverlay scopeOverlay;
     private bool ownerPresentationEnabled;
     private int firstPersonWeaponLayer = -1;
 
@@ -27,6 +31,11 @@ public class FirstPersonWeaponView : NetworkBehaviour
     {
         if (playerHealth == null)
             playerHealth = GetComponent<PlayerHealth>();
+
+        inventory = GetComponent<PlayerWeaponInventory>();
+        weaponPresentation = GetComponent<WeaponPresentationController>();
+        playerAimZoom = GetComponent<PlayerAimZoom>();
+        scopeOverlay = GetComponent<PlayerScopeOverlay>();
 
         if (weaponView == null)
         {
@@ -99,7 +108,27 @@ public class FirstPersonWeaponView : NetworkBehaviour
     private void RefreshOwnerVisibility()
     {
         bool dead = playerHealth != null && playerHealth.IsDead;
-        SetWeaponViewActive(!dead);
+        bool showPresentation = ownerPresentationEnabled && !dead;
+        SetWeaponViewActive(showPresentation);
+        SetViewmodelRenderersEnabled(showPresentation && !ShouldHideForScopedAds());
+    }
+
+    private bool ShouldHideForScopedAds()
+    {
+        WeaponDefinition definition = inventory != null ? inventory.ActiveDefinition : null;
+        if (definition == null || !definition.AdsHidesViewmodel)
+            return false;
+
+        if (scopeOverlay == null)
+            scopeOverlay = GetComponent<PlayerScopeOverlay>();
+
+        if (definition.UsesScopeOverlay && scopeOverlay != null)
+            return scopeOverlay.OverlayOpacity > 0.35f;
+
+        if (weaponPresentation != null)
+            return weaponPresentation.AimBlend > 0.25f;
+
+        return playerAimZoom != null && playerAimZoom.IsAiming;
     }
 
     private void SetWeaponViewActive(bool active)
@@ -108,6 +137,19 @@ public class FirstPersonWeaponView : NetworkBehaviour
             weaponView.SetActive(active);
 
         SetOverlayEnabled(ownerPresentationEnabled && active);
+    }
+
+    private void SetViewmodelRenderersEnabled(bool enabled)
+    {
+        if (weaponView == null)
+            return;
+
+        Renderer[] renderers = weaponView.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null && renderers[i].enabled != enabled)
+                renderers[i].enabled = enabled;
+        }
     }
 
     private void EnsureOverlayCamera()
@@ -178,6 +220,9 @@ public class FirstPersonWeaponView : NetworkBehaviour
         if (weaponOverlayCamera == null || playerCamera == null)
             return;
 
+        // Magnified ADS must zoom this overlay with the world camera. Keeping the
+        // viewmodel at hip-fire FOV hides the optic because the gun fills the
+        // screen. Future high-mag scopes can lock viewmodel FOV separately.
         weaponOverlayCamera.fieldOfView = playerCamera.fieldOfView;
         weaponOverlayCamera.aspect = playerCamera.aspect;
         weaponOverlayCamera.rect = playerCamera.rect;

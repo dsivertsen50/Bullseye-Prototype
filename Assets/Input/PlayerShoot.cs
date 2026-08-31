@@ -70,7 +70,10 @@ public class PlayerShoot : NetworkBehaviour
         if (LocalPlayerMenuState.IsOpen(this))
             return;
 
-        if (playerMovement != null && playerMovement.IsSprinting && !playerMovement.CanRunWhileShooting)
+        if (playerMovement != null &&
+            playerMovement.IsSprinting &&
+            !playerMovement.CanRunWhileShooting &&
+            !playerMovement.IsWallRunning)
             return;
 
         if (reloadAction != null && reloadAction.WasPressedThisFrame() && !ShouldSuppressReload())
