@@ -76,6 +76,12 @@ MonoBehaviour:
     reticleSprite: {fileID: 0}
     reticleElementLength: 10
     reticleElementThickness: 2
+  usesMagnifiedAds: 1
+  adsMagnification: 1.15
+  adsEnterDuration: 0.12
+  adsExitDuration: 0.14
+  adsSensitivityMultiplier: 0.4
+  adsHidesViewmodel: 0
   worldLocalPosition: {x: 0.58, y: 0, z: 0.42}
   worldLocalEuler: {x: 0, y: 0, z: 0}
   worldLocalScale: {x: 1, y: 1, z: 1}

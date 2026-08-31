@@ -47,6 +47,12 @@ public class PlayerCameraEffects : NetworkBehaviour
     [SerializeField] private float jumpDepartureAmount = 0.025f;
     [SerializeField] private float jumpRecoverySpeed = 8f;
 
+    [Header("Wall Run")]
+    [SerializeField] private float wallRunRoll = 6.5f;
+    [SerializeField] private float wallRunRollBlendSpeed = 8f;
+    [SerializeField] private float wallRunStartKick = 1.75f;
+    [SerializeField] private float wallRunKickRecoverySpeed = 10f;
+
     [Header("Blending")]
     [SerializeField] private float idleSpeedThreshold = 0.35f;
     [SerializeField] private float motionBlendSpeed = 8f;
@@ -65,6 +71,9 @@ public class PlayerCameraEffects : NetworkBehaviour
     private float landingOffset;
     private float landingPitchOffset;
     private float jumpOffset;
+    private float wallRunRollWeight;
+    private float wallRunSideRoll;
+    private float wallRunKickOffset;
     private Vector3 currentPosition;
     private Vector3 currentEuler;
 
@@ -95,6 +104,7 @@ public class PlayerCameraEffects : NetworkBehaviour
             movement.Landed += OnLanded;
             movement.Jumped += OnJumped;
             movement.DolphinDiveLanded += OnDiveLanded;
+            movement.WallRunStarted += OnWallRunStarted;
         }
     }
 
@@ -105,6 +115,7 @@ public class PlayerCameraEffects : NetworkBehaviour
             movement.Landed -= OnLanded;
             movement.Jumped -= OnJumped;
             movement.DolphinDiveLanded -= OnDiveLanded;
+            movement.WallRunStarted -= OnWallRunStarted;
         }
 
         ownerEffectsEnabled = false;
@@ -182,6 +193,8 @@ public class PlayerCameraEffects : NetworkBehaviour
             targetEuler.z += -moveInput.x * diveRoll;
         }
 
+        ApplyWallRunTilt(dt, ref targetEuler);
+
         currentPosition = Vector3.Lerp(currentPosition, targetPos, 1f - Mathf.Exp(-14f * dt));
         currentEuler = Vector3.Lerp(currentEuler, targetEuler, 1f - Mathf.Exp(-12f * dt));
 
@@ -224,6 +237,45 @@ public class PlayerCameraEffects : NetworkBehaviour
         jumpOffset = jumpDepartureAmount;
     }
 
+    private void OnWallRunStarted()
+    {
+        if (!ownerEffectsEnabled)
+            return;
+
+        CacheWallRunSideRoll();
+        wallRunKickOffset = wallRunStartKick * Mathf.Sign(wallRunSideRoll == 0f ? 1f : wallRunSideRoll);
+    }
+
+    private void ApplyWallRunTilt(float dt, ref Vector3 targetEuler)
+    {
+        bool running = movement != null && movement.IsWallRunning;
+        if (running)
+            CacheWallRunSideRoll();
+
+        float targetWeight = running ? 1f : 0f;
+        wallRunRollWeight = Mathf.MoveTowards(
+            wallRunRollWeight,
+            targetWeight,
+            Mathf.Max(0.1f, wallRunRollBlendSpeed) * dt);
+        wallRunKickOffset = Mathf.MoveTowards(
+            wallRunKickOffset,
+            0f,
+            Mathf.Max(0.1f, wallRunKickRecoverySpeed) * dt);
+
+        targetEuler.z += wallRunSideRoll * wallRunRollWeight + wallRunKickOffset;
+    }
+
+    private void CacheWallRunSideRoll()
+    {
+        if (movement == null)
+            return;
+
+        if (movement.CurrentWallSide == WallSide.Right)
+            wallRunSideRoll = Mathf.Abs(wallRunRoll);
+        else if (movement.CurrentWallSide == WallSide.Left)
+            wallRunSideRoll = -Mathf.Abs(wallRunRoll);
+    }
+
     private void ResetEffects()
     {
         walkWeight = 0f;
@@ -231,6 +283,9 @@ public class PlayerCameraEffects : NetworkBehaviour
         landingOffset = 0f;
         landingPitchOffset = 0f;
         jumpOffset = 0f;
+        wallRunRollWeight = 0f;
+        wallRunSideRoll = 0f;
+        wallRunKickOffset = 0f;
         currentPosition = Vector3.zero;
         currentEuler = Vector3.zero;
         if (effectsRoot != null)

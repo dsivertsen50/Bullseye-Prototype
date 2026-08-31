@@ -1,0 +1,54 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a3ef7fd6dbec2f4449efc7dfe9b6ab9c, type: 3}
+  m_Name: DMRScopeDefinition
+  m_EditorClassIdentifier: Assembly-CSharp::ScopeDefinition
+  style: 1
+  usesScopeOverlay: 1
+  lensRadius: 0.78
+  overlaySprite: {fileID: 21300000, guid: 116d7b50f84a2fb4e819dd5cb363989a, type: 3}
+  reticleSprite: {fileID: 21300000, guid: 440c641e476c4a74292aafcfc67ef190, type: 3}
+  vignetteSprite: {fileID: 21300000, guid: 8f9b0ecbf9c398a45bef904557238019, type: 3}
+  maskSprite: {fileID: 21300000, guid: 4d4b8a443d41ec544819015e64abf25b, type: 3}
+  peripheralOpacity: 0.72
+  peripheralColor: {r: 0.015, g: 0.015, b: 0.02, a: 1}
+  housingColor: {r: 1, g: 1, b: 1, a: 1}
+  housingThickness: 0.08
+  vignetteStrength: 0.38
+  lensTint: {r: 0.75, g: 0.85, b: 0.78, a: 0}
+  hideHipFireReticle: 1
+  reticleColor: {r: 0.94, g: 0.94, b: 0.9, a: 0.95}
+  transitionCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  additionalMagnifications: []

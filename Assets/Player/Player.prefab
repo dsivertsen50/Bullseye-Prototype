@@ -513,6 +513,7 @@ GameObject:
   - component: {fileID: 3340119340010000101}
   - component: {fileID: 3340119340010000102}
   - component: {fileID: 8776071615408029184}
+  - component: {fileID: 1940795616203548134}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -553,7 +554,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 1326795168
+  GlobalObjectIdHash: 2635609592
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -621,7 +622,33 @@ MonoBehaviour:
   dolphinDiveAirControl: 0.1
   dolphinDiveRecoveryDuration: 0.3
   dolphinDiveCooldown: 1
+  enableWallRunning: 1
+  minimumWallAngle: 70
+  maximumWallAngle: 90
+  maxWallRunDuration: 2.5
+  minimumEntrySpeed: 8
+  minimumWallRunSpeed: 4
+  wallDetectionDistance: 0.75
+  wallAdhesionStrength: 8
+  wallGravityMultiplier: 0.12
+  maxDownwardWallRunVelocity: 1.75
+  wallJumpUpForce: 12
+  wallJumpOutwardForce: 8
+  wallJumpForwardRetain: 0.75
+  wallJumpInputInfluence: 4
+  wallContactGraceTime: 0.12
+  sameWallReattachCooldown: 0.2
+  moveAwayFromWallThreshold: 0.55
+  wallLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
   debugMovementLogs: 0
+  debugWallRun: 0
+  debugIsWallRunning: 0
+  debugWallAngle: 0
+  debugObservedWallSide: 0
+  debugWallRunElapsed: 0
+  debugWallRunStatus: 
   allowSliding: 1
   slideForce: 300
   slideDuration: 1
@@ -844,9 +871,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PlayerAimZoom
   playerCamera: {fileID: 6286195477711956745}
   aimAction: {fileID: -534881147820960508, guid: d5774e102d654bd409097006f9ceb460, type: 3}
-  fovReduction: 0.25
-  zoomTransitionDuration: 0.12
   sprintFovIncrease: 8
+  fallbackAdsEnterDuration: 0.18
+  fallbackAdsExitDuration: 0.15
   aimActivation: 0
 --- !u!114 &7826723565883497074
 MonoBehaviour:
@@ -868,6 +895,10 @@ MonoBehaviour:
     lowFrequency: 0.284
     highFrequency: 0.324
     duration: 0.15
+  wallRunRumble:
+    lowFrequency: 0.2
+    highFrequency: 0.32
+    duration: 0.12
 --- !u!114 &1166344386422380738
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1031,6 +1062,10 @@ MonoBehaviour:
   diveRoll: 2.5
   jumpDepartureAmount: 0.025
   jumpRecoverySpeed: 8
+  wallRunRoll: 10
+  wallRunRollBlendSpeed: 8
+  wallRunStartKick: 1.75
+  wallRunKickRecoverySpeed: 10
   idleSpeedThreshold: 0.35
   motionBlendSpeed: 8
   aimingMotionMultiplier: 0.35
@@ -1194,7 +1229,7 @@ MonoBehaviour:
   blurShader: {fileID: 4800000, guid: 87f5db59ff47b5248a5ebc2dd73523d6, type: 3}
   sharpRadius: 0.16
   blurOuterRadius: 0.452
-  blurSize: 0.022
+  blurSize: 0.04
   intensity: 0.917
   blendSpeed: 10
 --- !u!114 &7722407007164564341
@@ -1534,18 +1569,28 @@ MonoBehaviour:
   animationState: {fileID: 3340119340010000101}
   playerHealth: {fileID: 3086871669323907386}
   worldWeapon: {fileID: 77922413974407629}
-  coordinator: {fileID: 3788039708433434490}
   visualRoot: {fileID: 4740219154652216648}
   weaponSocket: {fileID: 7423848081652154685}
   weaponHandAnchor: {fileID: 3440360381407693713}
   poseBlendTime: 0.14
   aimBlendTime: 0.12
   switchBlendTime: 0.1
-  rightElbowPoleOffset: {x: 0.42, y: -0.16, z: -0.08}
-  leftElbowPoleOffset: {x: -0.28, y: -0.18, z: 0.02}
   drawGizmos: 1
   debugPoseWeight: 0
   debugWeapon: 
+--- !u!114 &1940795616203548134
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b914de3b99c76a143a697f5f2c32878f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerScopeOverlay
+  ShowTopMostFoldoutHeaderGroup: 1
 --- !u!1 &3625492656395199349
 GameObject:
   m_ObjectHideFlags: 0
@@ -2543,10 +2588,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 4740219154652216648}
     m_Modifications:
-    - target: {fileID: 4100000001000000064, guid: 7c4e9f2a1b8d4560a3e5c719d0f2b846, type: 3}
-      propertyPath: m_Enabled
-      value: 1
-      objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 368e03420717d214dbd03924b519b691, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.01
@@ -2614,6 +2655,10 @@ PrefabInstance:
     - target: {fileID: 5866666021909216657, guid: 368e03420717d214dbd03924b519b691, type: 3}
       propertyPath: m_ApplyRootMotion
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4100000001000000064, guid: 7c4e9f2a1b8d4560a3e5c719d0f2b846, type: 3}
+      propertyPath: m_Enabled
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

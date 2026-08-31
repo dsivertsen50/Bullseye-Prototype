@@ -563,6 +563,8 @@ public class WeaponPresentationController : NetworkBehaviour
 
     private float ResolveAimInSpeed()
     {
+        if (appliedDefinition != null)
+            return 1f / appliedDefinition.AdsEnterDuration;
         if (config == null)
             return 8.5f;
         if (config.AimInSpeed > 0.01f)
@@ -572,6 +574,8 @@ public class WeaponPresentationController : NetworkBehaviour
 
     private float ResolveAimOutSpeed()
     {
+        if (appliedDefinition != null)
+            return 1f / appliedDefinition.AdsExitDuration;
         if (config == null)
             return 7f;
         if (config.AimOutSpeed > 0.01f)
@@ -609,7 +613,7 @@ public class WeaponPresentationController : NetworkBehaviour
 
     private void PlayClip(AudioClip clip, float volume)
     {
-        if (audioSource == null || clip == null)
+        if (audioSource == null || clip == null || !audioSource.isActiveAndEnabled)
             return;
 
         audioSource.PlayOneShot(clip, Mathf.Clamp01(volume));

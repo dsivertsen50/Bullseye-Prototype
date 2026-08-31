@@ -12,7 +12,7 @@ public class PlayerLook : MonoBehaviour
     [SerializeField] private float controllerSensitivityY = 35f;
     [SerializeField, Range(20f, 89.7f)] private float maxCameraAngle = 89.7f;
     [SerializeField, Range(0.1f, 1f)]
-    [Tooltip("Gameplay look scale while Aim/Zoom is active. Applied on top of the player's look sensitivity, not replaced by it.")]
+    [Tooltip("Fallback ADS look scale if no weapon is equipped. Equipped weapons use WeaponDefinition ADS Sensitivity instead.")]
     private float aimingSensitivityMultiplier = 0.4f;
 
     private float yaw;
@@ -22,6 +22,7 @@ public class PlayerLook : MonoBehaviour
     private PlayerHealth playerHealth;
     private PlayerAimZoom playerAimZoom;
     private WeaponPresentationController weaponPresentation;
+    private PlayerWeaponInventory inventory;
 
     public float Yaw => yaw;
     public float Pitch => pitch;
@@ -37,6 +38,7 @@ public class PlayerLook : MonoBehaviour
         playerHealth = GetComponent<PlayerHealth>();
         playerAimZoom = GetComponent<PlayerAimZoom>();
         weaponPresentation = GetComponent<WeaponPresentationController>();
+        inventory = GetComponent<PlayerWeaponInventory>();
         yaw = transform.eulerAngles.y;
         ApplyPersistedSettings();
     }
@@ -118,7 +120,9 @@ public class PlayerLook : MonoBehaviour
     {
         float aimedScale = GetAimedLookScale();
         float target = IsAiming() ? aimedScale : 1f;
-        float duration = playerAimZoom != null ? playerAimZoom.ZoomTransitionDuration : 0.15f;
+        float duration = playerAimZoom != null
+            ? playerAimZoom.CurrentAdsTransitionDuration
+            : 0.15f;
         float span = Mathf.Max(0.0001f, Mathf.Abs(1f - aimedScale));
         currentSensitivityMultiplier = Mathf.MoveTowards(
             currentSensitivityMultiplier,
@@ -129,8 +133,14 @@ public class PlayerLook : MonoBehaviour
 
     private float GetAimedLookScale()
     {
-        float playerAim = Mathf.Clamp(PlayerGameSettings.AimSensitivityMultiplier, 0.1f, 1f);
-        return aimingSensitivityMultiplier * playerAim;
+        if (playerAimZoom != null)
+            return playerAimZoom.CurrentAdsLookScale;
+
+        float globalAds = Mathf.Clamp(PlayerGameSettings.AimSensitivityMultiplier, 0.1f, 1.5f);
+        float weaponAds = inventory != null && inventory.ActiveDefinition != null
+            ? inventory.ActiveDefinition.AdsSensitivityMultiplier
+            : aimingSensitivityMultiplier;
+        return globalAds * weaponAds;
     }
 
     private void ApplyRecoil(float recoilPitch, float recoilYaw)

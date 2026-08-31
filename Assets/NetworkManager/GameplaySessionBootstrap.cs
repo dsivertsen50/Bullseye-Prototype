@@ -7,10 +7,9 @@ using UnityEngine;
 /// </summary>
 public class GameplaySessionBootstrap : MonoBehaviour
 {
-    private void Start()
+    private void Awake()
     {
-        GameSessionCoordinator coordinator = GameSessionCoordinator.Instance;
-        if (coordinator == null || coordinator.PendingRequest == null)
+        if (!GameSessionCoordinator.HasMenuDrivenSession)
             return;
 
         NetworkButtons buttons = GetComponent<NetworkButtons>();
@@ -21,10 +20,35 @@ public class GameplaySessionBootstrap : MonoBehaviour
         if (autoStart != null)
             autoStart.enabled = false;
 
-        NetworkManager networkManager = NetworkManager.Singleton;
+        DestroyStaleNetworkManager();
+    }
+
+    private void Start()
+    {
+        GameSessionCoordinator coordinator = GameSessionCoordinator.Instance;
+        if (coordinator == null || coordinator.PendingRequest == null)
+            return;
+
+        DestroyStaleNetworkManager();
+
+        NetworkManager networkManager = GetComponent<NetworkManager>();
+        if (networkManager != null && NetworkManager.Singleton == null)
+            networkManager.SetSingleton();
         if (networkManager == null)
-            networkManager = GetComponent<NetworkManager>();
+            networkManager = NetworkManager.Singleton;
 
         coordinator.ExecutePendingRequest(networkManager);
+    }
+
+    private void DestroyStaleNetworkManager()
+    {
+        NetworkManager sceneManager = GetComponent<NetworkManager>();
+        NetworkManager singleton = NetworkManager.Singleton;
+        if (singleton == null || singleton == sceneManager)
+            return;
+
+        if (singleton.IsListening || singleton.ShutdownInProgress)
+            singleton.Shutdown();
+        Destroy(singleton.gameObject);
     }
 }

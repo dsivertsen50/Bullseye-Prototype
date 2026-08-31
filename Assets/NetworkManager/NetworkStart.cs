@@ -5,6 +5,13 @@ public class NetworkStart : MonoBehaviour
 {
     private void Start()
     {
-        NetworkManager.Singleton.StartHost();
+        if (GameSessionCoordinator.HasMenuDrivenSession)
+            return;
+
+        NetworkManager networkManager = NetworkManager.Singleton;
+        if (networkManager == null || networkManager.IsListening)
+            return;
+
+        networkManager.StartHost();
     }
 }

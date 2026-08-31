@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Net;
+using System.Net.Sockets;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
@@ -16,6 +18,8 @@ public class GameSessionCoordinator : MonoBehaviour
     public const string MainMenuSceneName = "MainMenu";
     public const string DefaultGameplaySceneName = "ArenaPrototype";
     public const ushort DefaultPort = 7777;
+    private const ushort HostPortMin = 27100;
+    private const int HostPortRetryCount = 8;
 
     [SerializeField] private string gameplaySceneName = DefaultGameplaySceneName;
     [SerializeField] private bool enterMatchImmediately = true;
@@ -28,6 +32,9 @@ public class GameSessionCoordinator : MonoBehaviour
     private Button statusBackButton;
     private bool localClientConnected;
     private bool shuttingDown;
+    private bool startingHost;
+    private Coroutine sessionStartRoutine;
+    private int hostAttemptCount;
 
     public static GameSessionCoordinator Instance { get; private set; }
 
@@ -35,6 +42,7 @@ public class GameSessionCoordinator : MonoBehaviour
     public bool StartedFromMenu { get; private set; }
     public string StatusMessage { get; private set; }
     public string LastError { get; private set; }
+    public PendingSessionKind LastErrorKind { get; private set; }
     public GameSessionInfo ActiveSession { get; private set; }
     public string GameplaySceneName => string.IsNullOrEmpty(gameplaySceneName) ? DefaultGameplaySceneName : gameplaySceneName;
     public PendingSessionRequest PendingRequest => pendingRequest;
@@ -106,6 +114,7 @@ public class GameSessionCoordinator : MonoBehaviour
             Session = session
         };
         StartedFromMenu = true;
+        hostAttemptCount = 0;
         SetStatus(visibility == GameVisibility.Public ? "Creating Game..." : "Creating Game...");
         BeginBusy();
 
@@ -192,37 +201,9 @@ public class GameSessionCoordinator : MonoBehaviour
         if (pendingRequest == null || networkManager == null)
             return;
 
-        UnbindNetworkCallbacks();
-        BindNetworkCallbacks(networkManager);
-        ConfigureTransport(networkManager, pendingRequest);
-        localClientConnected = false;
-        shuttingDown = false;
-
-        bool started;
-        if (pendingRequest.Kind == PendingSessionKind.Host)
-        {
-            LocalSessionRegistry.Register(pendingRequest.Session);
-            ActiveSession = pendingRequest.Session;
-            started = networkManager.StartHost();
-            if (!started)
-            {
-                LocalSessionRegistry.UnregisterCurrentProcess();
-                FailAndReturnToMenu("Unable to create game.");
-            }
-
-            return;
-        }
-
-        started = networkManager.StartClient();
-        if (!started)
-        {
-            FailAndReturnToMenu("Unable to connect to game.");
-            return;
-        }
-
-        if (connectTimeoutRoutine != null)
-            StopCoroutine(connectTimeoutRoutine);
-        connectTimeoutRoutine = StartCoroutine(ClientConnectTimeout());
+        if (sessionStartRoutine != null)
+            StopCoroutine(sessionStartRoutine);
+        sessionStartRoutine = StartCoroutine(ExecutePendingRequestRoutine(networkManager));
     }
 
     public void CancelConnection()
@@ -236,6 +217,7 @@ public class GameSessionCoordinator : MonoBehaviour
     public void ClearLastError()
     {
         LastError = null;
+        LastErrorKind = PendingSessionKind.None;
     }
 
     public void HideStatus()
@@ -256,7 +238,7 @@ public class GameSessionCoordinator : MonoBehaviour
             Visibility = visibility,
             Address = "127.0.0.1",
             Port = DefaultPort,
-            ListenAddress = "0.0.0.0",
+            ListenAddress = "127.0.0.1",
             HostProcessId = 0,
             CreatedUtcTicks = DateTime.UtcNow.Ticks
         };
@@ -309,14 +291,8 @@ public class GameSessionCoordinator : MonoBehaviour
 
         ushort port = session.Port == 0 ? DefaultPort : session.Port;
         string address = string.IsNullOrEmpty(session.Address) ? "127.0.0.1" : session.Address;
-        if (request.Kind == PendingSessionKind.Host)
-        {
-            string listen = string.IsNullOrEmpty(session.ListenAddress) ? "0.0.0.0" : session.ListenAddress;
-            transport.SetConnectionData(address, port, listen);
-            return;
-        }
-
-        transport.SetConnectionData(address, port);
+        string listen = string.IsNullOrEmpty(session.ListenAddress) ? address : session.ListenAddress;
+        transport.SetConnectionData(true, address, port, listen);
     }
 
     private void BindNetworkCallbacks(NetworkManager networkManager)
@@ -356,6 +332,9 @@ public class GameSessionCoordinator : MonoBehaviour
 
     private void HandleClientDisconnect(ulong clientId)
     {
+        if (startingHost)
+            return;
+
         NetworkManager networkManager = NetworkManager.Singleton;
         if (networkManager == null || clientId != networkManager.LocalClientId)
             return;
@@ -368,7 +347,7 @@ public class GameSessionCoordinator : MonoBehaviour
 
     private void HandleTransportFailure()
     {
-        if (localClientConnected)
+        if (localClientConnected || startingHost)
             return;
 
         FailAndReturnToMenu("Connection failed.");
@@ -394,11 +373,22 @@ public class GameSessionCoordinator : MonoBehaviour
         if (shuttingDown)
             return;
 
+        NetworkManager live = NetworkManager.Singleton;
+        if (localClientConnected && live != null && live.IsListening)
+            return;
+
         shuttingDown = true;
+        PendingSessionKind errorKind = pendingRequest != null ? pendingRequest.Kind : LastErrorKind;
         if (connectTimeoutRoutine != null)
         {
             StopCoroutine(connectTimeoutRoutine);
             connectTimeoutRoutine = null;
+        }
+
+        if (sessionStartRoutine != null)
+        {
+            StopCoroutine(sessionStartRoutine);
+            sessionStartRoutine = null;
         }
 
         UnbindNetworkCallbacks();
@@ -413,6 +403,7 @@ public class GameSessionCoordinator : MonoBehaviour
         if (!silent && !string.IsNullOrEmpty(error))
         {
             LastError = error;
+            LastErrorKind = errorKind;
             SetStatus(error, showBack: true);
             ConnectionFailed?.Invoke(error);
         }
@@ -428,17 +419,144 @@ public class GameSessionCoordinator : MonoBehaviour
         shuttingDown = false;
     }
 
+    private IEnumerator ExecutePendingRequestRoutine(NetworkManager networkManager)
+    {
+        yield return WaitForNetworkIdle(networkManager);
+
+        if (pendingRequest == null)
+        {
+            sessionStartRoutine = null;
+            yield break;
+        }
+
+        if (networkManager == null)
+            networkManager = NetworkManager.Singleton;
+        if (networkManager == null)
+        {
+            FailAndReturnToMenu(pendingRequest.Kind == PendingSessionKind.Host
+                ? "Unable to create game."
+                : "Unable to connect to game.");
+            sessionStartRoutine = null;
+            yield break;
+        }
+
+        UnbindNetworkCallbacks();
+        BindNetworkCallbacks(networkManager);
+        localClientConnected = false;
+        shuttingDown = false;
+
+        if (pendingRequest.Kind == PendingSessionKind.Host)
+        {
+            yield return StartHostWithFreePort(networkManager);
+            sessionStartRoutine = null;
+            yield break;
+        }
+
+        ConfigureTransport(networkManager, pendingRequest);
+        bool clientStarted = networkManager.StartClient();
+        if (!clientStarted)
+        {
+            FailAndReturnToMenu("Unable to connect to game.");
+            sessionStartRoutine = null;
+            yield break;
+        }
+
+        if (connectTimeoutRoutine != null)
+            StopCoroutine(connectTimeoutRoutine);
+        connectTimeoutRoutine = StartCoroutine(ClientConnectTimeout());
+        sessionStartRoutine = null;
+    }
+
+    private IEnumerator StartHostWithFreePort(NetworkManager networkManager)
+    {
+        GameSessionInfo session = pendingRequest.Session;
+        ushort port = FindAvailableUdpPort(HostPortMin, 256);
+        session.Port = port;
+        session.Address = "127.0.0.1";
+        session.ListenAddress = "127.0.0.1";
+        ConfigureTransport(networkManager, pendingRequest);
+        Debug.Log($"Bullseye: starting host on 127.0.0.1:{port}");
+
+        startingHost = true;
+        networkManager.StartHost();
+        bool hostIsUp = localClientConnected ||
+                        (networkManager != null && networkManager.IsServer && networkManager.IsListening);
+        if (!hostIsUp)
+        {
+            yield return null;
+            yield return null;
+            yield return null;
+            hostIsUp = localClientConnected ||
+                       (networkManager != null &&
+                        networkManager.IsServer &&
+                        networkManager.IsListening &&
+                        !networkManager.ShutdownInProgress);
+        }
+
+        startingHost = false;
+
+        if (hostIsUp)
+        {
+            LocalSessionRegistry.Register(session);
+            ActiveSession = session;
+            yield break;
+        }
+
+        hostAttemptCount++;
+        if (hostAttemptCount < HostPortRetryCount && pendingRequest != null)
+        {
+            Debug.LogWarning($"Bullseye: host bind failed on port {port}, retrying with a fresh NetworkManager ({hostAttemptCount}/{HostPortRetryCount}).");
+            DestroyNetworkManager();
+            yield return null;
+            SceneManager.LoadScene(GameplaySceneName, LoadSceneMode.Single);
+            yield break;
+        }
+
+        LocalSessionRegistry.UnregisterCurrentProcess();
+        FailAndReturnToMenu("Unable to create game.");
+    }
+
+    private static IEnumerator WaitForNetworkIdle(NetworkManager networkManager)
+    {
+        if (networkManager == null)
+            yield break;
+
+        if (networkManager.IsListening)
+            networkManager.Shutdown();
+
+        float elapsed = 0f;
+        const float timeout = 2f;
+        while (networkManager != null &&
+               (networkManager.ShutdownInProgress || networkManager.IsListening) &&
+               elapsed < timeout)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+    }
+
     private void ShutdownNetwork()
     {
+        DestroyNetworkManager();
+    }
+
+    private static void DestroyNetworkManager()
+    {
         NetworkManager networkManager = NetworkManager.Singleton;
-        if (networkManager != null && networkManager.IsListening)
+        if (networkManager == null)
+            return;
+
+        if (networkManager.IsListening || networkManager.ShutdownInProgress)
             networkManager.Shutdown();
+
+        UnityEngine.Object.Destroy(networkManager.gameObject);
     }
 
     private void BeginBusy()
     {
         IsBusy = true;
         LastError = null;
+        LastErrorKind = PendingSessionKind.None;
         EnsureStatusUi();
         if (statusCanvas != null)
             statusCanvas.gameObject.SetActive(true);
@@ -458,6 +576,48 @@ public class GameSessionCoordinator : MonoBehaviour
         if (statusBackButton != null)
             statusBackButton.gameObject.SetActive(showBack && visible);
         StatusChanged?.Invoke(message);
+    }
+
+    private static ushort FindAvailableUdpPort(ushort preferred, int searchCount)
+    {
+        int start = Mathf.Clamp(preferred, HostPortMin, 65535);
+        int count = Mathf.Max(1, searchCount);
+        for (int i = 0; i < count; i++)
+        {
+            int candidate = start + i;
+            if (candidate > 65535)
+                break;
+            if (IsUdpPortAvailable((ushort)candidate))
+                return (ushort)candidate;
+        }
+
+        return preferred == 0 ? DefaultPort : preferred;
+    }
+
+    private static bool IsUdpPortAvailable(ushort port)
+    {
+        Socket socket = null;
+        try
+        {
+            socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
+            {
+                ExclusiveAddressUse = true
+            };
+            socket.Bind(new IPEndPoint(IPAddress.Any, port));
+            return true;
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+        finally
+        {
+            if (socket != null)
+            {
+                socket.Close();
+                socket.Dispose();
+            }
+        }
     }
 
     private void EnsureStatusUi()

@@ -74,8 +74,34 @@ public class PlayerMovement : NetworkBehaviour
     [SerializeField] private float dolphinDiveRecoveryDuration = 0.3f;
     [SerializeField] private float dolphinDiveCooldown = 1f;
 
+    [Header("Wall Run")]
+    [SerializeField] private bool enableWallRunning = true;
+    [SerializeField] private float minimumWallAngle = 70f;
+    [SerializeField] private float maximumWallAngle = 90f;
+    [SerializeField] private float maxWallRunDuration = 2.5f;
+    [SerializeField] private float minimumEntrySpeed = 8f;
+    [SerializeField] private float minimumWallRunSpeed = 4f;
+    [SerializeField] private float wallDetectionDistance = 0.75f;
+    [SerializeField] private float wallAdhesionStrength = 8f;
+    [SerializeField] private float wallGravityMultiplier = 0.12f;
+    [SerializeField] private float maxDownwardWallRunVelocity = 1.75f;
+    [SerializeField] private float wallJumpUpForce = 12f;
+    [SerializeField] private float wallJumpOutwardForce = 8f;
+    [SerializeField] private float wallJumpForwardRetain = 0.75f;
+    [SerializeField] private float wallJumpInputInfluence = 4f;
+    [SerializeField] private float wallContactGraceTime = 0.12f;
+    [SerializeField] private float sameWallReattachCooldown = 0.2f;
+    [SerializeField] private float moveAwayFromWallThreshold = 0.55f;
+    [SerializeField] private LayerMask wallLayerMask = ~0;
+
     [Header("Debug")]
     [SerializeField] private bool debugMovementLogs;
+    [SerializeField] private bool debugWallRun;
+    [SerializeField] private bool debugIsWallRunning;
+    [SerializeField] private float debugWallAngle;
+    [SerializeField] private WallSide debugObservedWallSide;
+    [SerializeField] private float debugWallRunElapsed;
+    [SerializeField] private string debugWallRunStatus = string.Empty;
 
     [Header("Slide")]
     [SerializeField] private bool allowSliding = true;
@@ -117,6 +143,7 @@ public class PlayerMovement : NetworkBehaviour
 
     private readonly RaycastHit[] standHits = new RaycastHit[8];
     private readonly RaycastHit[] groundHits = new RaycastHit[8];
+    private readonly RaycastHit[] wallProbeHits = new RaycastHit[8];
 
     private Rigidbody rb;
     private CapsuleCollider playerCapsule;
@@ -169,11 +196,25 @@ public class PlayerMovement : NetworkBehaviour
     private float slideAirborneTimer;
     private float knockbackTimer;
 
+    private bool wallRunning;
+    private WallSide wallSide;
+    private Collider currentWallCollider;
+    private Collider lastWallCollider;
+    private Vector3 wallNormal = Vector3.right;
+    private Vector3 wallRunDirection = Vector3.forward;
+    private float wallRunSpeed;
+    private float wallRunElapsed;
+    private float wallContactLostTimer;
+    private float sameWallCooldownRemaining;
+    private float debugDetectedWallAngle;
+    private string debugWallEntryBlockReason = string.Empty;
+
     public event Action<float> Landed;
     public event Action Jumped;
     public bool LastJumpFromSprint { get; private set; }
     public event Action DolphinDiveStarted;
     public event Action DolphinDiveLanded;
+    public event Action WallRunStarted;
 
     public bool IsCrouched => crouched.Value && !prone.Value && !dolphinDiving.Value;
     public bool IsProne => prone.Value;
@@ -184,6 +225,8 @@ public class PlayerMovement : NetworkBehaviour
     public bool Grounded => grounded;
     public bool IsSliding => sliding;
     public bool IsSprinting { get; private set; }
+    public bool IsWallRunning => wallRunning;
+    public WallSide CurrentWallSide => wallSide;
     public bool CanRunWhileShooting => canRunWhileShooting;
     public float CurrentSpeed => currentSpeed;
     public float WalkSpeed => walkSpeed;
@@ -304,14 +347,18 @@ public class PlayerMovement : NetworkBehaviour
         TickGroundDetection();
         TickJumpAvailability();
         TickDiveTimers();
+        TickWallRunTimers();
 
         if (dead)
         {
+            ClearWallRunState();
             FreezeDeadBody();
         }
         else
         {
             RestoreAlivePhysics();
+            if (menuOpen)
+                EndWallRun();
             if (!menuOpen)
             {
                 UpdatePostureInput();
@@ -322,6 +369,7 @@ public class PlayerMovement : NetworkBehaviour
         }
 
         TickStanceTransition();
+        TickWallRunDebug();
     }
 
     private void LateUpdate()
@@ -347,17 +395,27 @@ public class PlayerMovement : NetworkBehaviour
         if (rb.isKinematic)
             return;
 
-        if (!onSlope)
-            rb.AddForce(Vector3.down * ExtraGravityForce, ForceMode.Acceleration);
-
-        if (!dolphinDiving.Value)
+        if (wallRunning)
         {
-            float speedCap = knockbackTimer > 0f ? Mathf.Max(maxSpeedAllowed, 28f) : maxSpeedAllowed;
-            if (rb.linearVelocity.magnitude > speedCap)
-                rb.linearVelocity = Vector3.ClampMagnitude(rb.linearVelocity, speedCap);
+            TickWallRunPhysics();
+            TickWallRunExits();
+        }
+        else
+        {
+            if (!onSlope)
+                rb.AddForce(Vector3.down * ExtraGravityForce, ForceMode.Acceleration);
+
+            if (!dolphinDiving.Value)
+            {
+                float speedCap = knockbackTimer > 0f ? Mathf.Max(maxSpeedAllowed, 28f) : maxSpeedAllowed;
+                if (rb.linearVelocity.magnitude > speedCap)
+                    rb.linearVelocity = Vector3.ClampMagnitude(rb.linearVelocity, speedCap);
+            }
+
+            ApplyLocomotion();
+            TryBeginWallRun();
         }
 
-        ApplyLocomotion();
         TickDolphinDive();
         TickSlidePhysics();
         TickKnockback();
@@ -409,6 +467,7 @@ public class PlayerMovement : NetworkBehaviour
         grounded = false;
         jumpIgnoreTimer = JumpIgnoreDuration;
         EndSlide();
+        EndWallRun();
 
         if (dolphinDiving.Value)
             diveBecameAirborne = true;
@@ -426,6 +485,7 @@ public class PlayerMovement : NetworkBehaviour
 
     public void FreezeForDeath()
     {
+        ClearWallRunState();
         CancelDolphinDive(false);
         FreezeDeadBody();
     }
@@ -436,6 +496,7 @@ public class PlayerMovement : NetworkBehaviour
         crouchToggledOn = false;
         IsSprinting = false;
         hasJumped = false;
+        LastJumpFromSprint = false;
         jumpAvailable = true;
         jumpCooldownTimer = 0f;
         jumpIgnoreTimer = 0f;
@@ -453,6 +514,7 @@ public class PlayerMovement : NetworkBehaviour
         diveBecameAirborne = false;
         EndSlide();
         CancelDolphinDive(false);
+        ClearWallRunState();
 
         if (IsSpawned && IsOwner)
         {
@@ -520,7 +582,7 @@ public class PlayerMovement : NetworkBehaviour
         if (rb == null || (playerHealth != null && playerHealth.IsDead))
             return;
 
-        rb.useGravity = true;
+        rb.useGravity = !wallRunning;
         if (IsMovementOwner)
             rb.isKinematic = false;
     }
@@ -675,6 +737,12 @@ public class PlayerMovement : NetworkBehaviour
         if (!jumpAction.action.WasPressedThisFrame())
             return;
 
+        if (wallRunning)
+        {
+            PerformWallJump();
+            return;
+        }
+
         if (dolphinDiving.Value)
             return;
 
@@ -754,6 +822,13 @@ public class PlayerMovement : NetworkBehaviour
         if (sliding)
             return;
 
+        if (wallRunning)
+        {
+            IsSprinting = ReadSprintInput();
+            currentSpeed = runSpeed;
+            return;
+        }
+
         if (dolphinDiving.Value)
         {
             IsSprinting = false;
@@ -821,6 +896,9 @@ public class PlayerMovement : NetworkBehaviour
 
     private void UpdatePostureInput()
     {
+        if (wallRunning)
+            return;
+
         InputAction crouchInput = CrouchInput;
         if (crouchInput == null)
             return;
@@ -1317,6 +1395,10 @@ public class PlayerMovement : NetworkBehaviour
             if (!wasGrounded)
             {
                 hasJumped = false;
+                LastJumpFromSprint = false;
+                if (wallRunning)
+                    EndWallRun();
+                ClearSameWallRestriction();
                 float downwardSpeed = rb != null ? Mathf.Max(0f, -rb.linearVelocity.y) : 0f;
                 Landed?.Invoke(downwardSpeed);
             }
@@ -1691,6 +1773,570 @@ public class PlayerMovement : NetworkBehaviour
         bodyVisual.localRotation = standingBodyRotation;
         bodyVisual.localScale = standingBodyScale;
     }
+
+    private void TickWallRunTimers()
+    {
+        if (sameWallCooldownRemaining > 0f)
+        {
+            sameWallCooldownRemaining -= Time.deltaTime;
+            if (sameWallCooldownRemaining < 0f)
+                sameWallCooldownRemaining = 0f;
+        }
+
+        if (wallRunning && grounded)
+            EndWallRun();
+    }
+
+    private void TryBeginWallRun()
+    {
+        if (!CanEnterWallRun(out string blockReason))
+        {
+            debugWallEntryBlockReason = blockReason;
+            return;
+        }
+
+        if (!TryDetectWall(preferSide: WallSide.None, requireApproach: true, out RaycastHit hit, out WallSide side, out float angle))
+        {
+            debugWallEntryBlockReason = string.IsNullOrEmpty(debugWallEntryBlockReason)
+                ? "No valid wall nearby."
+                : debugWallEntryBlockReason;
+            return;
+        }
+
+        if (IsBlockedBySameWall(hit.collider))
+        {
+            debugWallEntryBlockReason = "Same-wall reattach blocked.";
+            return;
+        }
+
+        debugDetectedWallAngle = angle;
+        debugWallEntryBlockReason = "Ready.";
+        BeginWallRun(hit, side);
+    }
+
+    private bool CanEnterWallRun(out string blockReason)
+    {
+        if (!enableWallRunning)
+        {
+            blockReason = "Wall running disabled.";
+            return false;
+        }
+
+        if (wallRunning)
+        {
+            blockReason = "Already wall running.";
+            return false;
+        }
+
+        if (grounded)
+        {
+            blockReason = "Grounded.";
+            return false;
+        }
+
+        if (!hasJumped)
+        {
+            blockReason = "No qualifying jump.";
+            return false;
+        }
+
+        if (!LastJumpFromSprint)
+        {
+            blockReason = "Jump was not a sprint jump.";
+            return false;
+        }
+
+        if (!ReadSprintInput())
+        {
+            blockReason = "Sprint not held.";
+            return false;
+        }
+
+        if (crouched.Value || prone.Value || dolphinDiving.Value)
+        {
+            blockReason = "Invalid posture.";
+            return false;
+        }
+
+        if (HorizontalVelocity().magnitude < Mathf.Max(0.1f, minimumEntrySpeed))
+        {
+            blockReason = "Entry speed too low.";
+            return false;
+        }
+
+        blockReason = string.Empty;
+        return true;
+    }
+
+    private void BeginWallRun(RaycastHit hit, WallSide side)
+    {
+        wallRunning = true;
+        wallSide = side;
+        currentWallCollider = hit.collider;
+        wallNormal = FlattenWallNormal(hit.normal);
+        wallRunElapsed = 0f;
+        wallContactLostTimer = 0f;
+        debugDetectedWallAngle = Vector3.Angle(hit.normal, Vector3.up);
+
+        Vector3 reference = HorizontalVelocity();
+        if (reference.sqrMagnitude < 0.01f)
+            reference = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+
+        wallRunDirection = ResolveWallRunDirection(wallNormal, reference);
+        wallRunSpeed = Mathf.Clamp(
+            Mathf.Max(reference.magnitude, runSpeed * 0.85f),
+            Mathf.Max(0.1f, minimumEntrySpeed),
+            maxSpeedAllowed);
+
+        if (rb != null && !rb.isKinematic)
+        {
+            float keptUp = Mathf.Clamp(rb.linearVelocity.y * 0.3f, 0f, 3f);
+            rb.linearVelocity = wallRunDirection * wallRunSpeed + Vector3.up * keptUp;
+        }
+
+        IsSprinting = true;
+        currentSpeed = runSpeed;
+        EndSlide();
+        WallRunStarted?.Invoke();
+        LogMovement($"Began wall run ({side}, {debugDetectedWallAngle:0.0}°).");
+    }
+
+    private void TickWallRunPhysics()
+    {
+        if (rb == null || rb.isKinematic)
+            return;
+
+        RefreshWallContact();
+
+        rb.useGravity = false;
+        rb.AddForce(Physics.gravity * Mathf.Clamp01(wallGravityMultiplier), ForceMode.Acceleration);
+
+        if (wallAdhesionStrength > 0f)
+            rb.AddForce(-wallNormal * wallAdhesionStrength, ForceMode.Acceleration);
+
+        Vector3 planar = wallRunDirection * wallRunSpeed;
+        float y = rb.linearVelocity.y;
+        y = Mathf.Max(y, -Mathf.Max(0.05f, maxDownwardWallRunVelocity));
+        rb.linearVelocity = new Vector3(planar.x, y, planar.z);
+    }
+
+    private void TickWallRunExits()
+    {
+        if (!wallRunning)
+            return;
+
+        wallRunElapsed += Time.fixedDeltaTime;
+        if (wallRunElapsed >= Mathf.Max(0.05f, maxWallRunDuration))
+        {
+            LogMovement("Wall run ended — duration reached.");
+            EndWallRun();
+            return;
+        }
+
+        if (!ReadSprintInput())
+        {
+            LogMovement("Wall run ended — sprint released.");
+            EndWallRun();
+            return;
+        }
+
+        if (grounded)
+        {
+            EndWallRun();
+            return;
+        }
+
+        if (HorizontalVelocity().magnitude < Mathf.Max(0.1f, minimumWallRunSpeed))
+        {
+            LogMovement("Wall run ended — speed too low.");
+            EndWallRun();
+            return;
+        }
+
+        if (WantsToLeaveWall())
+        {
+            LogMovement("Wall run ended — moved away.");
+            EndWallRun();
+            return;
+        }
+
+        if (!HasCurrentWallContact())
+        {
+            wallContactLostTimer += Time.fixedDeltaTime;
+            if (wallContactLostTimer >= Mathf.Max(0.01f, wallContactGraceTime))
+            {
+                LogMovement("Wall run ended — lost wall contact.");
+                EndWallRun();
+            }
+        }
+        else
+        {
+            wallContactLostTimer = 0f;
+        }
+    }
+
+    private void PerformWallJump()
+    {
+        if (!wallRunning)
+            return;
+
+        Vector3 outward = FlattenWallNormal(wallNormal);
+        Vector3 forwardKeep = wallRunDirection * wallRunSpeed * Mathf.Clamp01(wallJumpForwardRetain);
+        Vector3 jumpVelocity = Vector3.up * Mathf.Max(0f, wallJumpUpForce)
+            + outward * Mathf.Max(0f, wallJumpOutwardForce)
+            + forwardKeep;
+
+        Vector2 input = ReadMoveInput();
+        Vector3 inputDir = transform.forward * input.y + transform.right * input.x;
+        inputDir.y = 0f;
+        if (inputDir.sqrMagnitude > 0.01f && wallJumpInputInfluence > 0f)
+            jumpVelocity += inputDir.normalized * wallJumpInputInfluence;
+
+        EndWallRun();
+
+        if (rb != null && !rb.isKinematic)
+            rb.linearVelocity = jumpVelocity;
+
+        hasJumped = true;
+        LastJumpFromSprint = true;
+        jumpAvailable = false;
+        jumpCooldownTimer = jumpCooldown;
+        jumpIgnoreTimer = JumpIgnoreDuration;
+        grounded = false;
+        EndSlide();
+
+        if (bullseyeMover != null)
+            bullseyeMover.NotifyJump();
+
+        Jumped?.Invoke();
+        LogMovement("Wall jump.");
+    }
+
+    private void EndWallRun()
+    {
+        if (!wallRunning)
+            return;
+
+        Collider usedWall = currentWallCollider;
+        wallRunning = false;
+        wallSide = WallSide.None;
+        currentWallCollider = null;
+        wallRunElapsed = 0f;
+        wallContactLostTimer = 0f;
+
+        if (grounded)
+        {
+            ClearSameWallRestriction();
+        }
+        else
+        {
+            lastWallCollider = usedWall;
+            sameWallCooldownRemaining = Mathf.Max(0f, sameWallReattachCooldown);
+        }
+    }
+
+    private void ClearWallRunState()
+    {
+        wallRunning = false;
+        wallSide = WallSide.None;
+        currentWallCollider = null;
+        lastWallCollider = null;
+        wallRunElapsed = 0f;
+        wallContactLostTimer = 0f;
+        sameWallCooldownRemaining = 0f;
+        debugWallEntryBlockReason = string.Empty;
+    }
+
+    private void ClearSameWallRestriction()
+    {
+        lastWallCollider = null;
+        sameWallCooldownRemaining = 0f;
+    }
+
+    private bool IsBlockedBySameWall(Collider wall)
+    {
+        if (wall == null || lastWallCollider == null)
+            return false;
+        return wall == lastWallCollider;
+    }
+
+    private bool WantsToLeaveWall()
+    {
+        Vector2 input = ReadMoveInput();
+        if (input.sqrMagnitude < 0.2f)
+            return false;
+
+        Vector3 wish = transform.forward * input.y + transform.right * input.x;
+        wish.y = 0f;
+        if (wish.sqrMagnitude < 0.01f)
+            return false;
+
+        return Vector3.Dot(wish.normalized, FlattenWallNormal(wallNormal)) >= moveAwayFromWallThreshold;
+    }
+
+    private void RefreshWallContact()
+    {
+        if (!TryDetectWall(wallSide, requireApproach: false, out RaycastHit hit, out WallSide side, out float angle))
+            return;
+
+        if (IsEligibleWallCollider(hit.collider))
+        {
+            currentWallCollider = hit.collider;
+            wallNormal = FlattenWallNormal(hit.normal);
+            wallSide = side;
+            debugDetectedWallAngle = angle;
+            Vector3 updated = ResolveWallRunDirection(wallNormal, wallRunDirection);
+            if (Vector3.Dot(updated, wallRunDirection) > 0.15f)
+                wallRunDirection = updated;
+        }
+    }
+
+    private bool HasCurrentWallContact()
+    {
+        return TryDetectWall(wallSide, requireApproach: false, out _, out _, out _);
+    }
+
+    private bool TryDetectWall(
+        WallSide preferSide,
+        bool requireApproach,
+        out RaycastHit hit,
+        out WallSide side,
+        out float angle)
+    {
+        hit = default;
+        side = WallSide.None;
+        angle = 0f;
+        debugDetectedWallAngle = 0f;
+
+        bool foundLeft = ProbeWallSide(WallSide.Left, out RaycastHit leftHit, out float leftAngle);
+        bool foundRight = ProbeWallSide(WallSide.Right, out RaycastHit rightHit, out float rightAngle);
+
+        if (preferSide == WallSide.Left && foundLeft && IsAcceptableWallHit(leftHit, requireApproach))
+            return AcceptWall(leftHit, WallSide.Left, leftAngle, out hit, out side, out angle);
+        if (preferSide == WallSide.Right && foundRight && IsAcceptableWallHit(rightHit, requireApproach))
+            return AcceptWall(rightHit, WallSide.Right, rightAngle, out hit, out side, out angle);
+
+        bool leftOk = foundLeft && IsAcceptableWallHit(leftHit, requireApproach);
+        bool rightOk = foundRight && IsAcceptableWallHit(rightHit, requireApproach);
+        if (!leftOk && !rightOk)
+        {
+            if (foundLeft || foundRight)
+                debugWallEntryBlockReason = "Wall nearby but not a valid approach/surface.";
+            else
+                debugWallEntryBlockReason = "No wall detected.";
+            return false;
+        }
+
+        if (leftOk && rightOk)
+        {
+            float leftToward = ApproachAmount(leftHit.normal);
+            float rightToward = ApproachAmount(rightHit.normal);
+            if (rightToward > leftToward)
+                return AcceptWall(rightHit, WallSide.Right, rightAngle, out hit, out side, out angle);
+            return AcceptWall(leftHit, WallSide.Left, leftAngle, out hit, out side, out angle);
+        }
+
+        if (rightOk)
+            return AcceptWall(rightHit, WallSide.Right, rightAngle, out hit, out side, out angle);
+        return AcceptWall(leftHit, WallSide.Left, leftAngle, out hit, out side, out angle);
+    }
+
+    private bool AcceptWall(
+        RaycastHit detected,
+        WallSide detectedSide,
+        float detectedAngle,
+        out RaycastHit hit,
+        out WallSide side,
+        out float angle)
+    {
+        hit = detected;
+        side = detectedSide;
+        angle = detectedAngle;
+        debugDetectedWallAngle = detectedAngle;
+        return true;
+    }
+
+    private bool ProbeWallSide(WallSide side, out RaycastHit hit, out float angle)
+    {
+        hit = default;
+        angle = 0f;
+
+        Vector3 lateral = side == WallSide.Right ? transform.right : -transform.right;
+        Vector3 biased = (lateral + transform.forward * 0.3f).normalized;
+        if (ProbeWallDirection(biased, out hit, out angle))
+            return true;
+        return ProbeWallDirection(lateral, out hit, out angle);
+    }
+
+    private bool ProbeWallDirection(Vector3 direction, out RaycastHit hit, out float angle)
+    {
+        hit = default;
+        angle = 0f;
+        if (playerCapsule == null || direction.sqrMagnitude < 0.0001f)
+            return false;
+
+        GetCapsuleWorld(out Vector3 top, out Vector3 bottom, out float radius);
+        Vector3 center = (top + bottom) * 0.5f;
+        float probeRadius = Mathf.Max(0.08f, radius * 0.55f);
+        float distance = Mathf.Max(0.15f, wallDetectionDistance);
+        int mask = wallLayerMask.value == 0 ? ~0 : wallLayerMask;
+
+        if (Physics.SphereCast(
+                center,
+                probeRadius,
+                direction,
+                out RaycastHit castHit,
+                distance,
+                mask,
+                QueryTriggerInteraction.Ignore)
+            && IsValidWallHit(castHit, out angle))
+        {
+            hit = castHit;
+            return true;
+        }
+
+        if (Physics.Raycast(
+                center,
+                direction,
+                out RaycastHit rayHit,
+                radius + distance,
+                mask,
+                QueryTriggerInteraction.Ignore)
+            && IsValidWallHit(rayHit, out angle))
+        {
+            hit = rayHit;
+            return true;
+        }
+
+        int hitCount = Physics.SphereCastNonAlloc(
+            center - direction * 0.05f,
+            probeRadius,
+            direction,
+            wallProbeHits,
+            distance + 0.05f,
+            mask,
+            QueryTriggerInteraction.Ignore);
+
+        float bestDistance = float.MaxValue;
+        bool found = false;
+        for (int i = 0; i < hitCount; i++)
+        {
+            RaycastHit candidate = wallProbeHits[i];
+            if (!IsValidWallHit(candidate, out float candidateAngle))
+                continue;
+            if (candidate.distance >= bestDistance)
+                continue;
+
+            bestDistance = candidate.distance;
+            hit = candidate;
+            angle = candidateAngle;
+            found = true;
+        }
+
+        return found;
+    }
+
+    private bool IsAcceptableWallHit(RaycastHit hit, bool requireApproach)
+    {
+        if (!IsEligibleWallCollider(hit.collider))
+            return false;
+        if (IsBlockedBySameWall(hit.collider))
+            return false;
+        if (!requireApproach)
+            return true;
+
+        float toward = ApproachAmount(hit.normal);
+        Vector3 tangent = ResolveWallRunDirection(hit.normal, HorizontalVelocity());
+        float along = Vector3.Dot(HorizontalVelocity(), tangent);
+        bool approaching = toward > 0.2f;
+        bool runningAlong = along >= minimumEntrySpeed * 0.35f && toward > -0.35f;
+        return approaching || runningAlong;
+    }
+
+    private bool IsValidWallHit(RaycastHit hit, out float angle)
+    {
+        angle = 0f;
+        if (!IsEligibleWallCollider(hit.collider))
+            return false;
+
+        angle = Vector3.Angle(hit.normal, Vector3.up);
+        return angle >= minimumWallAngle && angle <= maximumWallAngle + 0.01f;
+    }
+
+    private bool IsEligibleWallCollider(Collider collider)
+    {
+        if (collider == null || IsOwnCollider(collider))
+            return false;
+        if (collider.GetComponentInParent<PlayerMovement>() != null)
+            return false;
+        if (collider.GetComponentInParent<BullseyeTarget>() != null)
+            return false;
+        if (collider.GetComponentInParent<Grenade>() != null)
+            return false;
+        return true;
+    }
+
+    private float ApproachAmount(Vector3 normal)
+    {
+        Vector3 vel = HorizontalVelocity();
+        if (vel.sqrMagnitude < 0.0001f)
+            return 0f;
+        return Vector3.Dot(vel.normalized, -FlattenWallNormal(normal));
+    }
+
+    private static Vector3 ResolveWallRunDirection(Vector3 normal, Vector3 reference)
+    {
+        Vector3 flatNormal = FlattenWallNormal(normal);
+        Vector3 tangent = Vector3.Cross(Vector3.up, flatNormal);
+        if (tangent.sqrMagnitude < 0.0001f)
+            tangent = Vector3.ProjectOnPlane(reference, flatNormal);
+        tangent.y = 0f;
+        if (tangent.sqrMagnitude < 0.0001f)
+            tangent = Vector3.forward;
+        tangent.Normalize();
+
+        Vector3 flatReference = reference;
+        flatReference.y = 0f;
+        if (flatReference.sqrMagnitude < 0.0001f)
+            return tangent;
+        if (Vector3.Dot(tangent, flatReference) < 0f)
+            tangent = -tangent;
+        return tangent;
+    }
+
+    private static Vector3 FlattenWallNormal(Vector3 normal)
+    {
+        Vector3 flat = new Vector3(normal.x, 0f, normal.z);
+        if (flat.sqrMagnitude < 0.0001f)
+            return Vector3.right;
+        return flat.normalized;
+    }
+
+    private void TickWallRunDebug()
+    {
+        debugIsWallRunning = wallRunning;
+        debugWallAngle = debugDetectedWallAngle;
+        debugObservedWallSide = wallSide;
+        debugWallRunElapsed = wallRunElapsed;
+        debugWallRunStatus = wallRunning ? "Wall running." : debugWallEntryBlockReason;
+
+        if (!debugWallRun)
+            return;
+
+        Vector3 origin = transform.position + Vector3.up * 1f;
+        Debug.DrawRay(origin, transform.right * wallDetectionDistance, Color.cyan);
+        Debug.DrawRay(origin, -transform.right * wallDetectionDistance, Color.cyan);
+        Debug.DrawRay(origin, wallNormal, Color.yellow);
+        if (wallRunning)
+            Debug.DrawRay(origin, wallRunDirection, Color.green);
+    }
+}
+
+public enum WallSide
+{
+    None,
+    Left,
+    Right
 }
 
 public enum InputActivationMode
