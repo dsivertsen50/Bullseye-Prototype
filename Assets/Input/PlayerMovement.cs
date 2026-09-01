@@ -63,16 +63,27 @@ public class PlayerMovement : NetworkBehaviour
     [SerializeField] private Vector3 proneVisualEuler = new Vector3(90f, 0f, 0f);
     [SerializeField] private Vector3 proneVisualLocalOffset;
 
-    [Header("Dolphin Dive")]
+    [Header("Dolphin Dive / Trigger")]
     [SerializeField] private float dolphinDiveHoldDuration = 0.3f;
     [SerializeField] private float minimumDolphinDiveSpeed = 8f;
-    [SerializeField] private float dolphinDiveForwardForce = 3f;
-    [SerializeField] private float dolphinDiveUpwardForce = 2f;
-    [SerializeField] private float dolphinDiveDuration = 0.45f;
-    [SerializeField] private float dolphinDiveMaxSpeed = 8f;
-    [SerializeField, Range(0f, 1f)] private float dolphinDiveAirControl = 0.1f;
-    [SerializeField] private float dolphinDiveRecoveryDuration = 0.3f;
+
+    [Header("Dolphin Dive / Movement")]
+    [SerializeField] private float dolphinDiveForwardSpeed = 14.5f;
+    [SerializeField] private float dolphinDiveUpwardForce = 3.5f;
+    [SerializeField] private float dolphinDiveGravityMultiplier = 1.35f;
+    [SerializeField] private float dolphinDiveMaxDuration = 1f;
+    [SerializeField, Range(0f, 1f)] private float dolphinDiveAirControl = 0.05f;
     [SerializeField] private float dolphinDiveCooldown = 1f;
+
+    [Header("Dolphin Dive / Camera")]
+    [SerializeField] private float diveCameraLiftHeight = 0.18f;
+    [SerializeField] private float diveCameraLiftDuration = 0.14f;
+    [SerializeField] private float diveCameraLandingDuration = 0.12f;
+
+    [Header("Dolphin Dive / Landing")]
+    [SerializeField] private float diveMinAirborneTime = 0.08f;
+    [SerializeField] private float dolphinDiveRecoveryDuration = 0.18f;
+    [SerializeField] private float diveControllerHeight = 1.2f;
 
     [Header("Wall Run")]
     [SerializeField] private bool enableWallRunning = true;
@@ -185,7 +196,13 @@ public class PlayerMovement : NetworkBehaviour
     private float diveElapsed;
     private float diveCooldownRemaining;
     private float diveRecoveryRemaining;
+    private float diveLaunchIgnoreTimer;
     private bool diveBecameAirborne;
+    private bool diveCameraDropping;
+    private float diveCameraElapsed;
+    private float diveCameraDropElapsed;
+    private float diveCameraLiftStartY;
+    private float diveCameraDropStartY;
     private Vector3 diveDirection = Vector3.forward;
 
     private bool sliding;
@@ -233,6 +250,7 @@ public class PlayerMovement : NetworkBehaviour
     public float RunSpeed => runSpeed;
     public float ProneMoveSpeed => proneMoveSpeed;
     public float HorizontalSpeed => HorizontalVelocity().magnitude;
+    public float VerticalVelocity => rb != null ? rb.linearVelocity.y : 0f;
     public Vector2 MoveInput => ReadMoveInput();
 
     public void SetCameraTransform(Transform cameraTransform)
@@ -403,7 +421,7 @@ public class PlayerMovement : NetworkBehaviour
         else
         {
             if (!onSlope)
-                rb.AddForce(Vector3.down * ExtraGravityForce, ForceMode.Acceleration);
+                ApplyVerticalGravity();
 
             if (!dolphinDiving.Value)
             {
@@ -511,7 +529,9 @@ public class PlayerMovement : NetworkBehaviour
         diveElapsed = 0f;
         diveCooldownRemaining = 0f;
         diveRecoveryRemaining = 0f;
+        diveLaunchIgnoreTimer = 0f;
         diveBecameAirborne = false;
+        ClearDiveCameraState();
         EndSlide();
         CancelDolphinDive(false);
         ClearWallRunState();
@@ -904,11 +924,7 @@ public class PlayerMovement : NetworkBehaviour
             return;
 
         if (dolphinDiving.Value)
-        {
-            if (grounded && (crouchInput.WasPressedThisFrame() || JumpWasPressed()))
-                LandDolphinDive();
             return;
-        }
 
         if (!prone.Value && crouched.Value && !crouchHoldActive && ReadSprintInput() && CanStand())
         {
@@ -947,6 +963,9 @@ public class PlayerMovement : NetworkBehaviour
         if (crouchPressStartedCrouched)
             return;
 
+        if (diveCandidateThisPress)
+            return;
+
         SetCrouched(true);
         TryStartSlide();
         LogMovement("Entered crouch.");
@@ -978,12 +997,20 @@ public class PlayerMovement : NetworkBehaviour
     private void OnCrouchReleased()
     {
         float held = crouchHoldTime;
+        bool pendingDiveCrouch = diveCandidateThisPress && !dolphinDiving.Value && !prone.Value;
         crouchHoldActive = false;
         crouchHoldTime = 0f;
         diveCandidateThisPress = false;
 
         if (crouchPressExitedProne || dolphinDiving.Value || prone.Value)
             return;
+
+        if (pendingDiveCrouch)
+        {
+            SetCrouched(true);
+            TryStartSlide();
+            LogMovement("Entered crouch.");
+        }
 
         if (crouchActivation == InputActivationMode.Hold)
         {
@@ -998,7 +1025,9 @@ public class PlayerMovement : NetworkBehaviour
 
     private bool CanBeginDiveCandidate()
     {
-        if (prone.Value || dolphinDiving.Value || !grounded)
+        if (prone.Value || dolphinDiving.Value || crouched.Value)
+            return false;
+        if (!grounded || hasJumped)
             return false;
         if (diveCooldownRemaining > 0f)
             return false;
@@ -1008,9 +1037,11 @@ public class PlayerMovement : NetworkBehaviour
 
     private bool CanTriggerDolphinDive()
     {
-        if (!diveCandidateThisPress || prone.Value || dolphinDiving.Value)
+        if (!diveCandidateThisPress || prone.Value || dolphinDiving.Value || crouched.Value)
             return false;
-        if (diveCooldownRemaining > 0f || !grounded)
+        if (diveCooldownRemaining > 0f || !grounded || hasJumped)
+            return false;
+        if (!IsSprinting)
             return false;
 
         return HorizontalVelocity().magnitude >= minimumDolphinDiveSpeed;
@@ -1022,48 +1053,63 @@ public class PlayerMovement : NetworkBehaviour
             return;
 
         EndSlide();
+        EndWallRun();
         IsSprinting = false;
         sprintToggledOn = false;
-        SetCrouched(true);
         if (prone.Value)
             prone.Value = false;
+        if (crouched.Value)
+            crouched.Value = false;
 
         dolphinDiving.Value = true;
         diveElapsed = 0f;
         diveBecameAirborne = false;
         diveRecoveryRemaining = 0f;
         diveCooldownRemaining = Mathf.Max(0f, dolphinDiveCooldown);
+        diveLaunchIgnoreTimer = 0.12f;
         crouchHoldActive = false;
+        diveCandidateThisPress = false;
+        diveCameraDropping = false;
+        diveCameraElapsed = 0f;
+        diveCameraLiftStartY = currentCameraLocalY > 0.01f ? currentCameraLocalY : standingCameraLocalY;
 
-        diveDirection = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
-        if (diveDirection.sqrMagnitude < 0.0001f)
-        {
-            Vector3 horizontal = HorizontalVelocity();
-            diveDirection = horizontal.sqrMagnitude > 0.01f ? horizontal.normalized : Vector3.forward;
-        }
-        else
-        {
-            diveDirection.Normalize();
-        }
+        diveDirection = ResolveDiveDirection();
 
         if (rb != null && !rb.isKinematic)
         {
-            Vector3 planar = Vector3.ProjectOnPlane(rb.linearVelocity, Vector3.up);
-            float planarSpeed = Mathf.Min(
-                Mathf.Max(planar.magnitude, currentSpeed),
-                Mathf.Max(0.01f, dolphinDiveMaxSpeed));
-            rb.linearVelocity = diveDirection * planarSpeed + Vector3.up * Mathf.Max(0f, rb.linearVelocity.y);
-            rb.AddForce(
-                diveDirection * Mathf.Max(0f, dolphinDiveForwardForce) +
-                Vector3.up * Mathf.Max(0f, dolphinDiveUpwardForce),
-                ForceMode.VelocityChange);
-            ClampDivePlanarSpeed();
+            float forwardSpeed = Mathf.Max(runSpeed, dolphinDiveForwardSpeed);
+            rb.linearVelocity = diveDirection * forwardSpeed
+                + Vector3.up * Mathf.Max(0f, dolphinDiveUpwardForce);
         }
+
+        grounded = false;
+        cancellingGrounded = false;
+        ungroundTimer = 0f;
+        hasJumped = false;
+        onSlope = false;
 
         weaponInventory?.InterruptReloadForDive();
         DolphinDiveStarted?.Invoke();
         LogMovement("Sprint + crouch hold detected — dolphin dive.");
         LogMovement("Dolphin dive launched.");
+    }
+
+    private Vector3 ResolveDiveDirection()
+    {
+        Vector3 forward = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+        Vector3 horizontal = HorizontalVelocity();
+
+        if (horizontal.sqrMagnitude > 0.01f)
+        {
+            Vector3 moveDir = horizontal.normalized;
+            if (forward.sqrMagnitude > 0.01f && Vector3.Dot(moveDir, forward.normalized) > 0.65f)
+                return forward.normalized;
+            return moveDir;
+        }
+
+        if (forward.sqrMagnitude > 0.01f)
+            return forward.normalized;
+        return Vector3.forward;
     }
 
     private void TickDolphinDive()
@@ -1072,22 +1118,35 @@ public class PlayerMovement : NetworkBehaviour
             return;
 
         diveElapsed += Time.fixedDeltaTime;
-        if (!grounded)
+        if (!grounded || VerticalVelocity > 0.35f)
             diveBecameAirborne = true;
 
-        bool shouldLand = false;
-        if (grounded)
+        if (!grounded)
+            return;
+
+        bool minAirborneElapsed = diveElapsed >= Mathf.Max(0.01f, diveMinAirborneTime);
+        bool maxDurationElapsed = diveElapsed >= Mathf.Max(0.15f, dolphinDiveMaxDuration);
+
+        if (diveBecameAirborne && minAirborneElapsed)
+            LandDolphinDive();
+        else if (!diveBecameAirborne && maxDurationElapsed)
+            LandDolphinDive();
+    }
+
+    private void ApplyVerticalGravity()
+    {
+        if (rb == null || rb.isKinematic)
+            return;
+
+        if (dolphinDiving.Value)
         {
-            if (diveBecameAirborne && diveElapsed >= 0.15f)
-                shouldLand = true;
-            else if (!diveBecameAirborne && diveElapsed >= Mathf.Max(0.05f, dolphinDiveDuration))
-                shouldLand = true;
-            else if (diveElapsed > 0.12f && HorizontalVelocity().magnitude < 1.25f)
-                shouldLand = true;
+            float extra = Mathf.Max(0.1f, dolphinDiveGravityMultiplier) - 1f;
+            if (Mathf.Abs(extra) > 0.001f)
+                rb.AddForce(Physics.gravity * extra, ForceMode.Acceleration);
+            return;
         }
 
-        if (shouldLand)
-            LandDolphinDive();
+        rb.AddForce(Vector3.down * ExtraGravityForce, ForceMode.Acceleration);
     }
 
     private void ApplyDiveAirControl()
@@ -1099,7 +1158,12 @@ public class PlayerMovement : NetworkBehaviour
         if (input.sqrMagnitude < 0.0001f)
             return;
 
-        Vector3 steer = (transform.forward * input.y + transform.right * input.x);
+        Vector3 right = Vector3.Cross(Vector3.up, diveDirection);
+        if (right.sqrMagnitude < 0.0001f)
+            right = transform.right;
+        right.Normalize();
+
+        Vector3 steer = diveDirection * input.y + right * input.x;
         steer.y = 0f;
         if (steer.sqrMagnitude < 0.0001f)
             return;
@@ -1114,7 +1178,7 @@ public class PlayerMovement : NetworkBehaviour
         if (rb == null || rb.isKinematic)
             return;
 
-        float maxSpeed = Mathf.Max(0.01f, dolphinDiveMaxSpeed);
+        float maxSpeed = Mathf.Max(runSpeed, dolphinDiveForwardSpeed);
         Vector3 velocity = rb.linearVelocity;
         Vector3 planar = Vector3.ProjectOnPlane(velocity, Vector3.up);
         if (planar.magnitude <= maxSpeed)
@@ -1132,10 +1196,31 @@ public class PlayerMovement : NetworkBehaviour
         dolphinDiving.Value = false;
         diveBecameAirborne = false;
         diveElapsed = 0f;
+        diveLaunchIgnoreTimer = 0f;
         diveRecoveryRemaining = Mathf.Max(0f, dolphinDiveRecoveryDuration);
+        StopDiveSlide();
         EnterProne();
+        stanceBlend = 2f;
+        BeginDiveCameraDrop();
         DolphinDiveLanded?.Invoke();
         LogMovement("Dolphin dive landed — entering prone.");
+    }
+
+    private void StopDiveSlide()
+    {
+        if (rb == null || rb.isKinematic)
+            return;
+
+        Vector3 velocity = rb.linearVelocity;
+        Vector3 horizontal = new Vector3(velocity.x, 0f, velocity.z);
+        float landSpeed = diveRecoveryRemaining > 0f ? 0f : proneMoveSpeed;
+        if (horizontal.magnitude > landSpeed)
+        {
+            Vector3 dir = horizontal.sqrMagnitude > 0.0001f ? horizontal.normalized : Vector3.zero;
+            horizontal = dir * landSpeed;
+        }
+
+        rb.linearVelocity = new Vector3(horizontal.x, Mathf.Min(velocity.y, 0f), horizontal.z);
     }
 
     private void CancelDolphinDive(bool landProne)
@@ -1144,6 +1229,7 @@ public class PlayerMovement : NetworkBehaviour
         diveCandidateThisPress = false;
         diveBecameAirborne = false;
         diveElapsed = 0f;
+        diveLaunchIgnoreTimer = 0f;
 
         if (dolphinDiving.Value && (!IsSpawned || IsOwner))
             dolphinDiving.Value = false;
@@ -1151,11 +1237,15 @@ public class PlayerMovement : NetworkBehaviour
         if (landProne)
         {
             diveRecoveryRemaining = Mathf.Max(0f, dolphinDiveRecoveryDuration);
+            StopDiveSlide();
             EnterProne();
+            stanceBlend = 2f;
+            BeginDiveCameraDrop();
             return;
         }
 
         diveRecoveryRemaining = 0f;
+        ClearDiveCameraState();
     }
 
     private void TickDiveTimers()
@@ -1167,12 +1257,34 @@ public class PlayerMovement : NetworkBehaviour
                 diveCooldownRemaining = 0f;
         }
 
+        if (diveLaunchIgnoreTimer > 0f)
+        {
+            diveLaunchIgnoreTimer -= Time.deltaTime;
+            if (diveLaunchIgnoreTimer < 0f)
+                diveLaunchIgnoreTimer = 0f;
+        }
+
         if (diveRecoveryRemaining > 0f && !dolphinDiving.Value)
         {
             diveRecoveryRemaining -= Time.deltaTime;
             if (diveRecoveryRemaining < 0f)
                 diveRecoveryRemaining = 0f;
         }
+    }
+
+    private void BeginDiveCameraDrop()
+    {
+        diveCameraDropping = true;
+        diveCameraDropElapsed = 0f;
+        diveCameraDropStartY = Mathf.Max(currentCameraLocalY, proneCameraLocalY);
+        diveCameraElapsed = 0f;
+    }
+
+    private void ClearDiveCameraState()
+    {
+        diveCameraDropping = false;
+        diveCameraElapsed = 0f;
+        diveCameraDropElapsed = 0f;
     }
 
     private void EnterProne()
@@ -1186,11 +1298,6 @@ public class PlayerMovement : NetworkBehaviour
             prone.Value = true;
             NotifyPostureChanged();
         }
-    }
-
-    private bool JumpWasPressed()
-    {
-        return jumpAction != null && jumpAction.action != null && jumpAction.action.WasPressedThisFrame();
     }
 
     private bool TryExitProneToCrouch()
@@ -1379,6 +1486,16 @@ public class PlayerMovement : NetworkBehaviour
 
         bool wasGrounded = grounded;
 
+        if (dolphinDiving.Value && diveLaunchIgnoreTimer > 0f && rb != null && rb.linearVelocity.y > 0.05f)
+        {
+            grounded = false;
+            onSlope = false;
+            diveBecameAirborne = true;
+            if (wasGrounded)
+                cancellingGrounded = true;
+            return;
+        }
+
         if (hasJumped && rb != null && rb.linearVelocity.y > 0.1f && jumpIgnoreTimer > 0f)
         {
             grounded = false;
@@ -1492,15 +1609,26 @@ public class PlayerMovement : NetworkBehaviour
 
     private void TickStanceTransition()
     {
-        float target = ResolveStanceTarget();
-        float blendSpeed = ResolveStanceBlendSpeed();
-        stanceBlend = Mathf.MoveTowards(stanceBlend, target, blendSpeed * Time.deltaTime);
-        ApplyStancePose(blendSpeed * Time.deltaTime);
+        float snapAmount = 0f;
+        if (!dolphinDiving.Value)
+        {
+            float target = ResolveStanceTarget();
+            float blendSpeed = ResolveStanceBlendSpeed();
+            if (target >= 2f && stanceBlend < 0.5f)
+                stanceBlend = 2f;
+            else
+                stanceBlend = Mathf.MoveTowards(stanceBlend, target, blendSpeed * Time.deltaTime);
+            snapAmount = blendSpeed * Time.deltaTime;
+        }
+
+        ApplyStancePose(snapAmount);
     }
 
     private float ResolveStanceTarget()
     {
-        if (prone.Value || dolphinDiving.Value)
+        if (dolphinDiving.Value)
+            return 0f;
+        if (prone.Value)
             return 2f;
         if (crouched.Value)
             return 1f;
@@ -1517,6 +1645,13 @@ public class PlayerMovement : NetworkBehaviour
 
     private void ApplyStancePose(float snapAmount)
     {
+        if (dolphinDiving.Value)
+        {
+            ApplyDiveCollider();
+            ApplyDiveCamera(snapAmount >= 1f);
+            return;
+        }
+
         float crouchHeight = ResolveCrouchHeight();
         float proneHeight = ResolveProneHeight();
         Vector3 crouchCenter = standingCenter;
@@ -1529,7 +1664,6 @@ public class PlayerMovement : NetworkBehaviour
         Vector3 targetCenter = standingCenter;
         float targetRadius = standingRadius;
         float targetCameraY = standingCameraLocalY;
-        float poseBlend = 0f;
 
         if (stanceBlend <= 1f)
         {
@@ -1544,7 +1678,6 @@ public class PlayerMovement : NetworkBehaviour
             targetCenter = Vector3.Lerp(crouchCenter, proneCenter, t);
             targetRadius = Mathf.Lerp(standingRadius, ResolveProneRadius(), t);
             targetCameraY = Mathf.Lerp(crouchedCameraLocalY, proneCameraLocalY, t);
-            poseBlend = t;
         }
 
         if (playerCapsule != null)
@@ -1554,20 +1687,83 @@ public class PlayerMovement : NetworkBehaviour
             playerCapsule.radius = targetRadius;
         }
 
-        if (playerCamera != null)
+        if (playerCamera == null)
+            return;
+
+        if (diveCameraDropping)
         {
-            float cameraSpeed = stanceBlend >= 1.5f || prone.Value || dolphinDiving.Value
-                ? Mathf.Max(0.1f, proneCameraTransitionSpeed)
-                : 1f / Mathf.Max(0.0001f, crouchTransitionDuration);
-            Vector3 cameraPosition = playerCamera.localPosition;
-            if (currentCameraLocalY <= 0f)
-                currentCameraLocalY = cameraPosition.y;
-            currentCameraLocalY = Mathf.MoveTowards(currentCameraLocalY, targetCameraY, cameraSpeed * Time.deltaTime);
-            if (snapAmount >= 1f)
-                currentCameraLocalY = targetCameraY;
-            cameraPosition.y = currentCameraLocalY;
-            playerCamera.localPosition = cameraPosition;
+            ApplyDiveLandingCamera(snapAmount >= 1f);
+            return;
         }
+
+        float cameraSpeed = stanceBlend >= 1.5f || prone.Value
+            ? Mathf.Max(0.1f, proneCameraTransitionSpeed)
+            : 1f / Mathf.Max(0.0001f, crouchTransitionDuration);
+        Vector3 cameraPosition = playerCamera.localPosition;
+        if (currentCameraLocalY <= 0f)
+            currentCameraLocalY = cameraPosition.y;
+        currentCameraLocalY = Mathf.MoveTowards(currentCameraLocalY, targetCameraY, cameraSpeed * Time.deltaTime);
+        if (snapAmount >= 1f)
+            currentCameraLocalY = targetCameraY;
+        currentCameraLocalY = Mathf.Max(currentCameraLocalY, proneCameraLocalY);
+        cameraPosition.y = currentCameraLocalY;
+        playerCamera.localPosition = cameraPosition;
+    }
+
+    private void ApplyDiveCollider()
+    {
+        if (playerCapsule == null)
+            return;
+
+        float diveHeight = ResolveDiveHeight();
+        Vector3 diveCenter = standingCenter;
+        diveCenter.y = diveHeight * 0.5f;
+        playerCapsule.height = diveHeight;
+        playerCapsule.center = diveCenter;
+        playerCapsule.radius = standingRadius;
+    }
+
+    private float ResolveDiveHeight()
+    {
+        float configured = diveControllerHeight > 0.01f ? diveControllerHeight : crouchedHeight;
+        return Mathf.Max(standingRadius * 2f, configured);
+    }
+
+    private void ApplyDiveCamera(bool snap)
+    {
+        if (playerCamera == null)
+            return;
+
+        diveCameraElapsed += Time.deltaTime;
+        float duration = Mathf.Max(0.01f, diveCameraLiftDuration);
+        float t = snap ? 1f : Mathf.Clamp01(diveCameraElapsed / duration);
+        t = t * t * (3f - 2f * t);
+        float startY = diveCameraLiftStartY > 0.01f ? diveCameraLiftStartY : standingCameraLocalY;
+        float liftTarget = standingCameraLocalY + Mathf.Max(0f, diveCameraLiftHeight);
+        currentCameraLocalY = Mathf.Lerp(startY, liftTarget, t);
+        currentCameraLocalY = Mathf.Max(currentCameraLocalY, proneCameraLocalY);
+        Vector3 cameraPosition = playerCamera.localPosition;
+        cameraPosition.y = currentCameraLocalY;
+        playerCamera.localPosition = cameraPosition;
+    }
+
+    private void ApplyDiveLandingCamera(bool snap)
+    {
+        if (playerCamera == null)
+            return;
+
+        diveCameraDropElapsed += Time.deltaTime;
+        float duration = Mathf.Max(0.01f, diveCameraLandingDuration);
+        float t = snap ? 1f : Mathf.Clamp01(diveCameraDropElapsed / duration);
+        t = t * t * (3f - 2f * t);
+        float startY = Mathf.Max(diveCameraDropStartY, proneCameraLocalY);
+        currentCameraLocalY = Mathf.Lerp(startY, proneCameraLocalY, t);
+        currentCameraLocalY = Mathf.Max(currentCameraLocalY, proneCameraLocalY);
+        Vector3 cameraPosition = playerCamera.localPosition;
+        cameraPosition.y = currentCameraLocalY;
+        playerCamera.localPosition = cameraPosition;
+        if (t >= 0.999f)
+            diveCameraDropping = false;
     }
 
     private void ApplyPlaceholderPronePose(float poseBlend, bool snap)

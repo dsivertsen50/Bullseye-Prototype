@@ -11,6 +11,14 @@ public class PlayerShoot : NetworkBehaviour
 
     private readonly RaycastHit[] hits = new RaycastHit[32];
     private readonly List<(BullseyeTarget target, float distance)> pelletHits = new(16);
+    private readonly List<Vector3> impactPoints = new(16);
+    private readonly List<Vector3> impactNormals = new(16);
+    private readonly List<Vector3> shotOrigins = new(16);
+    private readonly List<Vector3> shotEnds = new(16);
+    private readonly List<PlayerHealth> directHitPlayers = new(8);
+    private readonly List<ulong> nearMissClientIds = new(8);
+    private readonly List<Vector3> nearMissPoints = new(8);
+    private readonly List<float> nearMissDistances = new(8);
     private PlayerHaptics playerHaptics;
     private PlayerHealth playerHealth;
     private PlayerMovement playerMovement;
@@ -98,14 +106,6 @@ public class PlayerShoot : NetworkBehaviour
         if (inventory != null)
             inventory.NotifyShotFired();
 
-        if (playerHaptics != null)
-            playerHaptics.PlayFireRumble();
-
-        if (weaponPresentationCoordinator != null)
-            weaponPresentationCoordinator.NotifyFire();
-        else if (weaponPresentation != null)
-            weaponPresentation.PlayFirePresentation();
-
         WeaponDefinition definition = inventory != null ? inventory.ActiveDefinition : null;
         WeaponDamageSettings damageSettings = definition != null
             ? definition.DamageSettings
@@ -114,16 +114,43 @@ public class PlayerShoot : NetworkBehaviour
         float shotRange = damageSettings != null ? damageSettings.MaximumRange : range;
         float pelletSpread = ResolvePelletSpread(damageSettings);
 
+        WeaponImpactDecalSettings impactSettings = definition != null
+            ? definition.ImpactDecalSettings
+            : WeaponImpactDecalSettings.Fallback;
+        int maxDecals = impactSettings != null ? impactSettings.ResolveMaxDecalsForShot() : 0;
+
         pelletHits.Clear();
+        impactPoints.Clear();
+        impactNormals.Clear();
+        shotOrigins.Clear();
+        shotEnds.Clear();
+        directHitPlayers.Clear();
         for (int i = 0; i < projectileCount; i++)
         {
-            if (!TryGetHitscanHit(shotRange, pelletSpread, out RaycastHit hit))
+            bool hitSomething = TryGetHitscanHit(
+                shotRange,
+                pelletSpread,
+                out RaycastHit hit,
+                out Vector3 origin,
+                out Vector3 direction);
+
+            Vector3 end = hitSomething ? hit.point : origin + direction * shotRange;
+            shotOrigins.Add(origin);
+            shotEnds.Add(end);
+
+            if (!hitSomething)
                 continue;
 
-            if (!TryGetBullseyeTarget(hit.collider, out BullseyeTarget target))
-                continue;
+            TrackDirectPlayerHit(hit.collider);
 
-            pelletHits.Add((target, hit.distance));
+            if (TryGetBullseyeTarget(hit.collider, out BullseyeTarget target))
+            {
+                pelletHits.Add((target, hit.distance));
+                continue;
+            }
+
+            if (maxDecals > 0)
+                TryCollectSurfaceImpact(hit, impactSettings, maxDecals);
         }
 
         if (damageSettings.LogDamage)
@@ -136,8 +163,168 @@ public class PlayerShoot : NetworkBehaviour
         if (scoredHit)
             Debug.Log("BULLSEYE HIT!");
 
+        SubmitSurfaceImpacts(impactSettings);
+        SubmitNearMisses();
+
+        // Recoil kicks the camera immediately. Resolve the shot first so ADS
+        // shots land on the reticle instead of above it.
+        if (playerHaptics != null)
+            playerHaptics.PlayFireRumble();
+
+        if (weaponPresentationCoordinator != null)
+            weaponPresentationCoordinator.NotifyFire();
+        else if (weaponPresentation != null)
+            weaponPresentation.PlayFirePresentation();
+
         if (accuracy != null)
             accuracy.NotifyShotFired();
+    }
+
+    private void TryCollectSurfaceImpact(
+        RaycastHit hit,
+        WeaponImpactDecalSettings impactSettings,
+        int maxDecals)
+    {
+        if (impactPoints.Count >= maxDecals)
+            return;
+
+        if (!BulletImpactManager.IsValidSurface(hit.collider))
+            return;
+
+        if (hit.distance > impactSettings.MaximumDecalDistance)
+        {
+            BulletImpactManager.LogDistanceRejected(hit.distance, impactSettings.MaximumDecalDistance, hit.point, hit.normal);
+            return;
+        }
+
+        float overlap = BulletImpactManager.OverlapDistance;
+        if (overlap > 0f)
+        {
+            float overlapSqr = overlap * overlap;
+            for (int i = 0; i < impactPoints.Count; i++)
+            {
+                if ((impactPoints[i] - hit.point).sqrMagnitude < overlapSqr)
+                    return;
+            }
+        }
+
+        impactPoints.Add(hit.point);
+        impactNormals.Add(hit.normal.sqrMagnitude > 0.0001f ? hit.normal.normalized : Vector3.up);
+    }
+
+    private void SubmitSurfaceImpacts(WeaponImpactDecalSettings impactSettings)
+    {
+        if (impactPoints.Count == 0 || impactSettings == null || !impactSettings.Enabled)
+            return;
+
+        float scale = impactSettings.DecalScale;
+        int seed = Random.Range(int.MinValue, int.MaxValue);
+        BulletImpactDecalSet variantSet = impactSettings.VariantSet;
+
+        BulletImpactManager.Ensure().SpawnImpacts(impactPoints, impactNormals, scale, seed, variantSet);
+        PlayImpactAudio(impactPoints);
+
+        if (!IsSpawned)
+            return;
+
+        SurfaceImpactRpc(impactPoints.ToArray(), impactNormals.ToArray(), scale, seed);
+    }
+
+    [Rpc(SendTo.Everyone, InvokePermission = RpcInvokePermission.Owner)]
+    private void SurfaceImpactRpc(Vector3[] points, Vector3[] normals, float scale, int seed)
+    {
+        if (IsOwner)
+            return;
+
+        if (points == null || points.Length == 0)
+            return;
+
+        BulletImpactDecalSet variantSet = null;
+        if (inventory != null && inventory.ActiveDefinition != null)
+            variantSet = inventory.ActiveDefinition.ImpactDecalSettings.VariantSet;
+
+        BulletImpactManager.Ensure().SpawnImpacts(points, normals, scale, seed, variantSet);
+        PlayImpactAudio(points);
+    }
+
+    private void PlayImpactAudio(IList<Vector3> points)
+    {
+        WeaponShotAudioOverrides overrides = inventory != null && inventory.ActiveDefinition != null
+            ? inventory.ActiveDefinition.ShotAudioOverrides
+            : null;
+        WeaponShotAudio.PlayImpacts(points, overrides);
+    }
+
+    private void SubmitNearMisses()
+    {
+        WeaponShotAudioSettings settings = WeaponShotAudio.Settings;
+        if (settings == null || !settings.NearMissEnabled)
+            return;
+
+        WeaponShotAudioOverrides overrides = inventory != null && inventory.ActiveDefinition != null
+            ? inventory.ActiveDefinition.ShotAudioOverrides
+            : null;
+        if (overrides != null && !overrides.NearMissEnabled)
+            return;
+
+        if (shotOrigins.Count == 0)
+            return;
+
+        NearMissReceiver.EvaluateShot(
+            NetworkObject,
+            shotOrigins,
+            shotEnds,
+            directHitPlayers,
+            settings.NearMissRadius,
+            settings.DebugNearMiss,
+            nearMissClientIds,
+            nearMissPoints,
+            nearMissDistances);
+
+        if (nearMissClientIds.Count == 0 || !IsSpawned)
+            return;
+
+        NearMissRpc(nearMissClientIds.ToArray(), nearMissPoints.ToArray(), nearMissDistances.ToArray());
+    }
+
+    [Rpc(SendTo.Everyone, InvokePermission = RpcInvokePermission.Owner)]
+    private void NearMissRpc(ulong[] clientIds, Vector3[] points, float[] distances)
+    {
+        if (clientIds == null || points == null || distances == null)
+            return;
+
+        if (NetworkManager == null)
+            return;
+
+        ulong localId = NetworkManager.LocalClientId;
+        if (localId == OwnerClientId)
+            return;
+
+        int count = Mathf.Min(clientIds.Length, Mathf.Min(points.Length, distances.Length));
+        for (int i = 0; i < count; i++)
+        {
+            if (clientIds[i] != localId)
+                continue;
+
+            WeaponShotAudioOverrides overrides = inventory != null && inventory.ActiveDefinition != null
+                ? inventory.ActiveDefinition.ShotAudioOverrides
+                : null;
+            WeaponShotAudio.PlayFlyby(points[i], distances[i], overrides);
+            return;
+        }
+    }
+
+    private void TrackDirectPlayerHit(Collider collider)
+    {
+        if (collider == null)
+            return;
+
+        PlayerHealth hitHealth = collider.GetComponentInParent<PlayerHealth>();
+        if (hitHealth == null || hitHealth == playerHealth)
+            return;
+
+        if (!directHitPlayers.Contains(hitHealth))
+            directHitPlayers.Add(hitHealth);
     }
 
     private bool RegisterGroupedHits()
@@ -248,9 +435,16 @@ public class PlayerShoot : NetworkBehaviour
         return interactor != null && interactor.ShouldSuppressReload;
     }
 
-    private bool TryGetHitscanHit(float shotRange, float spreadAt1080, out RaycastHit selectedHit)
+    private bool TryGetHitscanHit(
+        float shotRange,
+        float spreadAt1080,
+        out RaycastHit selectedHit,
+        out Vector3 origin,
+        out Vector3 direction)
     {
         selectedHit = default;
+        origin = playerCamera != null ? playerCamera.transform.position : transform.position;
+        direction = playerCamera != null ? playerCamera.transform.forward : transform.forward;
 
         int mask = Physics.DefaultRaycastLayers;
         if (pickupLayer >= 0)
@@ -260,8 +454,6 @@ public class PlayerShoot : NetworkBehaviour
         if (debrisLayer >= 0)
             mask &= ~(1 << debrisLayer);
 
-        Vector3 origin = playerCamera != null ? playerCamera.transform.position : transform.position;
-        Vector3 direction = playerCamera != null ? playerCamera.transform.forward : transform.forward;
         if (accuracy != null && playerCamera != null)
         {
             Ray ray = accuracy.GetHitscanRay(playerCamera, spreadAt1080);
@@ -286,8 +478,15 @@ public class PlayerShoot : NetworkBehaviour
             mask,
             QueryTriggerInteraction.Collide);
 
-        float closestDistance = float.MaxValue;
-        bool found = false;
+        float worldDistance = float.MaxValue;
+        float bullseyeDistance = float.MaxValue;
+        float otherDistance = float.MaxValue;
+        RaycastHit worldHit = default;
+        RaycastHit bullseyeHit = default;
+        RaycastHit otherHit = default;
+        bool hasWorld = false;
+        bool hasBullseye = false;
+        bool hasOther = false;
 
         for (int i = 0; i < hitCount; i++)
         {
@@ -295,15 +494,55 @@ public class PlayerShoot : NetworkBehaviour
             if (hit.collider == null || IsOwnCollider(hit.collider))
                 continue;
 
-            if (hit.distance >= closestDistance)
+            if (TryGetBullseyeTarget(hit.collider, out _))
+            {
+                if (hit.distance >= bullseyeDistance)
+                    continue;
+
+                bullseyeDistance = hit.distance;
+                bullseyeHit = hit;
+                hasBullseye = true;
+                continue;
+            }
+
+            if (hit.collider.GetComponentInParent<PlayerHealth>() != null)
+            {
+                if (hit.distance >= otherDistance)
+                    continue;
+
+                otherDistance = hit.distance;
+                otherHit = hit;
+                hasOther = true;
+                continue;
+            }
+
+            if (hit.distance >= worldDistance)
                 continue;
 
-            closestDistance = hit.distance;
-            selectedHit = hit;
-            found = true;
+            worldDistance = hit.distance;
+            worldHit = hit;
+            hasWorld = true;
         }
 
-        return found;
+        if (hasBullseye && bullseyeDistance <= worldDistance)
+        {
+            selectedHit = bullseyeHit;
+            return true;
+        }
+
+        if (hasOther && otherDistance <= worldDistance)
+        {
+            selectedHit = otherHit;
+            return true;
+        }
+
+        if (hasWorld)
+        {
+            selectedHit = worldHit;
+            return true;
+        }
+
+        return false;
     }
 
     private static bool TryGetBullseyeTarget(Collider collider, out BullseyeTarget target)

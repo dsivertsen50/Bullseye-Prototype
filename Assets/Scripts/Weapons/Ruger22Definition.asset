@@ -73,15 +73,24 @@ MonoBehaviour:
     sprintSpread: 30
     sprintSpreadIncreaseSpeed: 90
     sprintSpreadRecoverySpeed: 70
+    adsSpreadMultiplier: 1
     reticleSprite: {fileID: 0}
     reticleElementLength: 10
     reticleElementThickness: 2
+  impactDecalSettings:
+    enabled: 1
+    decalScale: 1
+    maximumDecalDistance: 50
+    variantSet: {fileID: 11400000, guid: 9c3c2a69750a19844be02cba316aa04b, type: 2}
+    impactPattern: 0
+    maxDecalsPerShot: 1
   usesMagnifiedAds: 1
   adsMagnification: 1.15
   adsEnterDuration: 0.12
   adsExitDuration: 0.14
   adsSensitivityMultiplier: 0.4
   adsHidesViewmodel: 0
+  scopePresentation: {fileID: 0}
   worldLocalPosition: {x: 0.58, y: 0, z: 0.42}
   worldLocalEuler: {x: 0, y: 0, z: 0}
   worldLocalScale: {x: 1, y: 1, z: 1}

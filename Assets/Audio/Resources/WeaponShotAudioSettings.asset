@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e90933d81f981e04f8ab5db04cb7fd5d, type: 3}
+  m_Name: WeaponShotAudioSettings
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponShotAudioSettings
+  impactEnabled: 1
+  impactClips:
+  - {fileID: 8300000, guid: 4166058517dd22740a95c1f7baf7c488, type: 3}
+  - {fileID: 8300000, guid: 76dbb5591caeb684a9738eaec5ace584, type: 3}
+  - {fileID: 8300000, guid: be08b5a06deea3f428d6c8702a893160, type: 3}
+  - {fileID: 8300000, guid: e5bf089d887e33a42a390fe3a7440b70, type: 3}
+  - {fileID: 8300000, guid: 10f856cda2630184aa78f91262207b7a, type: 3}
+  impactVolume: 1
+  impactPitchVariation: 0.05
+  impactVolumeVariation: 0.1
+  maxImpactSoundsPerShot: 3
+  impactSoundSeparation: 0.6
+  impactMinDistance: 1.2
+  impactMaxDistance: 42
+  nearMissEnabled: 1
+  flybyClips:
+  - {fileID: 8300000, guid: 5ba5ccf09582a984489842972c25e899, type: 3}
+  - {fileID: 8300000, guid: 94cd3581d47592f439abbc67537adeca, type: 3}
+  - {fileID: 8300000, guid: 670e28aea5e372b4ca9a8ff7c989c8cd, type: 3}
+  - {fileID: 8300000, guid: fa7a7c0ff1120fe40912b1d54fa16dcf, type: 3}
+  nearMissRadius: 1.5
+  innerNearMissRadius: 0.75
+  nearMissVolume: 0.4
+  innerNearMissVolumeMultiplier: 1.25
+  nearMissPitchVariation: 0.05
+  nearMissCooldown: 0.12
+  flybyMinDistance: 0.35
+  flybyMaxDistance: 10
+  debugNearMiss: 0

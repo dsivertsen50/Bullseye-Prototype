@@ -19,10 +19,10 @@ MonoBehaviour:
   worldPrefab: {fileID: 7201928475102938475, guid: 6e3b9c2d5f7081a4b2c3d4e5f6071920, type: 3}
   pickupPrefab: {fileID: 6101827364091827364, guid: 5d2a8b1c4e6f7093a1b2c3d4e5f60718, type: 3}
   presentation: {fileID: 11400000, guid: 8f3a2c1e9d4b5a6780c1d2e3f4a5b6c7, type: 2}
-  magazineSize: 30
-  startingMagazineAmmo: 30
-  startingReserveAmmo: 90
-  maximumReserveAmmo: 180
+  magazineSize: 15
+  startingMagazineAmmo: 15
+  startingReserveAmmo: 30
+  maximumReserveAmmo: 30
   unlimitedReserve: 0
   fireRate: 0.1
   automatic: 0
@@ -82,9 +82,17 @@ MonoBehaviour:
     sprintSpread: 38
     sprintSpreadIncreaseSpeed: 80
     sprintSpreadRecoverySpeed: 60
+    adsSpreadMultiplier: 0
     reticleSprite: {fileID: 0}
     reticleElementLength: 12
     reticleElementThickness: 2
+  impactDecalSettings:
+    enabled: 1
+    decalScale: 1
+    maximumDecalDistance: 100
+    variantSet: {fileID: 11400000, guid: 9c3c2a69750a19844be02cba316aa04b, type: 2}
+    impactPattern: 0
+    maxDecalsPerShot: 1
   usesMagnifiedAds: 1
   adsMagnification: 2.5
   adsEnterDuration: 0.2
