@@ -37,6 +37,13 @@ public class WeaponDefinition : ScriptableObject
     [Header("Accuracy / Reticle")]
     [SerializeField] private WeaponAccuracySettings accuracy = new();
 
+    [Header("Surface Impact Decals")]
+    [SerializeField] private WeaponImpactDecalSettings impactDecalSettings = new();
+
+    [Header("Shot Audio")]
+    [SerializeField, Tooltip("Optional clip overrides. Leave empty to use the shared impact and flyby libraries.")]
+    private WeaponShotAudioOverrides shotAudioOverrides = new();
+
     [Header("ADS")]
     [SerializeField, Tooltip("When enabled, ADS applies true camera magnification from Ads Magnification. When disabled, ADS only changes weapon pose and handling.")]
     private bool usesMagnifiedAds = true;
@@ -106,6 +113,8 @@ public class WeaponDefinition : ScriptableObject
     public float ReloadTime => Mathf.Max(0.05f, reloadTime);
     public WeaponDamageSettings DamageSettings => damageSettings ??= new WeaponDamageSettings();
     public WeaponAccuracySettings Accuracy => accuracy ??= new WeaponAccuracySettings();
+    public WeaponImpactDecalSettings ImpactDecalSettings => impactDecalSettings ??= new WeaponImpactDecalSettings();
+    public WeaponShotAudioOverrides ShotAudioOverrides => shotAudioOverrides ??= new WeaponShotAudioOverrides();
     public bool UsesMagnifiedAds => usesMagnifiedAds;
     public float AdsMagnification => usesMagnifiedAds ? Mathf.Max(1f, adsMagnification) : 1f;
     public float AdsEnterDuration => Mathf.Max(0.01f, adsEnterDuration);
@@ -142,6 +151,9 @@ public class WeaponDefinition : ScriptableObject
         damageSettings.Validate();
         accuracy ??= new WeaponAccuracySettings();
         accuracy.Validate();
+        impactDecalSettings ??= new WeaponImpactDecalSettings();
+        impactDecalSettings.Validate();
+        shotAudioOverrides ??= new WeaponShotAudioOverrides();
         adsMagnification = Mathf.Max(1f, adsMagnification);
         adsEnterDuration = Mathf.Max(0.01f, adsEnterDuration);
         adsExitDuration = Mathf.Max(0.01f, adsExitDuration);

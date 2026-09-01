@@ -39,9 +39,13 @@ public class PlayerCameraEffects : NetworkBehaviour
     [SerializeField] private float fullLandingSpeed = 12f;
 
     [Header("Dolphin Dive")]
-    [SerializeField] private float divePitch = 8f;
-    [SerializeField] private float diveForwardMotion = 0.04f;
-    [SerializeField] private float diveRoll = 2.5f;
+    [SerializeField] private float diveLaunchPitch = -3.5f;
+    [SerializeField] private float diveDescentPitch = 6.5f;
+    [SerializeField] private float divePitchBlendSpeed = 10f;
+    [SerializeField] private float diveForwardMotion = 0.03f;
+    [SerializeField] private float diveRoll = 0.5f;
+    [SerializeField] private float diveLandingImpactStrength = 0.65f;
+    [SerializeField] private float diveLandingPitch = 3.2f;
 
     [Header("Jump")]
     [SerializeField] private float jumpDepartureAmount = 0.025f;
@@ -74,6 +78,7 @@ public class PlayerCameraEffects : NetworkBehaviour
     private float wallRunRollWeight;
     private float wallRunSideRoll;
     private float wallRunKickOffset;
+    private float divePitchOffset;
     private Vector3 currentPosition;
     private Vector3 currentEuler;
 
@@ -103,6 +108,7 @@ public class PlayerCameraEffects : NetworkBehaviour
         {
             movement.Landed += OnLanded;
             movement.Jumped += OnJumped;
+            movement.DolphinDiveStarted += OnDiveStarted;
             movement.DolphinDiveLanded += OnDiveLanded;
             movement.WallRunStarted += OnWallRunStarted;
         }
@@ -114,6 +120,7 @@ public class PlayerCameraEffects : NetworkBehaviour
         {
             movement.Landed -= OnLanded;
             movement.Jumped -= OnJumped;
+            movement.DolphinDiveStarted -= OnDiveStarted;
             movement.DolphinDiveLanded -= OnDiveLanded;
             movement.WallRunStarted -= OnWallRunStarted;
         }
@@ -144,8 +151,15 @@ public class PlayerCameraEffects : NetworkBehaviour
         else if (IsAiming())
             aimMul = aimingMotionMultiplier;
 
-        float targetWalk = grounded && speed > idleSpeedThreshold ? 1f : 0f;
-        float targetSprint = grounded && sprinting ? 1f : 0f;
+        bool diving = movement != null && movement.IsDolphinDiving;
+        if (diving)
+        {
+            walkWeight = 0f;
+            sprintWeight = 0f;
+        }
+
+        float targetWalk = !diving && grounded && speed > idleSpeedThreshold ? 1f : 0f;
+        float targetSprint = !diving && grounded && sprinting ? 1f : 0f;
         walkWeight = Mathf.MoveTowards(walkWeight, targetWalk, motionBlendSpeed * dt);
         sprintWeight = Mathf.MoveTowards(sprintWeight, targetSprint, motionBlendSpeed * dt);
 
@@ -185,13 +199,19 @@ public class PlayerCameraEffects : NetworkBehaviour
         targetPos.y += landingOffset + jumpOffset;
         targetEuler.x += landingPitchOffset;
 
-        bool diving = movement != null && movement.IsDolphinDiving;
+        float targetDivePitch = 0f;
         if (diving)
         {
+            targetDivePitch = movement.VerticalVelocity > 0.25f ? diveLaunchPitch : diveDescentPitch;
             targetPos.z += diveForwardMotion;
-            targetEuler.x += divePitch;
             targetEuler.z += -moveInput.x * diveRoll;
         }
+
+        divePitchOffset = Mathf.MoveTowards(
+            divePitchOffset,
+            targetDivePitch,
+            Mathf.Max(0.1f, divePitchBlendSpeed) * dt);
+        targetEuler.x += divePitchOffset;
 
         ApplyWallRunTilt(dt, ref targetEuler);
 
@@ -214,10 +234,20 @@ public class PlayerCameraEffects : NetworkBehaviour
     {
         if (!ownerEffectsEnabled || downwardSpeed < minLandingSpeed)
             return;
+        if (movement != null && movement.IsDolphinDiving)
+            return;
 
         float scale = Mathf.InverseLerp(minLandingSpeed, fullLandingSpeed, downwardSpeed);
         landingOffset = -landingIntensity * Mathf.Lerp(0.35f, 1f, scale);
         landingPitchOffset = landingPitch * Mathf.Lerp(0.35f, 1f, scale);
+    }
+
+    private void OnDiveStarted()
+    {
+        if (!ownerEffectsEnabled)
+            return;
+
+        divePitchOffset = diveLaunchPitch;
     }
 
     private void OnDiveLanded()
@@ -225,8 +255,10 @@ public class PlayerCameraEffects : NetworkBehaviour
         if (!ownerEffectsEnabled)
             return;
 
-        landingOffset = -landingIntensity * 0.85f;
-        landingPitchOffset = landingPitch * 0.85f;
+        float strength = Mathf.Clamp01(diveLandingImpactStrength);
+        landingOffset = -landingIntensity * Mathf.Lerp(0.25f, 1f, strength);
+        landingPitchOffset = diveLandingPitch * Mathf.Lerp(0.25f, 1f, strength);
+        divePitchOffset = diveLandingPitch * strength;
     }
 
     private void OnJumped()
@@ -286,6 +318,7 @@ public class PlayerCameraEffects : NetworkBehaviour
         wallRunRollWeight = 0f;
         wallRunSideRoll = 0f;
         wallRunKickOffset = 0f;
+        divePitchOffset = 0f;
         currentPosition = Vector3.zero;
         currentEuler = Vector3.zero;
         if (effectsRoot != null)

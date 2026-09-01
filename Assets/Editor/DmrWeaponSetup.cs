@@ -393,6 +393,10 @@ public static class DmrWeaponSetup
         so.FindProperty("worldPrefab").objectReferenceValue = world;
         so.FindProperty("pickupPrefab").objectReferenceValue = gameplay;
         so.FindProperty("presentation").objectReferenceValue = presentation;
+        so.FindProperty("magazineSize").intValue = 15;
+        so.FindProperty("startingMagazineAmmo").intValue = 15;
+        so.FindProperty("startingReserveAmmo").intValue = 30;
+        so.FindProperty("maximumReserveAmmo").intValue = 30;
         so.FindProperty("usesMagnifiedAds").boolValue = true;
         so.FindProperty("adsMagnification").floatValue = 2.5f;
         so.FindProperty("adsEnterDuration").floatValue = 0.2f;

@@ -25,12 +25,14 @@ public class ScopeDefinition : ScriptableObject
     private Sprite reticleSprite;
     [SerializeField, Tooltip("Darkening toward the lens edge. Leave empty to use the generated placeholder.")]
     private Sprite vignetteSprite;
-    [SerializeField, Tooltip("Optional circular hole mask for the lens window. Leave empty to use the generated placeholder.")]
+    [SerializeField, Tooltip("Unused for the lens cutout. Peripheral darkening always uses a generated circular hole so the inside of the optic stays clearer than the outside.")]
     private Sprite maskSprite;
 
     [Header("Peripheral")]
-    [SerializeField, Range(0f, 1f), Tooltip("How dark the area outside the lens is. 1 is fully black. DMR should stay partially readable.")]
+    [SerializeField, Range(0f, 1f), Tooltip("Opacity outside the lens circle. Higher is darker.")]
     private float peripheralOpacity = 0.72f;
+    [SerializeField, Range(0f, 1f), Tooltip("Opacity inside the lens circle. Keep this lower than Peripheral Opacity so the optic stays readable.")]
+    private float innerOpacity = 0.18f;
     [SerializeField] private Color peripheralColor = new(0.015f, 0.015f, 0.02f, 1f);
 
     [Header("Housing")]
@@ -46,6 +48,10 @@ public class ScopeDefinition : ScriptableObject
     [Header("Reticle")]
     [SerializeField] private bool hideHipFireReticle = true;
     [SerializeField] private Color reticleColor = new(0.94f, 0.94f, 0.9f, 0.95f);
+    [SerializeField, Range(0.05f, 1.2f), Tooltip("Crosshair sprite size as a fraction of the lens diameter.")]
+    private float reticleScale = 0.92f;
+    [SerializeField, Range(0f, 0.12f), Tooltip("Center aiming-dot diameter as a fraction of the lens. 0 hides this extra dot. If the reticle PNG already has a baked-in dot, remove it from the PNG so only this size is used.")]
+    private float reticleDotSize = 0.02f;
 
     [Header("Transition")]
     [SerializeField, Tooltip("Maps ADS progress (0-1) to overlay opacity. Keep this increasing so interrupted ADS reverses cleanly.")]
@@ -63,6 +69,7 @@ public class ScopeDefinition : ScriptableObject
     public Sprite VignetteSprite => vignetteSprite;
     public Sprite MaskSprite => maskSprite;
     public float PeripheralOpacity => Mathf.Clamp01(peripheralOpacity);
+    public float InnerOpacity => Mathf.Clamp01(innerOpacity);
     public Color PeripheralColor => peripheralColor;
     public Color HousingColor => housingColor;
     public float HousingThickness => Mathf.Clamp(housingThickness, 0.02f, 0.25f);
@@ -70,6 +77,8 @@ public class ScopeDefinition : ScriptableObject
     public Color LensTint => lensTint;
     public bool HideHipFireReticle => hideHipFireReticle;
     public Color ReticleColor => reticleColor;
+    public float ReticleScale => Mathf.Clamp(reticleScale, 0.05f, 1.2f);
+    public float ReticleDotSize => Mathf.Clamp(reticleDotSize, 0f, 0.12f);
     public float[] AdditionalMagnifications => additionalMagnifications;
 
     public float EvaluateOpacity(float adsProgress)
@@ -84,8 +93,11 @@ public class ScopeDefinition : ScriptableObject
     {
         lensRadius = Mathf.Clamp(lensRadius, 0.35f, 0.95f);
         peripheralOpacity = Mathf.Clamp01(peripheralOpacity);
+        innerOpacity = Mathf.Clamp01(innerOpacity);
         housingThickness = Mathf.Clamp(housingThickness, 0.02f, 0.25f);
         vignetteStrength = Mathf.Clamp01(vignetteStrength);
+        reticleScale = Mathf.Clamp(reticleScale, 0.05f, 1.2f);
+        reticleDotSize = Mathf.Clamp(reticleDotSize, 0f, 0.12f);
         if (transitionCurve == null || transitionCurve.length == 0)
             transitionCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
     }

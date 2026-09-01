@@ -82,15 +82,28 @@ MonoBehaviour:
     sprintSpread: 64
     sprintSpreadIncreaseSpeed: 70
     sprintSpreadRecoverySpeed: 50
+    adsSpreadMultiplier: 1
     reticleSprite: {fileID: 0}
     reticleElementLength: 16
     reticleElementThickness: 3
+  impactDecalSettings:
+    enabled: 1
+    decalScale: 0.7
+    maximumDecalDistance: 25
+    variantSet: {fileID: 11400000, guid: 9c3c2a69750a19844be02cba316aa04b, type: 2}
+    impactPattern: 1
+    maxDecalsPerShot: 8
+  shotAudioOverrides:
+    nearMissEnabled: 0
+    impactClips: []
+    flybyClips: []
   usesMagnifiedAds: 1
   adsMagnification: 1.15
   adsEnterDuration: 0.16
   adsExitDuration: 0.18
   adsSensitivityMultiplier: 0.4
   adsHidesViewmodel: 0
+  scopePresentation: {fileID: 0}
   worldLocalPosition: {x: 0.6, y: 0, z: 0.45}
   worldLocalEuler: {x: 0, y: 0, z: 0}
   worldLocalScale: {x: 1, y: 1, z: 1}

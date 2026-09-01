@@ -514,6 +514,7 @@ GameObject:
   - component: {fileID: 3340119340010000102}
   - component: {fileID: 8776071615408029184}
   - component: {fileID: 1940795616203548134}
+  - component: {fileID: 710086677395437849}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -615,13 +616,18 @@ MonoBehaviour:
   proneVisualLocalOffset: {x: 0, y: 0, z: 0}
   dolphinDiveHoldDuration: 0.3
   minimumDolphinDiveSpeed: 8
-  dolphinDiveForwardForce: 3
-  dolphinDiveUpwardForce: 2
-  dolphinDiveDuration: 0.45
-  dolphinDiveMaxSpeed: 8
-  dolphinDiveAirControl: 0.1
-  dolphinDiveRecoveryDuration: 0.3
+  dolphinDiveForwardSpeed: 14.5
+  dolphinDiveUpwardForce: 3.5
+  dolphinDiveGravityMultiplier: 1.35
+  dolphinDiveMaxDuration: 1
+  dolphinDiveAirControl: 0.05
   dolphinDiveCooldown: 1
+  diveCameraLiftHeight: 0.18
+  diveCameraLiftDuration: 0.14
+  diveCameraLandingDuration: 0.12
+  diveMinAirborneTime: 0.08
+  dolphinDiveRecoveryDuration: 0.18
+  diveControllerHeight: 1.2
   enableWallRunning: 1
   minimumWallAngle: 70
   maximumWallAngle: 90
@@ -1057,9 +1063,13 @@ MonoBehaviour:
   landingPitch: 2.4
   minLandingSpeed: 2.5
   fullLandingSpeed: 12
-  divePitch: 8
-  diveForwardMotion: 0.04
-  diveRoll: 2.5
+  diveLaunchPitch: -3.5
+  diveDescentPitch: 6.5
+  divePitchBlendSpeed: 10
+  diveForwardMotion: 0.03
+  diveRoll: 0.5
+  diveLandingImpactStrength: 0.65
+  diveLandingPitch: 3.2
   jumpDepartureAmount: 0.025
   jumpRecoverySpeed: 8
   wallRunRoll: 10
@@ -1591,6 +1601,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerScopeOverlay
   ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &710086677395437849
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c6ff431277b1f0c449a8d0efb31c4ed9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NearMissReceiver
+  referencePoint: {fileID: 0}
+  bodyCollider: {fileID: 4030621577181723400}
+  playerHealth: {fileID: 3086871669323907386}
+  networkObject: {fileID: 3645876338594599811}
 --- !u!1 &3625492656395199349
 GameObject:
   m_ObjectHideFlags: 0

@@ -12,11 +12,13 @@ public static class ScopePlaceholderSprites
     private static Sprite housing;
     private static Sprite vignette;
     private static Sprite reticle;
+    private static Sprite dot;
 
     public static Sprite Hole => hole != null ? hole : hole = CreateSprite(CreateHoleTexture(DefaultSize), "ScopeHole");
     public static Sprite Housing => housing != null ? housing : housing = CreateSprite(CreateHousingTexture(DefaultSize), "ScopeHousing");
     public static Sprite Vignette => vignette != null ? vignette : vignette = CreateSprite(CreateVignetteTexture(DefaultSize), "ScopeVignette");
     public static Sprite Reticle => reticle != null ? reticle : reticle = CreateSprite(CreateReticleTexture(DefaultSize), "ScopeReticle");
+    public static Sprite Dot => dot != null ? dot : dot = CreateSprite(CreateDotTexture(64), "ScopeDot");
 
     public static Texture2D CreateHoleTexture(int size)
     {
@@ -27,7 +29,8 @@ public static class ScopePlaceholderSprites
             for (int x = 0; x < size; x++)
             {
                 float r = Radius(x, y, half);
-                float alpha = SmoothEdge(r, 0.985f, 1.0f);
+                float t = Mathf.InverseLerp(0.985f, 1f, r);
+                float alpha = t * t * (3f - 2f * t);
                 texture.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
             }
         }
@@ -92,6 +95,18 @@ public static class ScopePlaceholderSprites
         DrawOutlinedCross(texture, center, outer, size - outer, gap);
         DrawOutlinedDot(texture, center, Mathf.Max(2, size / 128));
 
+        texture.Apply(false, false);
+        return texture;
+    }
+
+    public static Texture2D CreateDotTexture(int size)
+    {
+        var texture = CreateTexture(size);
+        Clear(texture, Color.clear);
+        int center = size / 2;
+        int radius = Mathf.Max(2, size / 2 - 2);
+        FillCircle(texture, center, center, radius + 1, new Color(0f, 0f, 0f, 0.7f));
+        FillCircle(texture, center, center, radius, Color.white);
         texture.Apply(false, false);
         return texture;
     }
@@ -163,7 +178,9 @@ public static class ScopePlaceholderSprites
             texture,
             new Rect(0f, 0f, texture.width, texture.height),
             new Vector2(0.5f, 0.5f),
-            texture.width);
+            texture.width,
+            0,
+            SpriteMeshType.FullRect);
         sprite.name = name;
         sprite.hideFlags = HideFlags.HideAndDontSave;
         return sprite;
@@ -186,6 +203,7 @@ public static class ScopePlaceholderSprites
 
     private static float SmoothEdge(float value, float from, float to)
     {
-        return Mathf.SmoothStep(from, to, value);
+        float t = Mathf.InverseLerp(from, to, value);
+        return t * t * (3f - 2f * t);
     }
 }

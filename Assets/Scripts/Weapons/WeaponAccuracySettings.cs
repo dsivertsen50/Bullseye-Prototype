@@ -32,6 +32,10 @@ public class WeaponAccuracySettings
     [SerializeField, Tooltip("How quickly sprint bloom recovers after sprinting stops, in 1080p pixels per second.")]
     private float sprintSpreadRecoverySpeed = 65f;
 
+    [Header("ADS")]
+    [SerializeField, Range(0f, 1f), Tooltip("Spread scale at full ADS. 1 keeps hip-fire spread. 0 sends hitscan to screen center so a scope reticle is the true aim point.")]
+    private float adsSpreadMultiplier = 1f;
+
     [Header("Reticle Visual")]
     [SerializeField, Tooltip("Optional sprite drawn on each of the four reticle arms. Leave empty for a simple bar.")]
     private Sprite reticleSprite;
@@ -48,6 +52,7 @@ public class WeaponAccuracySettings
     public float SprintSpread => Mathf.Clamp(sprintSpread, BaseSpread, MaxSpread);
     public float SprintSpreadIncreaseSpeed => Mathf.Max(0.01f, sprintSpreadIncreaseSpeed);
     public float SprintSpreadRecoverySpeed => Mathf.Max(0.01f, sprintSpreadRecoverySpeed);
+    public float AdsSpreadMultiplier => Mathf.Clamp01(adsSpreadMultiplier);
     public Sprite ReticleSprite => reticleSprite;
     public float ReticleElementLength => Mathf.Max(1f, reticleElementLength);
     public float ReticleElementThickness => Mathf.Max(1f, reticleElementThickness);
@@ -64,6 +69,7 @@ public class WeaponAccuracySettings
         sprintSpread = Mathf.Clamp(sprintSpread, baseSpread, maxSpread);
         sprintSpreadIncreaseSpeed = Mathf.Max(0.01f, sprintSpreadIncreaseSpeed);
         sprintSpreadRecoverySpeed = Mathf.Max(0.01f, sprintSpreadRecoverySpeed);
+        adsSpreadMultiplier = Mathf.Clamp01(adsSpreadMultiplier);
         reticleElementLength = Mathf.Max(1f, reticleElementLength);
         reticleElementThickness = Mathf.Max(1f, reticleElementThickness);
     }

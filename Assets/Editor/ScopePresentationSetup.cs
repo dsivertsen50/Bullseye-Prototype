@@ -70,6 +70,7 @@ public static class ScopePresentationSetup
         so.FindProperty("vignetteSprite").objectReferenceValue = vignette;
         so.FindProperty("maskSprite").objectReferenceValue = mask;
         so.FindProperty("peripheralOpacity").floatValue = 0.72f;
+        so.FindProperty("innerOpacity").floatValue = 0.18f;
         so.FindProperty("peripheralColor").colorValue = new Color(0.015f, 0.015f, 0.02f, 1f);
         so.FindProperty("housingColor").colorValue = Color.white;
         so.FindProperty("housingThickness").floatValue = 0.08f;
@@ -77,6 +78,8 @@ public static class ScopePresentationSetup
         so.FindProperty("lensTint").colorValue = new Color(0.75f, 0.85f, 0.78f, 0f);
         so.FindProperty("hideHipFireReticle").boolValue = true;
         so.FindProperty("reticleColor").colorValue = new Color(0.94f, 0.94f, 0.9f, 0.95f);
+        so.FindProperty("reticleScale").floatValue = 0.92f;
+        so.FindProperty("reticleDotSize").floatValue = 0.022f;
         SerializedProperty curve = so.FindProperty("transitionCurve");
         if (curve != null)
             curve.animationCurveValue = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);

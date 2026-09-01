@@ -160,7 +160,8 @@ public class PlayerAimZoom : MonoBehaviour
 
         bool sprinting = playerMovement != null && playerMovement.IsSprinting;
         bool wallRunning = playerMovement != null && playerMovement.IsWallRunning;
-        if (sprinting || wallRunning)
+        bool diving = playerMovement != null && playerMovement.IsDolphinDiving;
+        if (sprinting || wallRunning || diving)
         {
             ClearAimState();
         }

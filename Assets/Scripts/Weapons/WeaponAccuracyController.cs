@@ -16,6 +16,8 @@ public class WeaponAccuracyController : MonoBehaviour
     private PlayerWeaponInventory inventory;
     private PlayerMovement playerMovement;
     private PlayerHealth playerHealth;
+    private WeaponPresentationController weaponPresentation;
+    private PlayerAimZoom playerAimZoom;
     private NetworkObject networkObject;
 
     private WeaponDefinition trackedDefinition;
@@ -39,7 +41,14 @@ public class WeaponAccuracyController : MonoBehaviour
     public float MaxSpread => Settings.MaxSpread;
     public float ShotBloom => shotBloom;
     public float SprintBloom => sprintBloom;
-    public float CurrentSpread => Mathf.Clamp(BaseSpread + shotBloom + sprintBloom, BaseSpread, MaxSpread);
+    public float CurrentSpread
+    {
+        get
+        {
+            float raw = Mathf.Clamp(BaseSpread + shotBloom + sprintBloom, BaseSpread, MaxSpread);
+            return Mathf.Clamp(raw * AdsSpreadScale, 0f, MaxSpread);
+        }
+    }
     public float CurrentSpreadPixels => ToScreenPixels(CurrentSpread);
 
     private void Awake()
@@ -47,6 +56,8 @@ public class WeaponAccuracyController : MonoBehaviour
         inventory = GetComponent<PlayerWeaponInventory>();
         playerMovement = GetComponent<PlayerMovement>();
         playerHealth = GetComponent<PlayerHealth>();
+        weaponPresentation = GetComponent<WeaponPresentationController>();
+        playerAimZoom = GetComponent<PlayerAimZoom>();
         networkObject = GetComponent<NetworkObject>();
     }
 
@@ -128,6 +139,20 @@ public class WeaponAccuracyController : MonoBehaviour
     {
         float height = Screen.height > 0 ? Screen.height : WeaponAccuracySettings.ReferenceScreenHeight;
         return spreadAt1080 * (height / WeaponAccuracySettings.ReferenceScreenHeight);
+    }
+
+    private float AdsSpreadScale
+    {
+        get
+        {
+            float t = 0f;
+            if (weaponPresentation != null)
+                t = weaponPresentation.AimBlend;
+            else if (playerAimZoom != null && playerAimZoom.IsAiming)
+                t = 1f;
+
+            return Mathf.Lerp(1f, Settings.AdsSpreadMultiplier, Mathf.Clamp01(t));
+        }
     }
 
     private void OnInventoryChanged()
