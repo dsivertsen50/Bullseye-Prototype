@@ -62,10 +62,13 @@ public class WeaponDefinition : ScriptableObject
     [SerializeField, Tooltip("Visual optic overlay while ADS. Independent of Ads Magnification. Leave empty for weapons that only pose-aim.")]
     private ScopeDefinition scopePresentation;
 
-    [Header("World Attachment")]
-    [SerializeField] private Vector3 worldLocalPosition = new(0.34f, 0f, 0.38f);
-    [SerializeField] private Vector3 worldLocalEuler;
-    [SerializeField] private Vector3 worldLocalScale = Vector3.one;
+    [Header("Third-Person Socket")]
+    [SerializeField, Tooltip("Local position of the world weapon on the right-hand WeaponSocket.")]
+    private Vector3 worldLocalPosition;
+    [SerializeField, Tooltip("Local rotation of the world weapon on the right-hand WeaponSocket.")]
+    private Vector3 worldLocalEuler;
+    [SerializeField, Tooltip("Local scale of the world weapon on the right-hand WeaponSocket.")]
+    private Vector3 worldLocalScale = Vector3.one;
     [SerializeField] private float worldStanceHeightOffset = 0.28f;
 
     [Header("Third-Person Pose")]

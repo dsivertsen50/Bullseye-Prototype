@@ -28,12 +28,22 @@ public class FittedWeaponModel : MonoBehaviour
 
     public void Fit()
     {
-        if (fitted)
+        FitInternal(false);
+    }
+
+    public void ForceFit()
+    {
+        FitInternal(true);
+    }
+
+    private void FitInternal(bool force)
+    {
+        if (fitted && !force)
             return;
 
         Transform model = transform.Find("Model");
         MeshFilter filter = GetComponentInChildren<MeshFilter>(true);
-        if (filter == null || filter.sharedMesh == null)
+        if (filter == null || filter.sharedMesh == null || filter.sharedMesh.bounds.size.sqrMagnitude < 0.0000001f)
         {
             if (sourceModel == null)
                 return;

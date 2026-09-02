@@ -14,6 +14,7 @@ public class ThirdPersonWeaponVisual : MonoBehaviour
     [SerializeField] private bool drawGizmos = true;
 
     public Transform LeftHandIkTarget => leftHandIkTarget;
+    public Transform LeftHandGrip => leftHandIkTarget;
     public Transform Muzzle => muzzle;
     public Transform RightHandGrip => rightHandGrip;
     public Transform AimTarget => aimTarget;
@@ -38,7 +39,10 @@ public class ThirdPersonWeaponVisual : MonoBehaviour
     public void ResolveFallbacks()
     {
         if (leftHandIkTarget == null)
-            leftHandIkTarget = FindChild(transform, "LeftHandIKTarget");
+        {
+            leftHandIkTarget = FindChild(transform, "LeftHandGrip")
+                ?? FindChild(transform, "LeftHandIKTarget");
+        }
         if (muzzle == null)
             muzzle = FindChild(transform, "Muzzle") ?? FindChild(transform, "MuzzlePoint");
         if (rightHandGrip == null)

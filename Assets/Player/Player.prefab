@@ -555,7 +555,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 2635609592
+  GlobalObjectIdHash: 1326795168
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -1168,6 +1168,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WorldWeaponView
   ShowTopMostFoldoutHeaderGroup: 1
   definition: {fileID: 11400000, guid: 2a795ffda1a786c4491a40f13bf2c395, type: 2}
+  weaponSocket: {fileID: 7423848081652154685}
   weaponHandAnchor: {fileID: 3440360381407693713}
   worldWeaponRoot: {fileID: 8399823256537651519}
   weaponKick: {fileID: 2673781517383384994}
@@ -1540,6 +1541,7 @@ MonoBehaviour:
   animationState: {fileID: 3340119340010000101}
   playerHealth: {fileID: 3086871669323907386}
   coordinator: {fileID: 3788039708433434490}
+  thirdPersonRig: {fileID: 0}
   firePresentationDuration: 0.12
   evaluateHumanoidAnimation: 1
   parameterDampTime: 0.08
@@ -1579,12 +1581,20 @@ MonoBehaviour:
   animationState: {fileID: 3340119340010000101}
   playerHealth: {fileID: 3086871669323907386}
   worldWeapon: {fileID: 77922413974407629}
+  coordinator: {fileID: 3788039708433434490}
   visualRoot: {fileID: 4740219154652216648}
   weaponSocket: {fileID: 7423848081652154685}
-  weaponHandAnchor: {fileID: 3440360381407693713}
+  aimTarget: {fileID: 0}
+  leftElbowHint: {fileID: 0}
+  rightElbowHint: {fileID: 0}
   poseBlendTime: 0.14
   aimBlendTime: 0.12
+  sprintBlendTime: 0.16
+  proneBlendTime: 0.18
   switchBlendTime: 0.1
+  ikWeight: 1
+  leftIkWeight: 1
+  aimIkWeight: 1
   drawGizmos: 1
   debugPoseWeight: 0
   debugWeapon: 

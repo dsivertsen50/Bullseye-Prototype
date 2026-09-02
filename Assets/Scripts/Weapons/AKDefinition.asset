@@ -93,6 +93,10 @@ MonoBehaviour:
     variantSet: {fileID: 11400000, guid: 9c3c2a69750a19844be02cba316aa04b, type: 2}
     impactPattern: 0
     maxDecalsPerShot: 1
+  shotAudioOverrides:
+    nearMissEnabled: 1
+    impactClips: []
+    flybyClips: []
   usesMagnifiedAds: 1
   adsMagnification: 1.15
   adsEnterDuration: 0.13
@@ -100,39 +104,41 @@ MonoBehaviour:
   adsSensitivityMultiplier: 0.4
   adsHidesViewmodel: 0
   scopePresentation: {fileID: 0}
-  worldLocalPosition: {x: 0.62, y: 0, z: 0.48}
+  worldLocalPosition: {x: 0, y: 0.02, z: 0.05}
   worldLocalEuler: {x: 0, y: 0, z: 0}
   worldLocalScale: {x: 1, y: 1, z: 1}
   worldStanceHeightOffset: 0.2
   thirdPersonClass: 1
   thirdPersonPose:
-    gunPosition: {x: 0.175, y: 0.05, z: 0.55}
     gunEuler: {x: 0, y: 0, z: -8}
     gunScale: {x: 1.15, y: 1.15, z: 1.15}
-    aimGunPosition: {x: 0.135, y: 0.13, z: 0.49}
-    aimGunEuler: {x: 0, y: 0, z: -8}
     rightHandPosition: {x: 0.2, y: -0.3, z: 0.5}
     rightWristEuler: {x: 30, y: 0, z: 20}
     rightArmReach: 0.7
     rightElbowYaw: 108
     aimRightHandPosition: {x: 0.16, y: -0.22, z: 0.44}
     aimRightWristEuler: {x: 30, y: 0, z: 20}
-    leftHandPosition: {x: 0.3, y: -0.25, z: 0.7}
+    sprintRightHandPosition: {x: 0.26, y: -0.14, z: 0.38}
+    sprintRightWristEuler: {x: 12, y: 16, z: -8}
+    proneRightHandPosition: {x: 0.2, y: -0.08, z: 0.52}
+    proneRightWristEuler: {x: 0, y: 0, z: 0}
     leftWristEuler: {x: 50, y: 45, z: -10}
     leftArmReach: 0.98
     leftElbowYaw: -133
-    aimLeftHandPosition: {x: 0.26, y: -0.17, z: 0.64}
     aimLeftWristEuler: {x: 50, y: 45, z: -10}
+    sprintLeftIkWeight: 0.45
     defaultWeight: 1
     sprintWeight: 0.22
     crouchWeight: 1
-    proneWeight: 0.5
+    proneWeight: 0.85
     diveWeight: 0.12
     jumpWeight: 0.85
     maxAimPitch: 50
+    maxAimPitchDown: 50
     spineAimWeight: 0.62
     upperChestAimShare: 0.45
     aimRaisePitch: 0
+    proneBodyPitch: -68
     recoilPitch: 5
     recoilRightRoll: 4
     recoilYaw: 1.5
