@@ -12,6 +12,7 @@ public class WorldWeaponView : NetworkBehaviour
     private const string WorldWeaponLayerName = "WorldWeapon";
 
     [SerializeField] private WeaponDefinition definition;
+    [SerializeField] private Transform weaponSocket;
     [SerializeField] private Transform weaponHandAnchor;
     [SerializeField] private Transform worldWeaponRoot;
     [SerializeField] private Transform weaponKick;
@@ -35,6 +36,7 @@ public class WorldWeaponView : NetworkBehaviour
     private ThirdPersonWeaponVisual currentVisual;
 
     public Transform WorldWeaponRoot => worldWeaponRoot;
+    public Transform WeaponSocket => weaponSocket;
     public Transform WeaponHandAnchor => weaponHandAnchor;
     public WeaponDefinition Definition => definition;
     public bool IsRemotePresentationActive => remotePresentationEnabled;
@@ -74,6 +76,10 @@ public class WorldWeaponView : NetworkBehaviour
             return;
         }
 
+        if (weaponKick != null && weaponKick.childCount == 0 && definition != null)
+            RebuildWorldModel(definition);
+
+        AttachToSocket();
         BindThirdPersonVisual();
         RefreshRemoteVisibility();
         ResetPresentation();
@@ -103,6 +109,16 @@ public class WorldWeaponView : NetworkBehaviour
         RefreshRemoteVisibility();
     }
 
+    public void PrepareEditorPreview(WeaponDefinition next)
+    {
+        remotePresentationEnabled = true;
+        enabled = true;
+        ApplyDefinition(next);
+        SetWorldWeaponActive(true);
+        BindThirdPersonVisual();
+        AttachToSocket();
+    }
+
     public void ApplyDefinition(WeaponDefinition next)
     {
         definition = next;
@@ -110,6 +126,7 @@ public class WorldWeaponView : NetworkBehaviour
             return;
 
         RebuildWorldModel(next);
+        AttachToSocket();
         CacheRestPoses();
         PrepareAudioSource();
         PreparePresentationObject();
@@ -126,6 +143,7 @@ public class WorldWeaponView : NetworkBehaviour
         WeaponPresentationConfig config = Config;
         PlayClip(config != null ? config.FireSfx : null, config != null ? config.WorldFireSfxVolume : 1f);
         SpawnMuzzleEffect();
+        PlayProceduralFireKick();
     }
 
     public void PlayReloadPresentation()
@@ -173,6 +191,9 @@ public class WorldWeaponView : NetworkBehaviour
         instance.transform.localPosition = Vector3.zero;
         instance.transform.localRotation = Quaternion.identity;
         instance.transform.localScale = Vector3.one;
+        FittedWeaponModel fit = instance.GetComponentInChildren<FittedWeaponModel>(true);
+        if (fit != null)
+            fit.ForceFit();
         ApplyLayerRecursively(instance, WorldWeaponLayerName);
         DisableGameplayCollision(instance);
         currentVisual = instance.GetComponent<ThirdPersonWeaponVisual>();
@@ -211,6 +232,7 @@ public class WorldWeaponView : NetworkBehaviour
     {
         if (weaponKick == null)
             ResolveHierarchyFallbacks();
+        AttachToSocket();
         if (currentVisual == null && weaponKick != null)
             currentVisual = weaponKick.GetComponentInChildren<ThirdPersonWeaponVisual>(true);
         if (currentVisual != null)
@@ -220,6 +242,83 @@ public class WorldWeaponView : NetworkBehaviour
         if (muzzlePoint == null)
             muzzlePoint = FindChildByName(weaponKick != null ? weaponKick : worldWeaponRoot, "Muzzle")
                 ?? FindChildByName(weaponKick != null ? weaponKick : worldWeaponRoot, "MuzzlePoint");
+    }
+
+    public void AttachToSocket()
+    {
+        if (IsSpawned && IsOwner)
+            return;
+
+        ResolveHierarchyFallbacks();
+        Transform socket = ResolveSocket();
+        if (worldWeaponRoot == null || socket == null)
+            return;
+
+        // Mixamo bones on this character have a 0.01 lossy scale. Parenting
+        // the gun under the hand shrinks it to a speck. Keep the mesh under
+        // the player and follow the socket in world space instead.
+        if (weaponHandAnchor != null && worldWeaponRoot.parent != weaponHandAnchor)
+            worldWeaponRoot.SetParent(weaponHandAnchor, true);
+
+        Vector3 localPosition = definition != null ? definition.WorldLocalPosition : Vector3.zero;
+        Vector3 localEuler = definition != null ? definition.WorldLocalEuler : Vector3.zero;
+        Vector3 localScale = definition != null ? definition.WorldLocalScale : Vector3.one;
+        ThirdPersonWeaponPose pose = ActiveThirdPersonPose;
+        if (pose != null)
+        {
+            localEuler += pose.gunEuler;
+            if (pose.gunScale.sqrMagnitude > 0.0001f)
+                localScale = Vector3.Scale(localScale, pose.gunScale);
+        }
+
+        Quaternion worldRot = socket.rotation * Quaternion.Euler(localEuler);
+        // Mixamo hand bones are scaled to 0.01. TransformPoint would treat
+        // inspector meters as 100x too large, so offsets use rotation only.
+        worldWeaponRoot.SetPositionAndRotation(
+            socket.position + socket.rotation * localPosition,
+            worldRot);
+        worldWeaponRoot.localScale = CounterParentScale(localScale, worldWeaponRoot.parent);
+
+        if (weaponKick != null && kickRoutine == null)
+        {
+            kickRestLocalPosition = Vector3.zero;
+            kickRestLocalRotation = Quaternion.identity;
+            weaponKick.localPosition = kickRestLocalPosition;
+            weaponKick.localRotation = kickRestLocalRotation;
+        }
+    }
+
+    private static Vector3 CounterParentScale(Vector3 desiredWorldScale, Transform parent)
+    {
+        Vector3 parentScale = parent != null ? parent.lossyScale : Vector3.one;
+        return new Vector3(
+            desiredWorldScale.x / ScaleComponent(parentScale.x),
+            desiredWorldScale.y / ScaleComponent(parentScale.y),
+            desiredWorldScale.z / ScaleComponent(parentScale.z));
+    }
+
+    private static float ScaleComponent(float value)
+    {
+        return Mathf.Abs(value) < 0.0001f ? 1f : value;
+    }
+
+    private Transform ResolveSocket()
+    {
+        if (weaponSocket != null)
+            return weaponSocket;
+        if (thirdPersonRig != null)
+            weaponSocket = thirdPersonRig.WeaponSocket;
+        if (weaponSocket == null)
+        {
+            PlayerVisualRig visualRig = GetComponentInChildren<PlayerVisualRig>(true);
+            if (visualRig != null)
+                weaponSocket = visualRig.RightHandWeaponSocket;
+        }
+
+        if (weaponSocket == null)
+            weaponSocket = FindChildByName(transform, "RightHandWeaponSocket")
+                ?? FindChildByName(transform, "WeaponSocket");
+        return weaponSocket;
     }
 
     private void RefreshRemoteVisibility()
@@ -232,6 +331,8 @@ public class WorldWeaponView : NetworkBehaviour
     {
         if (weaponHandAnchor != null && weaponHandAnchor.gameObject.activeSelf != active)
             weaponHandAnchor.gameObject.SetActive(active);
+        if (worldWeaponRoot != null && worldWeaponRoot.gameObject.activeSelf != active)
+            worldWeaponRoot.gameObject.SetActive(active);
     }
 
     private void PlayProceduralFireKick()
@@ -423,11 +524,12 @@ public class WorldWeaponView : NetworkBehaviour
 
     private void PreparePresentationObject()
     {
-        if (weaponHandAnchor == null)
+        Transform root = worldWeaponRoot != null ? worldWeaponRoot : weaponHandAnchor;
+        if (root == null)
             return;
 
-        ApplyLayerRecursively(weaponHandAnchor.gameObject, WorldWeaponLayerName);
-        DisableGameplayCollision(weaponHandAnchor.gameObject);
+        ApplyLayerRecursively(root.gameObject, WorldWeaponLayerName);
+        DisableGameplayCollision(root.gameObject);
     }
 
     private static Transform FindChildByName(Transform root, string childName)

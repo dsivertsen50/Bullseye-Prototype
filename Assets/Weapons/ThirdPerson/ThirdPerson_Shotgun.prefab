@@ -41,7 +41,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2126908507409227218}
   m_Layer: 0
-  m_Name: LeftHandIKTarget
+  m_Name: LeftHandGrip
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

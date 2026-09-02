@@ -40,11 +40,14 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     private static readonly int IsAirborneHash = Animator.StringToHash("IsAirborne");
     private static readonly int JumpFromSprintHash = Animator.StringToHash("JumpFromSprint");
     private static readonly int JumpTriggerHash = Animator.StringToHash("Jump");
+    private static readonly int AimWeightHash = Animator.StringToHash("AimWeight");
+    private static readonly int WeaponPoseWeightHash = Animator.StringToHash("WeaponPoseWeight");
 
     [SerializeField] private Animator thirdPersonAnimator;
     [SerializeField] private PlayerAnimationState animationState;
     [SerializeField] private PlayerHealth playerHealth;
     [SerializeField] private WeaponPresentationCoordinator coordinator;
+    [SerializeField] private ThirdPersonWeaponRig thirdPersonRig;
     [SerializeField] private float firePresentationDuration = 0.12f;
     [SerializeField] private bool evaluateHumanoidAnimation = true;
     [SerializeField] private float parameterDampTime = 0.08f;
@@ -93,6 +96,8 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
             playerHealth = GetComponent<PlayerHealth>();
         if (coordinator == null)
             coordinator = GetComponent<WeaponPresentationCoordinator>();
+        if (thirdPersonRig == null)
+            thirdPersonRig = GetComponent<ThirdPersonWeaponRig>();
         if (thirdPersonAnimator == null)
             thirdPersonAnimator = FindThirdPersonAnimator();
 
@@ -222,6 +227,15 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         thirdPersonAnimator.SetBool(IsDeadHash, dead);
         thirdPersonAnimator.SetFloat(AimPitchHash, animationState.AimPitch);
         thirdPersonAnimator.SetInteger(CurrentWeaponHash, Animator.StringToHash(animationState.CurrentWeapon));
+        float aimWeight = thirdPersonRig != null ? thirdPersonRig.AimBlend : (animationState.IsAiming ? 1f : 0f);
+        float weaponPoseWeight = thirdPersonRig != null ? thirdPersonRig.WeaponPoseWeight : 0f;
+        if (HasParameter(AimWeightHash))
+            thirdPersonAnimator.SetFloat(AimWeightHash, aimWeight);
+        if (HasParameter(WeaponPoseWeightHash))
+            thirdPersonAnimator.SetFloat(WeaponPoseWeightHash, weaponPoseWeight);
+        int weaponLayer = thirdPersonAnimator.GetLayerIndex("WeaponPose");
+        if (weaponLayer >= 0)
+            thirdPersonAnimator.SetLayerWeight(weaponLayer, weaponPoseWeight);
         WriteDebug();
     }
 
@@ -332,6 +346,21 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         if (info.IsName("Airborne (pending)")) return "Airborne (pending)";
         if (info.IsName("Dolphin Dive (pending)")) return "Dolphin Dive (pending)";
         return info.shortNameHash.ToString();
+    }
+
+    private bool HasParameter(int hash)
+    {
+        if (thirdPersonAnimator == null)
+            return false;
+
+        AnimatorControllerParameter[] parameters = thirdPersonAnimator.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            if (parameters[i].nameHash == hash)
+                return true;
+        }
+
+        return false;
     }
 
     private void OnFired()
