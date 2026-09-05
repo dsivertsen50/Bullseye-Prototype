@@ -28,24 +28,6 @@ public static class PlayerLocomotionAnimatorBuilder
     private const string IdleJumpTakeoffPath = "Assets/Player/Animations/IdleJumpTakeoff.anim";
     private const string SprintJumpTakeoffPath = "Assets/Player/Animations/SprintJumpTakeoff.anim";
 
-    [MenuItem("Bullseye/Rebuild Player Locomotion Animator")]
-    public static void RebuildFromMenu()
-    {
-        Debug.Log(Build());
-    }
-
-    [MenuItem("Bullseye/Apply REQ-036A Animation Update")]
-    public static void Apply036AFromMenu()
-    {
-        Debug.Log(Build());
-    }
-
-    [MenuItem("Bullseye/Apply REQ-040 Strafe Animation Integration")]
-    public static void Apply040FromMenu()
-    {
-        Debug.Log(Build());
-    }
-
     public static void BuildBatch()
     {
         string result = Build();
@@ -109,7 +91,7 @@ public static class PlayerLocomotionAnimatorBuilder
         LocomotionGraph graph = BuildGraph(root, clips);
         WireTransitions(root, graph);
 
-        ThirdPersonWeaponSetup.EnsureWeaponPoseLayer(controller);
+        ThirdPersonWeaponPoseAuthoringSetup.ConfigureAnimatorLayer();
         EditorUtility.SetDirty(controller);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();

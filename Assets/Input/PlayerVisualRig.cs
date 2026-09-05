@@ -7,6 +7,7 @@ using UnityEngine;
 public class PlayerVisualRig : MonoBehaviour
 {
     [Header("Weapon")]
+    [SerializeField] private Transform thirdPersonWeaponAnchor;
     [SerializeField] private Transform rightHandWeaponSocket;
     [SerializeField] private Transform leftHandIkTarget;
     [SerializeField] private Transform weaponHolsterSocket;
@@ -21,6 +22,7 @@ public class PlayerVisualRig : MonoBehaviour
     [SerializeField] private Transform bullseyeLeftLegAnchor;
     [SerializeField] private Transform bullseyeRightLegAnchor;
 
+    public Transform ThirdPersonWeaponAnchor => thirdPersonWeaponAnchor;
     public Transform RightHandWeaponSocket => rightHandWeaponSocket;
     public Transform LeftHandIkTarget => leftHandIkTarget;
     public Transform WeaponHolsterSocket => weaponHolsterSocket;
@@ -32,6 +34,11 @@ public class PlayerVisualRig : MonoBehaviour
     public Transform BullseyeRightArmAnchor => bullseyeRightArmAnchor;
     public Transform BullseyeLeftLegAnchor => bullseyeLeftLegAnchor;
     public Transform BullseyeRightLegAnchor => bullseyeRightLegAnchor;
+
+    public void AssignAnchor(Transform anchor)
+    {
+        thirdPersonWeaponAnchor = anchor;
+    }
 
     public void Assign(
         Transform rightHand,

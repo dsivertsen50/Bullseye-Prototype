@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 81adc70c3c9f5394290be8e5de1204c3, type: 3}
+  m_Name: ThirdPersonWeaponClassPoseLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::ThirdPersonWeaponClassPoseLibrary
+  longGun: {fileID: 11400000, guid: e6f2760ef7695a64a93ef7e9aac8396d, type: 2}
+  shortGun: {fileID: 11400000, guid: 03d8cfb7a3c04a3409aa89ae38d93f2d, type: 2}
+  heavyGun: {fileID: 11400000, guid: a5284a8c8986db44cbe530e4ec49be4b, type: 2}

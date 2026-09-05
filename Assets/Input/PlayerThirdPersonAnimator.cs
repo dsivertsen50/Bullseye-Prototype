@@ -33,7 +33,6 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     private static readonly int IsDeadHash = Animator.StringToHash("IsDead");
     private static readonly int AimPitchHash = Animator.StringToHash("AimPitch");
     private static readonly int CurrentWeaponHash = Animator.StringToHash("CurrentWeapon");
-    private static readonly int FireTriggerHash = Animator.StringToHash("Fire");
     private static readonly int TurnSpeedHash = Animator.StringToHash("TurnSpeed");
     private static readonly int IsTurningLeftHash = Animator.StringToHash("IsTurningLeft");
     private static readonly int IsTurningRightHash = Animator.StringToHash("IsTurningRight");
@@ -42,13 +41,15 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     private static readonly int JumpTriggerHash = Animator.StringToHash("Jump");
     private static readonly int AimWeightHash = Animator.StringToHash("AimWeight");
     private static readonly int WeaponPoseWeightHash = Animator.StringToHash("WeaponPoseWeight");
+    private static readonly int WeaponPoseStateHash = Animator.StringToHash("WeaponPoseState");
+    private static readonly int PoseCategoryHash = Animator.StringToHash("PoseCategory");
 
     [SerializeField] private Animator thirdPersonAnimator;
     [SerializeField] private PlayerAnimationState animationState;
     [SerializeField] private PlayerHealth playerHealth;
     [SerializeField] private WeaponPresentationCoordinator coordinator;
     [SerializeField] private ThirdPersonWeaponRig thirdPersonRig;
-    [SerializeField] private float firePresentationDuration = 0.12f;
+    [SerializeField] private ThirdPersonWeaponPoseBinder poseBinder;
     [SerializeField] private bool evaluateHumanoidAnimation = true;
     [SerializeField] private float parameterDampTime = 0.08f;
     [SerializeField] private float walkReferenceSpeed = 3.25f;
@@ -76,7 +77,6 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     [SerializeField] private string debugJump;
 
     private bool appliedDead;
-    private float fireUntil;
     private bool wasDolphinDiving;
     private int lastJumpSerial;
     private bool hasJumpSerial;
@@ -98,8 +98,11 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
             coordinator = GetComponent<WeaponPresentationCoordinator>();
         if (thirdPersonRig == null)
             thirdPersonRig = GetComponent<ThirdPersonWeaponRig>();
+        if (poseBinder == null)
+            poseBinder = GetComponent<ThirdPersonWeaponPoseBinder>();
         if (thirdPersonAnimator == null)
             thirdPersonAnimator = FindThirdPersonAnimator();
+        // REQ-049: locomotion stays on the base layer. Weapon holding is IK.
 
         // Keep the Animator enabled once the visual uses a T-pose Humanoid
         // rest pose. Disable this flag only if a bad avatar is reintroduced.
@@ -107,18 +110,6 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
             thirdPersonAnimator.enabled = false;
         if (thirdPersonAnimator != null)
             thirdPersonAnimator.applyRootMotion = false;
-    }
-
-    private void OnEnable()
-    {
-        if (coordinator != null)
-            coordinator.Fired += OnFired;
-    }
-
-    private void OnDisable()
-    {
-        if (coordinator != null)
-            coordinator.Fired -= OnFired;
     }
 
     private void LateUpdate()
@@ -136,7 +127,6 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
 
     public void ResetAfterRespawn()
     {
-        fireUntil = 0f;
         appliedDead = false;
         wasDolphinDiving = false;
         lastJumpSerial = animationState != null ? animationState.JumpSerial : 0;
@@ -181,7 +171,6 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         if (animationState == null)
             return;
 
-        bool firing = Time.time < fireUntil;
         thirdPersonAnimator.applyRootMotion = false;
         float damp = Mathf.Max(0f, parameterDampTime);
         thirdPersonAnimator.SetFloat(MoveXHash, animationState.MoveX, damp, Time.deltaTime);
@@ -222,20 +211,19 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         wasDolphinDiving = animationState.IsDolphinDiving;
         thirdPersonAnimator.SetBool(IsAimingHash, animationState.IsAiming);
         thirdPersonAnimator.SetBool(IsReloadingHash, animationState.IsReloading);
-        thirdPersonAnimator.SetBool(IsFiringHash, firing);
+        thirdPersonAnimator.SetBool(IsFiringHash, false);
         thirdPersonAnimator.SetBool(IsThrowingGrenadeHash, animationState.IsThrowingGrenade);
         thirdPersonAnimator.SetBool(IsDeadHash, dead);
         thirdPersonAnimator.SetFloat(AimPitchHash, animationState.AimPitch);
         thirdPersonAnimator.SetInteger(CurrentWeaponHash, Animator.StringToHash(animationState.CurrentWeapon));
         float aimWeight = thirdPersonRig != null ? thirdPersonRig.AimBlend : (animationState.IsAiming ? 1f : 0f);
-        float weaponPoseWeight = thirdPersonRig != null ? thirdPersonRig.WeaponPoseWeight : 0f;
         if (HasParameter(AimWeightHash))
             thirdPersonAnimator.SetFloat(AimWeightHash, aimWeight);
+
         if (HasParameter(WeaponPoseWeightHash))
-            thirdPersonAnimator.SetFloat(WeaponPoseWeightHash, weaponPoseWeight);
-        int weaponLayer = thirdPersonAnimator.GetLayerIndex("WeaponPose");
-        if (weaponLayer >= 0)
-            thirdPersonAnimator.SetLayerWeight(weaponLayer, weaponPoseWeight);
+            thirdPersonAnimator.SetFloat(WeaponPoseWeightHash, 0f);
+        DisableLegacyWeaponPoseLayer();
+
         WriteDebug();
     }
 
@@ -363,16 +351,16 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         return false;
     }
 
-    private void OnFired()
+    private void DisableLegacyWeaponPoseLayer()
     {
-        fireUntil = Time.time + Mathf.Max(0.02f, firePresentationDuration);
-        if (thirdPersonAnimator == null || !thirdPersonAnimator.gameObject.activeInHierarchy)
+        if (thirdPersonAnimator == null)
             return;
 
-        if (thirdPersonAnimator.runtimeAnimatorController == null)
-            return;
-
-        thirdPersonAnimator.SetTrigger(FireTriggerHash);
+        int layer = thirdPersonAnimator.GetLayerIndex(ThirdPersonWeaponPoseBinder.LayerName);
+        if (layer < 0)
+            layer = thirdPersonAnimator.GetLayerIndex(ThirdPersonWeaponPoseBinder.LegacyLayerName);
+        if (layer >= 0)
+            thirdPersonAnimator.SetLayerWeight(layer, 0f);
     }
 
     private Animator FindThirdPersonAnimator()

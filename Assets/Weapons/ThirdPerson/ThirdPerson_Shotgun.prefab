@@ -1,5 +1,36 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1968623588439400896
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 232497990358991124}
+  m_Layer: 0
+  m_Name: LeftElbowHint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &232497990358991124
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1968623588439400896}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.1, y: -0.08, z: 0.1}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8502587548284805592}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2862225294201464306
 GameObject:
   m_ObjectHideFlags: 0
@@ -10,7 +41,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3990115168284982062}
   m_Layer: 0
-  m_Name: RightHandGrip
+  m_Name: Grip_R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -41,7 +72,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2126908507409227218}
   m_Layer: 0
-  m_Name: LeftHandGrip
+  m_Name: Grip_L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -95,6 +126,7 @@ Transform:
   - {fileID: 8231737217792771516}
   - {fileID: 2126908507409227218}
   - {fileID: 3990115168284982062}
+  - {fileID: 232497990358991124}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &789089428613436338
@@ -109,10 +141,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1dac462a7b762ae4d992e7fcfe65d199, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ThirdPersonWeaponVisual
-  leftHandIkTarget: {fileID: 2126908507409227218}
+  gripR: {fileID: 3990115168284982062}
+  gripL: {fileID: 2126908507409227218}
+  aim: {fileID: 5981088208951238914}
   muzzle: {fileID: 3416378294549246559}
-  rightHandGrip: {fileID: 3990115168284982062}
-  aimTarget: {fileID: 5981088208951238914}
+  rightElbowHint: {fileID: 0}
+  leftElbowHint: {fileID: 232497990358991124}
   drawGizmos: 1
 --- !u!1001 &2683363119531719
 PrefabInstance:
@@ -122,6 +156,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 8502587548284805592}
     m_Modifications:
+    - target: {fileID: 1653694597245416900, guid: 1999fbf616709a54b9aa6d52ce4467ca, type: 3}
+      propertyPath: m_Name
+      value: Aim
+      objectReference: {fileID: 0}
+    - target: {fileID: 5397480406982668299, guid: 1999fbf616709a54b9aa6d52ce4467ca, type: 3}
+      propertyPath: m_Name
+      value: Muzzle
+      objectReference: {fileID: 0}
     - target: {fileID: 8089494980076550529, guid: 1999fbf616709a54b9aa6d52ce4467ca, type: 3}
       propertyPath: m_Name
       value: Model

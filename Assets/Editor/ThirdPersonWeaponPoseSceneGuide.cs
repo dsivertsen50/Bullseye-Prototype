@@ -2,15 +2,15 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Scene-view labels and drag handles for third-person weapon holds.
-/// Works in Play Mode on remote players, and in Edit Mode on the pose preview.
+/// Scene-view handles for REQ-048 weapon authoring: socket offset,
+/// LeftHandGrip, and LeftElbowHint. Does not pose arm bones.
 /// </summary>
 [InitializeOnLoad]
 public static class ThirdPersonWeaponPoseSceneGuide
 {
     private static readonly Color GunColor = new(1f, 0.85f, 0.15f, 1f);
-    private static readonly Color RightColor = new(0.25f, 1f, 0.35f, 1f);
-    private static readonly Color LeftColor = new(0.25f, 0.75f, 1f, 1f);
+    private static readonly Color GripColor = new(0.25f, 0.75f, 1f, 1f);
+    private static readonly Color HintColor = new(0.95f, 0.45f, 1f, 1f);
 
     static ThirdPersonWeaponPoseSceneGuide()
     {
@@ -21,13 +21,15 @@ public static class ThirdPersonWeaponPoseSceneGuide
     {
         if (!Application.isPlaying)
         {
-            ThirdPersonWeaponPosePreviewWindow.TickPreview();
-            ThirdPersonWeaponRig preview = ThirdPersonWeaponPosePreviewWindow.ActivePreviewRig;
+            if (GUIUtility.hotControl == 0)
+                ThirdPersonWeaponPoseAuthoringWindow.TickPreview();
+            ThirdPersonWeaponRig preview = ThirdPersonWeaponPoseAuthoringWindow.ActivePreviewRig;
             if (preview == null || !preview.DrawPoseGuides || !preview.TryGetPoseGuide(out ThirdPersonPoseGuide previewGuide))
                 return;
 
-            DrawLabels(previewGuide, preview);
+            DrawLabels(previewGuide);
             DrawHandles(preview, previewGuide);
+            ThirdPersonWeaponPoseAuthoringWindow.ApplyActivePreview();
             return;
         }
 
@@ -38,30 +40,30 @@ public static class ThirdPersonWeaponPoseSceneGuide
             if (rig == null || !rig.DrawPoseGuides || !rig.TryGetPoseGuide(out ThirdPersonPoseGuide guide))
                 continue;
 
-            DrawLabels(guide, rig);
-            DrawHandles(rig, guide);
+            DrawLabels(guide);
         }
     }
 
-    private static void DrawLabels(ThirdPersonPoseGuide guide, ThirdPersonWeaponRig rig)
+    private static void DrawLabels(ThirdPersonPoseGuide guide)
     {
         Handles.color = GunColor;
-        Handles.Label(guide.gunPosition + Vector3.up * 0.05f, "GUN / SOCKET");
+        Handles.Label(guide.gunPosition + Vector3.up * 0.05f, "WEAPON SOCKET");
+        Handles.DrawLine(guide.gunPosition, guide.gunPosition + guide.gunRotation * Vector3.forward * 0.28f);
 
-        Handles.color = RightColor;
-        Handles.Label(guide.rightHandPosition + Vector3.up * 0.05f, "RIGHT HAND");
-        Handles.Label(guide.rightElbowPole + Vector3.up * 0.03f, "RIGHT ELBOW");
-
-        Handles.color = LeftColor;
-        Handles.Label(
-            guide.leftHandPosition + Vector3.up * 0.05f,
-            guide.leftHandFollowsGrip ? "LEFT HAND (FOLLOWS GUN)" : "LEFT HAND");
-        Handles.Label(guide.leftElbowPole + Vector3.up * 0.03f, "LEFT ELBOW");
-
-        if (rig.AimTarget != null)
+        if (guide.leftGripPosition.sqrMagnitude > 0.0001f || guide.definition != null)
         {
-            Handles.color = GunColor;
-            Handles.Label(rig.AimTarget.position + Vector3.up * 0.04f, "AIM TARGET");
+            Handles.color = GripColor;
+            Handles.Label(guide.leftGripPosition + Vector3.up * 0.04f, "LEFT HAND GRIP");
+        }
+
+        Handles.color = HintColor;
+        Handles.Label(guide.leftElbowHintPosition + Vector3.up * 0.04f, "LEFT ELBOW HINT");
+        if (!string.IsNullOrEmpty(guide.poseCategory))
+        {
+            Handles.color = Color.white;
+            Handles.Label(
+                guide.gunPosition + Vector3.up * 0.12f,
+                $"{guide.poseCategory}  IK {guide.leftIkWeight:0.00}");
         }
     }
 
@@ -72,13 +74,7 @@ public static class ThirdPersonWeaponPoseSceneGuide
             return;
 
         SerializedObject so = new SerializedObject(definition);
-        SerializedProperty pose = so.FindProperty("thirdPersonPose");
-        if (pose == null)
-            return;
-
         so.Update();
-        ResolveHoldFields(guide, out string handField, out string wristField);
-        ResolveLeftHoldFields(guide, out string leftHandField, out string leftWristField);
 
         EditorGUI.BeginChangeCheck();
         Vector3 nextGun = Handles.PositionHandle(guide.gunPosition, guide.gunRotation);
@@ -90,145 +86,88 @@ public static class ThirdPersonWeaponPoseSceneGuide
         if (EditorGUI.EndChangeCheck())
             so.FindProperty("worldLocalEuler").vector3Value = rig.WorldRotToSocketEuler(nextGunRotation);
 
-        DrawIndependentHandle(
-            rig,
-            pose,
-            guide.rightHandPosition,
-            guide.rightHandRotation,
-            handField,
-            wristField);
-
-        if (!guide.leftHandFollowsGrip)
+        if (so.ApplyModifiedProperties())
         {
-            DrawIndependentHandle(
-                rig,
-                pose,
-                guide.leftHandPosition,
-                guide.leftHandRotation,
-                leftHandField,
-                leftWristField);
+            WeaponDefinitionEditor.DiscardInspectorStaleEdits(definition);
+            WeaponDefinitionEditor.SaveDefinition(definition, refreshPreview: false);
         }
-        else
+
+        WorldWeaponView world = rig.GetComponent<WorldWeaponView>();
+        ThirdPersonWeaponVisual visual = world != null ? world.CurrentVisual : null;
+        if (visual == null)
+            return;
+
+        if (visual.LeftHandGrip != null)
         {
             EditorGUI.BeginChangeCheck();
-            Vector3 nextLeft = Handles.PositionHandle(guide.leftHandPosition, guide.leftHandRotation);
-            Quaternion nextLeftRot = Handles.RotationHandle(guide.leftHandRotation, guide.leftHandPosition);
+            Vector3 nextGrip = Handles.PositionHandle(visual.LeftHandGrip.position, visual.LeftHandGrip.rotation);
+            Quaternion nextGripRot = Handles.RotationHandle(visual.LeftHandGrip.rotation, visual.LeftHandGrip.position);
             if (EditorGUI.EndChangeCheck())
             {
-                pose.FindPropertyRelative("leftHandFollowGrip").boolValue = false;
-                pose.FindPropertyRelative(leftHandField).vector3Value = rig.WorldToChest(nextLeft);
-                pose.FindPropertyRelative(leftWristField).vector3Value = rig.WorldRotToChestEuler(nextLeftRot);
+                visual.LeftHandGrip.SetPositionAndRotation(nextGrip, nextGripRot);
+                SaveWeaponTarget(definition, "LeftHandGrip", visual.LeftHandGrip.localPosition, visual.LeftHandGrip.localEulerAngles);
             }
         }
 
-        DrawElbowHandle(rig, pose, guide.rightUpperPosition, guide.rightHandPosition, guide.rightElbowPole, false, "rightElbowYaw");
-        DrawElbowHandle(rig, pose, guide.leftUpperPosition, guide.leftHandPosition, guide.leftElbowPole, true, "leftElbowYaw");
-
-        if (so.ApplyModifiedProperties())
-            WeaponDefinitionEditor.SaveDefinition(definition);
+        if (visual.LeftElbowHint != null)
+        {
+            EditorGUI.BeginChangeCheck();
+            Vector3 nextHint = Handles.PositionHandle(visual.LeftElbowHint.position, visual.LeftElbowHint.rotation);
+            if (EditorGUI.EndChangeCheck())
+            {
+                visual.LeftElbowHint.position = nextHint;
+                SaveWeaponTarget(definition, "LeftElbowHint", visual.LeftElbowHint.localPosition, visual.LeftElbowHint.localEulerAngles);
+            }
+        }
     }
 
-    private static void ResolveHoldFields(ThirdPersonPoseGuide guide, out string handField, out string wristField)
+    private static void SaveWeaponTarget(WeaponDefinition definition, string childName, Vector3 localPosition, Vector3 localEuler)
     {
-        if (guide.proneBlend > 0.5f)
-        {
-            handField = "proneRightHandPosition";
-            wristField = "proneRightWristEuler";
+        if (definition == null || definition.WorldPrefab == null)
             return;
-        }
 
-        if (guide.sprintBlend > 0.5f)
-        {
-            handField = "sprintRightHandPosition";
-            wristField = "sprintRightWristEuler";
+        string path = AssetDatabase.GetAssetPath(definition.WorldPrefab);
+        if (string.IsNullOrEmpty(path))
             return;
-        }
 
-        if (guide.aimBlend > 0.5f)
+        GameObject contents = PrefabUtility.LoadPrefabContents(path);
+        try
         {
-            handField = "aimRightHandPosition";
-            wristField = "aimRightWristEuler";
-            return;
+            Transform target = FindChild(contents.transform, childName);
+            if (target == null)
+            {
+                GameObject created = new GameObject(childName);
+                created.transform.SetParent(contents.transform, false);
+                target = created.transform;
+            }
+
+            target.localPosition = localPosition;
+            target.localEulerAngles = localEuler;
+            ThirdPersonWeaponVisual visual = contents.GetComponent<ThirdPersonWeaponVisual>();
+            visual?.ResolveFallbacks();
+            PrefabUtility.SaveAsPrefabAsset(contents, path);
         }
-
-        handField = "rightHandPosition";
-        wristField = "rightWristEuler";
-    }
-
-    private static void ResolveLeftHoldFields(ThirdPersonPoseGuide guide, out string handField, out string wristField)
-    {
-        if (guide.proneBlend > 0.5f)
+        finally
         {
-            handField = "proneLeftHandPosition";
-            wristField = "proneLeftWristEuler";
-            return;
+            Object.DestroyImmediate(contents);
         }
-
-        if (guide.sprintBlend > 0.5f)
-        {
-            handField = "sprintLeftHandPosition";
-            wristField = "sprintLeftWristEuler";
-            return;
-        }
-
-        if (guide.aimBlend > 0.5f)
-        {
-            handField = "aimLeftHandPosition";
-            wristField = "aimLeftWristEuler";
-            return;
-        }
-
-        handField = "leftHandPosition";
-        wristField = "leftWristEuler";
-    }
-
-    private static void DrawIndependentHandle(
-        ThirdPersonWeaponRig rig,
-        SerializedProperty pose,
-        Vector3 position,
-        Quaternion rotation,
-        string positionField,
-        string eulerField)
-    {
-        EditorGUI.BeginChangeCheck();
-        Vector3 nextPosition = Handles.PositionHandle(position, rotation);
-        if (EditorGUI.EndChangeCheck())
-            pose.FindPropertyRelative(positionField).vector3Value = rig.WorldToChest(nextPosition);
-
-        EditorGUI.BeginChangeCheck();
-        Quaternion nextRotation = Handles.RotationHandle(rotation, position);
-        if (EditorGUI.EndChangeCheck())
-            pose.FindPropertyRelative(eulerField).vector3Value = rig.WorldRotToChestEuler(nextRotation);
-    }
-
-    private static void DrawElbowHandle(
-        ThirdPersonWeaponRig rig,
-        SerializedProperty pose,
-        Vector3 upper,
-        Vector3 hand,
-        Vector3 pole,
-        bool left,
-        string yawField)
-    {
-        EditorGUI.BeginChangeCheck();
-        Vector3 nextPole = Handles.FreeMoveHandle(pole, 0.03f, Vector3.zero, Handles.SphereHandleCap);
-        if (EditorGUI.EndChangeCheck())
-            pose.FindPropertyRelative(yawField).floatValue = rig.ElbowYawFromPole(upper, hand, nextPole, left);
     }
 
     private static bool IsEditing(WeaponDefinition definition, ThirdPersonWeaponRig rig)
     {
-        if (ThirdPersonWeaponPosePreviewWindow.IsPreviewRig(rig) &&
-            ThirdPersonWeaponPosePreviewWindow.ActivePreviewDefinition == definition)
-            return true;
+        return ThirdPersonWeaponPoseAuthoringWindow.IsPreviewRig(rig) &&
+               ThirdPersonWeaponPoseAuthoringWindow.ActivePreviewDefinition == definition;
+    }
 
-        Object selected = Selection.activeObject;
-        if (selected == definition)
-            return true;
-        if (selected == rig || selected == rig.gameObject)
-            return true;
+    private static Transform FindChild(Transform root, string childName)
+    {
+        Transform[] children = root.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < children.Length; i++)
+        {
+            if (children[i].name == childName)
+                return children[i];
+        }
 
-        GameObject selectedObject = selected as GameObject;
-        return selectedObject != null && selectedObject.transform.IsChildOf(rig.transform);
+        return null;
     }
 }

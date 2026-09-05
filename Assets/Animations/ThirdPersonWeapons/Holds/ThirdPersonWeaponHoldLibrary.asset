@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8fb45ec19b2159e479989f4ee426af73, type: 3}
+  m_Name: ThirdPersonWeaponHoldLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::ThirdPersonWeaponHoldLibrary
+  longGunHold: {fileID: 11400000, guid: bed3f7c53b50095459c411ee4d120e4e, type: 2}
+  longGunSprintHold: {fileID: 11400000, guid: 4a0ec7df27516c94498c1dee0a361c77, type: 2}
+  longGunProneHold: {fileID: 11400000, guid: 630976ffbc1e6864fb74b7a3d636de1e, type: 2}
+  longGunAimHold: {fileID: 11400000, guid: 322b7cde9919f1a4d9b6c8c92d575d15, type: 2}
+  shortGunHold: {fileID: 11400000, guid: 9a4f138fa10274e438389877d042cea4, type: 2}
+  shortGunSprintHold: {fileID: 11400000, guid: 07ab2240494c4b84ab7ba5b97ace34d1, type: 2}
+  shortGunProneHold: {fileID: 11400000, guid: cf4ad1c89742ce241aa81a207018020b, type: 2}
+  shortGunAimHold: {fileID: 11400000, guid: 350925d3347a50f4fa7d155d2f541975, type: 2}
+  heavyGunHold: {fileID: 11400000, guid: 16f054b1e0ddce74db8bdc32b8c08603, type: 2}
+  heavyGunSprintHold: {fileID: 11400000, guid: 1d8ea2e4df95a7647938695d00f27182, type: 2}
+  heavyGunProneHold: {fileID: 11400000, guid: 628e8b5ab3f790c4d973ee9bc0002f71, type: 2}
+  heavyGunAimHold: {fileID: 11400000, guid: 2ebf3033e356fec40a016985ac13e6f2, type: 2}

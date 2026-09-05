@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 769445260a7ccf64d9598122e307c0e0, type: 3}
+  m_Name: HeavyGun_SprintHold
+  m_EditorClassIdentifier: Assembly-CSharp::ThirdPersonWeaponHoldProfile
+  holdClass: 2
+  holdKind: 1
+  weaponAnchorLocalPosition: {x: 0.24, y: 0.02, z: 0.14}
+  weaponAnchorLocalEuler: {x: 14, y: 10, z: -8}
+  rightElbowHintLocalPosition: {x: 0.36, y: 0.02, z: 0.02}
+  leftElbowHintLocalPosition: {x: -0.12, y: 0.06, z: 0.22}
+  rightArmIkWeight: 1
+  leftArmIkWeight: 1
+  hintWeight: 1
+  useLeftHand: 1
+  shoulderInfluence: 0.12
+  chestInfluence: 0.08
+  maxArmReach: 0.72
+  blendDuration: 0.14

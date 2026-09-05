@@ -105,12 +105,24 @@ MonoBehaviour:
   adsHidesViewmodel: 1
   scopePresentation: {fileID: 11400000, guid: dff653bbfac21974d86d957a9dfbdd85, type: 2}
   worldLocalPosition: {x: 0, y: 0.02, z: 0.05}
-  worldLocalEuler: {x: 0, y: 0, z: 0}
+  worldLocalEuler: {x: 0, y: 0, z: -8}
   worldLocalScale: {x: 1, y: 1, z: 1}
   worldStanceHeightOffset: 0.2
+  weaponPoseClass: 0
+  thirdPersonAnchorPositionOffset: {x: -0.00000014901161, y: -0.00000011920929, z: 0.1364435}
+  thirdPersonAnchorRotationOffset: {x: -0.00000003830255, y: 0.00000030587324, z: 358.7649}
+  useLeftHandGrip: 1
+  optionalHoldProfileOverride: {fileID: 0}
+  thirdPersonPoseProfile: {fileID: 11400000, guid: e6f2760ef7695a64a93ef7e9aac8396d, type: 2}
+  poseClassAssigned: 1
+  thirdPersonPoseCategory: 1
+  supportHandIkEnabled: 1
+  ikBlendDuration: 0.12
+  weaponPoseBlendDuration: 0.14
+  sprintSupportIkWeight: 0.55
   thirdPersonClass: 1
   thirdPersonPose:
-    gunEuler: {x: 0, y: 0, z: -8}
+    gunEuler: {x: 0, y: 0, z: 0}
     gunScale: {x: 1.15, y: 1.15, z: 1.15}
     rightHandPosition: {x: 0.09324837, y: -0.17828798, z: 0.8757846}
     rightWristEuler: {x: 30, y: 0, z: 20}
@@ -122,6 +134,16 @@ MonoBehaviour:
     sprintRightWristEuler: {x: 12, y: 16, z: -8}
     proneRightHandPosition: {x: 0.2, y: -0.08, z: 0.52}
     proneRightWristEuler: {x: 0, y: 0, z: 0}
+    crouchRightHandPosition: {x: 0, y: 0, z: 0}
+    crouchRightWristEuler: {x: 0, y: 0, z: 0}
+    aimGunPosition: {x: 0, y: 0, z: 0}
+    aimGunEuler: {x: 0, y: 0, z: 0}
+    sprintGunPosition: {x: 0, y: 0, z: 0}
+    sprintGunEuler: {x: 0, y: 0, z: 0}
+    crouchGunPosition: {x: 0, y: 0, z: 0}
+    crouchGunEuler: {x: 0, y: 0, z: 0}
+    proneGunPosition: {x: 0, y: 0, z: 0}
+    proneGunEuler: {x: 0, y: 0, z: 0}
     leftHandFollowGrip: 0
     leftHandPosition: {x: 0.22261333, y: -0.26785958, z: 0.48365012}
     leftWristEuler: {x: 49.999992, y: 45.000008, z: 58.27354}
@@ -133,6 +155,8 @@ MonoBehaviour:
     sprintLeftWristEuler: {x: 0, y: 0, z: 0}
     proneLeftHandPosition: {x: 0, y: 0, z: 0}
     proneLeftWristEuler: {x: 0, y: 0, z: 0}
+    crouchLeftHandPosition: {x: 0, y: 0, z: 0}
+    crouchLeftWristEuler: {x: 0, y: 0, z: 0}
     sprintLeftIkWeight: 0.45
     defaultWeight: 1
     sprintWeight: 0.22

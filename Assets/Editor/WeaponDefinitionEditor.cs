@@ -11,10 +11,14 @@ public class WeaponDefinitionEditor : Editor
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
+        WeaponDefinition definition = (WeaponDefinition)target;
+        bool previewOwns = ThirdPersonWeaponHoldSetupWindow.OwnsDefinition(definition)
+            || ThirdPersonWeaponPoseAuthoringWindow.OwnsDefinition(definition);
 
         using (new EditorGUI.DisabledScope(true))
             EditorGUILayout.PropertyField(serializedObject.FindProperty("m_Script"));
 
+        EditorGUI.BeginChangeCheck();
         DrawPropertiesExcluding(
             serializedObject,
             "m_Script",
@@ -22,35 +26,64 @@ public class WeaponDefinitionEditor : Editor
             "worldLocalEuler",
             "worldLocalScale",
             "worldStanceHeightOffset",
+            "weaponPoseClass",
+            "thirdPersonAnchorPositionOffset",
+            "thirdPersonAnchorRotationOffset",
+            "useLeftHandGrip",
+            "optionalHoldProfileOverride",
+            "thirdPersonPoseProfile",
+            "poseClassAssigned",
+            "thirdPersonPoseCategory",
+            "supportHandIkEnabled",
+            "ikBlendDuration",
+            "weaponPoseBlendDuration",
+            "sprintSupportIkWeight",
             "thirdPersonClass",
             "thirdPersonPose");
 
         EditorGUILayout.Space(8f);
-        DrawSocket();
-        DrawThirdPersonPose();
+        if (previewOwns)
+        {
+            EditorGUILayout.HelpBox(
+                "Third-Person Weapon Pose Authoring is editing this asset. Socket numbers " +
+                "are locked here so Inspector text fields cannot overwrite Scene drags.",
+                MessageType.Warning);
+            DrawLockedPoseSummary(definition);
+        }
+        else
+        {
+            DrawSocket();
+            DrawThirdPersonPose();
+        }
 
-        if (serializedObject.ApplyModifiedProperties())
-            SaveDefinition((WeaponDefinition)target);
+        bool inspectorChanged = EditorGUI.EndChangeCheck();
+        if (inspectorChanged && serializedObject.ApplyModifiedProperties())
+            SaveDefinition(definition, refreshPreview: true);
+        else
+            serializedObject.Update();
     }
 
     private void DrawSocket()
     {
-        EditorGUILayout.LabelField("Third-Person Weapon Socket", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Third-Person Weapon Anchor", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "World weapons follow the player's right-hand WeaponSocket at full size. " +
-            "Tune these local offsets per weapon instead of editing animation clips.\n\n" +
-            "Position is in the hand's local space, in meters. Rotation is degrees. " +
-            "If the barrel points the wrong way, change Socket Rotation first.",
+            "The world weapon sits on ThirdPersonWeaponAnchor from the class hold profile. " +
+            "These offsets fine-tune that class placement. Hands follow Grip_R / Grip_L.",
             MessageType.Info);
         EditorGUILayout.PropertyField(
-            serializedObject.FindProperty("worldLocalPosition"),
-            new GUIContent("Socket Position"));
+            serializedObject.FindProperty("thirdPersonAnchorPositionOffset"),
+            new GUIContent("Anchor Position Offset"));
         EditorGUILayout.PropertyField(
-            serializedObject.FindProperty("worldLocalEuler"),
-            new GUIContent("Socket Rotation"));
+            serializedObject.FindProperty("thirdPersonAnchorRotationOffset"),
+            new GUIContent("Anchor Rotation Offset"));
         EditorGUILayout.PropertyField(
             serializedObject.FindProperty("worldLocalScale"),
-            new GUIContent("Socket Scale"));
+            new GUIContent("Weapon Scale"));
+        if (GUILayout.Button("Reset Anchor Offsets"))
+        {
+            serializedObject.FindProperty("thirdPersonAnchorPositionOffset").vector3Value = Vector3.zero;
+            serializedObject.FindProperty("thirdPersonAnchorRotationOffset").vector3Value = Vector3.zero;
+        }
     }
 
     private void DrawThirdPersonPose()
@@ -60,43 +93,54 @@ public class WeaponDefinitionEditor : Editor
             return;
 
         EditorGUILayout.Space(8f);
-        EditorGUILayout.LabelField("Third-Person Upper-Body Hold", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Third-Person Procedural Hold", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "The gun follows the right hand. These values pose the right arm and shape left-hand IK.\n\n" +
-            "Positions are meters from the upper chest:\n" +
-            "X = across the body (positive is right)\n" +
-            "Y = up\n" +
-            "Z = forward\n\n" +
-            "Open Third-Person Pose Preview to orbit a posed player in the Scene view " +
-            "without Play Mode. Yellow = gun. Green = right hand. Cyan = left hand / elbows. " +
-            "The left hand is independent of the gun unless Follow Weapon Grip is on.",
+            "Assign LongGun, ShortGun, or HeavyGun. Shared hold profiles place the weapon. " +
+            "Open Third-Person Weapon Hold Setup to preview and edit Grip_R / Grip_L / Aim.",
             MessageType.Info);
 
         using (new EditorGUILayout.HorizontalScope())
         {
-            if (GUILayout.Button("Preview In Scene"))
-                ThirdPersonWeaponPosePreviewWindow.Open((WeaponDefinition)target);
-            if (GUILayout.Button("Save Pose To Disk"))
-                SaveDefinition((WeaponDefinition)target);
-            if (GUILayout.Button("Reset Pose To Defaults"))
-                ResetPoseToDefaults();
+            if (GUILayout.Button("Weapon Hold Setup"))
+                ThirdPersonWeaponHoldSetupWindow.Open((WeaponDefinition)target);
+            if (GUILayout.Button("Save To Disk"))
+            {
+                DiscardInspectorStaleEdits((WeaponDefinition)target);
+                SaveDefinition((WeaponDefinition)target, refreshPreview: false, forceReserialize: true);
+                FlushDefinitionsToDisk();
+            }
         }
 
-        EditorGUILayout.PropertyField(serializedObject.FindProperty("thirdPersonClass"), new GUIContent(
-            "Weapon Shape",
-            "Pistol, rifle, or shotgun. Used only for defaults if a pose is missing."));
+        EditorGUILayout.PropertyField(
+            serializedObject.FindProperty("weaponPoseClass"),
+            new GUIContent("Weapon Hold Class", "LongGun, ShortGun, or HeavyGun."));
+        EditorGUILayout.PropertyField(
+            serializedObject.FindProperty("useLeftHandGrip"),
+            new GUIContent("Use Left Hand Grip"));
+        EditorGUILayout.PropertyField(
+            serializedObject.FindProperty("optionalHoldProfileOverride"),
+            new GUIContent("Hold Profile Override"));
+        EditorGUILayout.PropertyField(
+            serializedObject.FindProperty("supportHandIkEnabled"),
+            new GUIContent("Support Hand IK"));
+        EditorGUILayout.PropertyField(
+            serializedObject.FindProperty("ikBlendDuration"),
+            new GUIContent("IK Blend Duration"));
+        EditorGUILayout.PropertyField(
+            serializedObject.FindProperty("weaponPoseBlendDuration"),
+            new GUIContent("Weapon Pose Blend Duration"));
+        EditorGUILayout.PropertyField(
+            serializedObject.FindProperty("sprintSupportIkWeight"),
+            new GUIContent("Sprint Support IK Weight"));
 
-        EditorGUILayout.Space(6f);
-        EditorGUILayout.LabelField("Gun", EditorStyles.boldLabel);
-        EditorGUILayout.PropertyField(pose.FindPropertyRelative("gunEuler"), new GUIContent("Extra Socket Tilt"));
-        EditorGUILayout.PropertyField(pose.FindPropertyRelative("gunScale"), new GUIContent("Scale"));
-
-        DrawArm(pose, "Right Arm", "rightHandPosition", "rightWristEuler", "rightArmReach", "rightElbowYaw");
-        DrawLeftArm(pose, (WeaponDefinition)target);
-        DrawAimHold(pose);
-        DrawAimFollow(pose);
-        DrawRecoil(pose);
-        DrawWeights(pose);
+        showWeights = EditorGUILayout.Foldout(showWeights, "Legacy Per-Bone Pose (unused by REQ-048)", true);
+        if (showWeights)
+        {
+            EditorGUILayout.HelpBox(
+                "These fields remain for old assets. The new rig does not pose arms from them.",
+                MessageType.Warning);
+            EditorGUILayout.PropertyField(pose, true);
+        }
     }
 
     private static void DrawArm(
@@ -171,6 +215,10 @@ public class WeaponDefinitionEditor : Editor
         EditorGUILayout.PropertyField(pose.FindPropertyRelative("proneRightWristEuler"), new GUIContent("Prone Right Wrist"));
         EditorGUILayout.PropertyField(pose.FindPropertyRelative("proneLeftHandPosition"), new GUIContent("Prone Left Hand"));
         EditorGUILayout.PropertyField(pose.FindPropertyRelative("proneLeftWristEuler"), new GUIContent("Prone Left Wrist"));
+        EditorGUILayout.PropertyField(pose.FindPropertyRelative("crouchRightHandPosition"), new GUIContent("Crouch Right Hand"));
+        EditorGUILayout.PropertyField(pose.FindPropertyRelative("crouchRightWristEuler"), new GUIContent("Crouch Right Wrist"));
+        EditorGUILayout.PropertyField(pose.FindPropertyRelative("crouchLeftHandPosition"), new GUIContent("Crouch Left Hand"));
+        EditorGUILayout.PropertyField(pose.FindPropertyRelative("crouchLeftWristEuler"), new GUIContent("Crouch Left Wrist"));
         EditorGUILayout.PropertyField(pose.FindPropertyRelative("proneBodyPitch"), new GUIContent("Prone Body Pitch"));
     }
 
@@ -252,58 +300,87 @@ public class WeaponDefinitionEditor : Editor
 
     public static bool SnapLeftHandToGrip(WeaponDefinition definition, int stance)
     {
-        ThirdPersonWeaponRig rig = ThirdPersonWeaponPosePreviewWindow.ActivePreviewRig;
-        if (definition == null || rig == null || !rig.TryGetLeftGripWorld(out Vector3 gripPos, out Quaternion gripRot))
-            return false;
-
-        ResolveLeftFields(stance, out string handField, out string wristField);
-        SerializedObject so = new SerializedObject(definition);
-        SerializedProperty pose = so.FindProperty("thirdPersonPose");
-        if (pose == null)
-            return false;
-
-        so.Update();
-        pose.FindPropertyRelative("leftHandFollowGrip").boolValue = false;
-        pose.FindPropertyRelative(handField).vector3Value = rig.WorldToChest(gripPos);
-        pose.FindPropertyRelative(wristField).vector3Value = rig.WorldRotToChestEuler(gripRot);
-        if (!so.ApplyModifiedProperties())
-            return false;
-
-        SaveDefinition(definition);
-        return true;
+        return false;
     }
 
     public static bool SeedLeftHandFromGrip(WeaponDefinition definition, int stance)
     {
-        ThirdPersonWeaponRig rig = ThirdPersonWeaponPosePreviewWindow.ActivePreviewRig;
-        if (definition == null || rig == null)
-            return false;
+        return false;
+    }
+
+    public static void SetLeftHandFollowGrip(WeaponDefinition definition, bool follow)
+    {
+        if (definition == null)
+            return;
 
         SerializedObject so = new SerializedObject(definition);
+        so.Update();
         SerializedProperty pose = so.FindProperty("thirdPersonPose");
         if (pose == null)
-            return false;
+            return;
 
+        pose.FindPropertyRelative("leftHandFollowGrip").boolValue = follow;
+        if (so.ApplyModifiedProperties())
+            SaveDefinition(definition, refreshPreview: true);
+    }
+
+    public static void CopyStandHoldToStance(WeaponDefinition definition, int stance)
+    {
+        if (definition == null || stance <= 0)
+            return;
+
+        SerializedObject so = new SerializedObject(definition);
         so.Update();
-        if (pose.FindPropertyRelative("leftHandFollowGrip").boolValue)
-            return false;
+        SerializedProperty pose = so.FindProperty("thirdPersonPose");
+        if (pose == null)
+            return;
 
-        ResolveLeftFields(stance, out string handField, out string wristField);
-        SerializedProperty hand = pose.FindPropertyRelative(handField);
-        if (hand == null || hand.vector3Value.sqrMagnitude > 0.0001f)
-            return false;
-        if (!rig.TryGetLeftGripWorld(out Vector3 gripPos, out Quaternion gripRot))
-            return false;
+        Vector3 right = pose.FindPropertyRelative("rightHandPosition").vector3Value;
+        Vector3 rightWrist = pose.FindPropertyRelative("rightWristEuler").vector3Value;
+        Vector3 left = pose.FindPropertyRelative("leftHandPosition").vector3Value;
+        Vector3 leftWrist = pose.FindPropertyRelative("leftWristEuler").vector3Value;
+        Vector3 gunPos = so.FindProperty("worldLocalPosition").vector3Value;
+        Vector3 gunEuler = so.FindProperty("worldLocalEuler").vector3Value;
+        switch (stance)
+        {
+            case 1:
+                pose.FindPropertyRelative("aimRightHandPosition").vector3Value = right;
+                pose.FindPropertyRelative("aimRightWristEuler").vector3Value = rightWrist;
+                pose.FindPropertyRelative("aimLeftHandPosition").vector3Value = left;
+                pose.FindPropertyRelative("aimLeftWristEuler").vector3Value = leftWrist;
+                pose.FindPropertyRelative("aimGunPosition").vector3Value = gunPos;
+                pose.FindPropertyRelative("aimGunEuler").vector3Value = gunEuler;
+                break;
+            case 2:
+                pose.FindPropertyRelative("sprintRightHandPosition").vector3Value = right;
+                pose.FindPropertyRelative("sprintRightWristEuler").vector3Value = rightWrist;
+                pose.FindPropertyRelative("sprintLeftHandPosition").vector3Value = left;
+                pose.FindPropertyRelative("sprintLeftWristEuler").vector3Value = leftWrist;
+                pose.FindPropertyRelative("sprintGunPosition").vector3Value = gunPos;
+                pose.FindPropertyRelative("sprintGunEuler").vector3Value = gunEuler;
+                break;
+            case 3:
+                pose.FindPropertyRelative("crouchRightHandPosition").vector3Value = right;
+                pose.FindPropertyRelative("crouchRightWristEuler").vector3Value = rightWrist;
+                pose.FindPropertyRelative("crouchLeftHandPosition").vector3Value = left;
+                pose.FindPropertyRelative("crouchLeftWristEuler").vector3Value = leftWrist;
+                pose.FindPropertyRelative("crouchGunPosition").vector3Value = gunPos;
+                pose.FindPropertyRelative("crouchGunEuler").vector3Value = gunEuler;
+                break;
+            case 4:
+                pose.FindPropertyRelative("proneRightHandPosition").vector3Value = right;
+                pose.FindPropertyRelative("proneRightWristEuler").vector3Value = rightWrist;
+                pose.FindPropertyRelative("proneLeftHandPosition").vector3Value = left;
+                pose.FindPropertyRelative("proneLeftWristEuler").vector3Value = leftWrist;
+                pose.FindPropertyRelative("proneGunPosition").vector3Value = gunPos;
+                pose.FindPropertyRelative("proneGunEuler").vector3Value = gunEuler;
+                break;
+            default:
+                return;
+        }
 
-        hand.vector3Value = rig.WorldToChest(gripPos);
-        SerializedProperty wrist = pose.FindPropertyRelative(wristField);
-        if (wrist != null && wrist.vector3Value.sqrMagnitude < 0.0001f)
-            wrist.vector3Value = rig.WorldRotToChestEuler(gripRot);
-        if (!so.ApplyModifiedProperties())
-            return false;
-
-        SaveDefinition(definition);
-        return true;
+        if (so.ApplyModifiedProperties())
+            SaveDefinition(definition, refreshPreview: true);
     }
 
     private static int CurrentPreviewStance()
@@ -323,6 +400,10 @@ public class WeaponDefinitionEditor : Editor
                 handField = "sprintLeftHandPosition";
                 wristField = "sprintLeftWristEuler";
                 return;
+            case 3:
+                handField = "crouchLeftHandPosition";
+                wristField = "crouchLeftWristEuler";
+                return;
             case 4:
                 handField = "proneLeftHandPosition";
                 wristField = "proneLeftWristEuler";
@@ -341,13 +422,124 @@ public class WeaponDefinitionEditor : Editor
             property.vector3Value = value;
     }
 
-    public static void SaveDefinition(WeaponDefinition definition)
+    public static void SaveDefinition(
+        WeaponDefinition definition,
+        bool refreshPreview = true,
+        bool forceReserialize = false)
     {
         if (definition == null)
             return;
 
         EditorUtility.SetDirty(definition);
         AssetDatabase.SaveAssetIfDirty(definition);
-        ThirdPersonWeaponPosePreviewWindow.NotifyDefinitionChanged(definition);
+        if (forceReserialize)
+        {
+            string path = AssetDatabase.GetAssetPath(definition);
+            if (!string.IsNullOrEmpty(path))
+                AssetDatabase.ForceReserializeAssets(new[] { path });
+        }
+
+        SyncInspectors(definition);
+        if (refreshPreview)
+        {
+            ThirdPersonWeaponHoldSetupWindow.NotifyDefinitionChanged(definition);
+            ThirdPersonWeaponPoseAuthoringWindow.NotifyDefinitionChanged(definition);
+        }
+    }
+
+    public static void FlushDefinitionsToDisk()
+    {
+        AssetDatabase.SaveAssets();
+    }
+
+    public static void DiscardInspectorStaleEdits(Object target)
+    {
+        if (target == null)
+            return;
+
+        UnityEditor.Editor[] editors = ActiveEditorTracker.sharedTracker.activeEditors;
+        for (int i = 0; i < editors.Length; i++)
+        {
+            UnityEditor.Editor editor = editors[i];
+            if (editor == null || editor.serializedObject == null)
+                continue;
+
+            Object[] targets = editor.targets;
+            for (int t = 0; t < targets.Length; t++)
+            {
+                if (targets[t] != target)
+                    continue;
+                editor.serializedObject.Update();
+                editor.Repaint();
+                break;
+            }
+        }
+    }
+
+    public static string DescribeSavedPose(WeaponDefinition definition, int stance)
+    {
+        if (definition == null)
+            return "Nothing to save.";
+
+        string stanceName = stance switch
+        {
+            1 => "Aim",
+            2 => "Sprint",
+            3 => "Crouch",
+            4 => "Prone",
+            _ => "Stand"
+        };
+
+        return
+            $"Saved {definition.DisplayName} {stanceName} to {AssetDatabase.GetAssetPath(definition)}\n" +
+            $"Socket Pos {definition.WorldLocalPosition}  Rot {definition.WorldLocalEuler}\n" +
+            $"Class {definition.WeaponPoseClass}  Support IK {definition.UsesSupportHandIk}";
+    }
+
+    private void DrawLockedPoseSummary(WeaponDefinition definition)
+    {
+        EditorGUILayout.LabelField("Third-Person Weapon Anchor", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Anchor Position Offset", definition.ThirdPersonAnchorPositionOffset.ToString("F3"));
+        EditorGUILayout.LabelField("Anchor Rotation Offset", definition.ThirdPersonAnchorRotationOffset.ToString("F2"));
+        EditorGUILayout.LabelField("Hold Class", definition.ThirdPersonHoldClass.ToString());
+        EditorGUILayout.LabelField("Use Left Hand", definition.UseLeftHandGrip.ToString());
+
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            if (GUILayout.Button("Preview In Scene"))
+                ThirdPersonWeaponHoldSetupWindow.Open(definition);
+            if (GUILayout.Button("Save Pose To Disk"))
+            {
+                DiscardInspectorStaleEdits(definition);
+                SaveDefinition(definition, refreshPreview: false, forceReserialize: true);
+                FlushDefinitionsToDisk();
+            }
+        }
+
+        EditorGUILayout.Space(6f);
+        EditorGUILayout.LabelField("Current Rig", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Pose Class", definition.WeaponPoseClass.ToString());
+        EditorGUILayout.LabelField("Support Hand IK", definition.UsesSupportHandIk.ToString());
+    }
+
+    private static void SyncInspectors(Object target)
+    {
+        Editor[] editors = ActiveEditorTracker.sharedTracker.activeEditors;
+        for (int i = 0; i < editors.Length; i++)
+        {
+            Editor editor = editors[i];
+            if (editor == null || editor.serializedObject == null)
+                continue;
+
+            Object[] targets = editor.targets;
+            for (int t = 0; t < targets.Length; t++)
+            {
+                if (targets[t] != target)
+                    continue;
+                editor.serializedObject.Update();
+                editor.Repaint();
+                break;
+            }
+        }
     }
 }

@@ -71,7 +71,19 @@ public class WeaponDefinition : ScriptableObject
     private Vector3 worldLocalScale = Vector3.one;
     [SerializeField] private float worldStanceHeightOffset = 0.28f;
 
-    [Header("Third-Person Pose")]
+    [Header("Third-Person Hold")]
+    [SerializeField] private ThirdPersonWeaponPoseClass weaponPoseClass = ThirdPersonWeaponPoseClass.ShortGun;
+    [SerializeField] private Vector3 thirdPersonAnchorPositionOffset;
+    [SerializeField] private Vector3 thirdPersonAnchorRotationOffset;
+    [SerializeField] private bool useLeftHandGrip = true;
+    [SerializeField] private ThirdPersonWeaponHoldProfile optionalHoldProfileOverride;
+    [SerializeField] private ThirdPersonWeaponPoseProfile thirdPersonPoseProfile;
+    [SerializeField] private bool poseClassAssigned;
+    [SerializeField] private ThirdPersonPoseCategory thirdPersonPoseCategory = ThirdPersonPoseCategory.Pistol;
+    [SerializeField] private bool supportHandIkEnabled = true;
+    [SerializeField, Min(0.01f)] private float ikBlendDuration = 0.12f;
+    [SerializeField, Min(0.01f)] private float weaponPoseBlendDuration = 0.14f;
+    [SerializeField, Range(0f, 1f)] private float sprintSupportIkWeight = 0.55f;
     [SerializeField] private ThirdPersonWeaponClass thirdPersonClass = ThirdPersonWeaponClass.Pistol;
     [SerializeField] private ThirdPersonWeaponPose thirdPersonPose;
 
@@ -129,7 +141,49 @@ public class WeaponDefinition : ScriptableObject
     public Vector3 WorldLocalPosition => worldLocalPosition;
     public Vector3 WorldLocalEuler => worldLocalEuler;
     public Vector3 WorldLocalScale => worldLocalScale;
+    public Vector3 ThirdPersonWeaponPositionOffset => thirdPersonAnchorPositionOffset;
+    public Vector3 ThirdPersonWeaponRotationOffset => thirdPersonAnchorRotationOffset;
+    public Vector3 ThirdPersonAnchorPositionOffset => thirdPersonAnchorPositionOffset;
+    public Vector3 ThirdPersonAnchorRotationOffset => thirdPersonAnchorRotationOffset;
     public float WorldStanceHeightOffset => worldStanceHeightOffset;
+    public ThirdPersonWeaponPoseClass ThirdPersonHoldClass => WeaponPoseClass;
+    public ThirdPersonWeaponHoldProfile HoldProfileOverride => optionalHoldProfileOverride;
+    public ThirdPersonWeaponPoseClass WeaponPoseClass
+    {
+        get
+        {
+            if (optionalHoldProfileOverride != null)
+                return optionalHoldProfileOverride.HoldClass;
+            if (thirdPersonPoseProfile != null)
+                return thirdPersonPoseProfile.WeaponPoseClass;
+            return weaponPoseClass;
+        }
+    }
+
+    public ThirdPersonWeaponPoseProfile PoseProfile => thirdPersonPoseProfile;
+    public ThirdPersonPoseCategory PoseCategory =>
+        WeaponPoseClass == ThirdPersonWeaponPoseClass.ShortGun
+            ? ThirdPersonPoseCategory.Pistol
+            : ThirdPersonPoseCategory.LongGun;
+    public bool SupportHandIkEnabled =>
+        thirdPersonPoseProfile != null ? thirdPersonPoseProfile.SupportHandIkEnabled : supportHandIkEnabled;
+    public float IkBlendDuration =>
+        thirdPersonPoseProfile != null
+            ? thirdPersonPoseProfile.IkBlendDuration
+            : Mathf.Max(0.01f, ikBlendDuration);
+    public float WeaponPoseBlendDuration =>
+        thirdPersonPoseProfile != null
+            ? thirdPersonPoseProfile.WeaponPoseBlendDuration
+            : Mathf.Max(0.01f, weaponPoseBlendDuration);
+    public float SprintSupportIkWeight =>
+        thirdPersonPoseProfile != null
+            ? thirdPersonPoseProfile.SprintSupportIkWeight
+            : Mathf.Clamp01(sprintSupportIkWeight);
+    public bool UseLeftHandGrip =>
+        WeaponPoseClass == ThirdPersonWeaponPoseClass.ShortGun
+            ? useLeftHandGrip && SupportHandIkEnabled
+            : useLeftHandGrip && SupportHandIkEnabled;
+    public bool UsesSupportHandIk => UseLeftHandGrip;
     public ThirdPersonWeaponClass ThirdPersonClass => thirdPersonClass;
     public ThirdPersonWeaponPose ThirdPersonPose => thirdPersonPose ??= ThirdPersonWeaponPose.CreateDefault(thirdPersonClass);
     public Vector3 PickupLocalPosition => pickupLocalPosition;
@@ -161,6 +215,65 @@ public class WeaponDefinition : ScriptableObject
         adsEnterDuration = Mathf.Max(0.01f, adsEnterDuration);
         adsExitDuration = Mathf.Max(0.01f, adsExitDuration);
         adsSensitivityMultiplier = Mathf.Clamp(adsSensitivityMultiplier, 0.05f, 1.5f);
+        ikBlendDuration = Mathf.Max(0.01f, ikBlendDuration);
+        weaponPoseBlendDuration = Mathf.Max(0.01f, weaponPoseBlendDuration);
+        sprintSupportIkWeight = Mathf.Clamp01(sprintSupportIkWeight);
         thirdPersonPose ??= ThirdPersonWeaponPose.CreateDefault(thirdPersonClass);
+        MigratePoseClassIfNeeded();
+    }
+
+    public void AssignPoseProfile(ThirdPersonWeaponPoseProfile profile)
+    {
+        thirdPersonPoseProfile = profile;
+        if (profile != null)
+        {
+            weaponPoseClass = profile.WeaponPoseClass;
+            poseClassAssigned = true;
+            thirdPersonPoseCategory = profile.WeaponPoseClass == ThirdPersonWeaponPoseClass.ShortGun
+                ? ThirdPersonPoseCategory.Pistol
+                : ThirdPersonPoseCategory.LongGun;
+        }
+    }
+
+    public void AssignWeaponPoseClass(ThirdPersonWeaponPoseClass poseClass)
+    {
+        weaponPoseClass = poseClass;
+        poseClassAssigned = true;
+        useLeftHandGrip = poseClass != ThirdPersonWeaponPoseClass.ShortGun;
+        supportHandIkEnabled = useLeftHandGrip;
+        thirdPersonPoseCategory = poseClass == ThirdPersonWeaponPoseClass.ShortGun
+            ? ThirdPersonPoseCategory.Pistol
+            : ThirdPersonPoseCategory.LongGun;
+    }
+
+    public void AssignHoldOverride(ThirdPersonWeaponHoldProfile profile)
+    {
+        optionalHoldProfileOverride = profile;
+        if (profile != null)
+            AssignWeaponPoseClass(profile.HoldClass);
+    }
+
+    public void AssignAnchorOffsets(Vector3 position, Vector3 euler)
+    {
+        thirdPersonAnchorPositionOffset = position;
+        thirdPersonAnchorRotationOffset = euler;
+    }
+
+    private void MigratePoseClassIfNeeded()
+    {
+        if (poseClassAssigned)
+            return;
+
+        if (thirdPersonPoseProfile != null)
+        {
+            weaponPoseClass = thirdPersonPoseProfile.WeaponPoseClass;
+            poseClassAssigned = true;
+            return;
+        }
+
+        weaponPoseClass = thirdPersonPoseCategory == ThirdPersonPoseCategory.LongGun
+            ? ThirdPersonWeaponPoseClass.LongGun
+            : ThirdPersonWeaponPoseClass.ShortGun;
+        poseClassAssigned = true;
     }
 }
