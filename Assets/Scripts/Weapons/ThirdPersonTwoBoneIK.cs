@@ -1,8 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// Analytical two-bone IK used to layer weapon holds over Mixamo locomotion.
-/// Equivalent to Animation Rigging TwoBoneIK for this prototype.
+/// Legacy analytical two-bone IK from REQ-047. REQ-048 uses Unity Animation
+/// Rigging TwoBoneIKConstraint instead. Kept so older editor tools compile.
 /// </summary>
 public static class ThirdPersonTwoBoneIK
 {

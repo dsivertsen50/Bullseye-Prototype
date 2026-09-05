@@ -79,6 +79,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ThirdPersonWeaponVisual
   leftHandIkTarget: {fileID: 5338210740729390855}
+  leftElbowHint: {fileID: 0}
   muzzle: {fileID: 6550827940244282231}
   rightHandGrip: {fileID: 3933356038912470576}
   aimTarget: {fileID: 8504440852663839365}
@@ -107,8 +108,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8615791328529315400}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.04, y: -0.03, z: 0}
+  m_LocalRotation: {x: 0.06757792, y: -0.11869719, z: -0.18401206, w: -0.9733878}
+  m_LocalPosition: {x: -1.457958, y: -0.59695256, z: 0.42406553}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

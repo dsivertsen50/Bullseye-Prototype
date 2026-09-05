@@ -29,6 +29,7 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
     private WeaponDefinition spawnedDefinition;
     private int spawnedStance = -1;
     private bool refreshing;
+    private string lastSaveSummary;
 
     public static ThirdPersonWeaponRig ActivePreviewRig =>
         instance != null ? instance.previewRig : null;
@@ -44,6 +45,11 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
         return rig != null && instance != null && instance.previewRig == rig;
     }
 
+    public static bool OwnsDefinition(WeaponDefinition weapon)
+    {
+        return instance != null && weapon != null && instance.definition == weapon;
+    }
+
     public static void TickPreview()
     {
         if (instance == null || Application.isPlaying)
@@ -51,6 +57,14 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
 
         instance.EnsurePreview();
         instance.SampleStanceAnimation();
+        instance.ApplyPreviewPose();
+    }
+
+    public static void ApplyActivePreview()
+    {
+        if (instance == null || Application.isPlaying)
+            return;
+
         instance.ApplyPreviewPose();
     }
 
@@ -90,6 +104,7 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
         Undo.undoRedoPerformed += RefreshPreview;
         EditorSceneManager.sceneSaving += OnSceneSaving;
         EditorApplication.update += OnEditorUpdate;
+        AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
         if (definition == null)
             definition = LoadDefaultDefinition();
         EnsurePreview();
@@ -97,11 +112,13 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
 
     private void OnDisable()
     {
+        SavePosesToDisk(forceReserialize: false);
         EditorApplication.update -= OnEditorUpdate;
         EditorApplication.playModeStateChanged -= OnPlayModeChanged;
         EditorApplication.quitting -= DestroyPreview;
         Undo.undoRedoPerformed -= RefreshPreview;
         EditorSceneManager.sceneSaving -= OnSceneSaving;
+        AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
         DestroyPreview();
         if (instance == this)
             instance = null;
@@ -110,11 +127,10 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
     private void OnGUI()
     {
         EditorGUILayout.HelpBox(
-            "This spawns a temporary posed player in the Scene view. " +
-            "Orbit the Scene camera, drag the handles, or edit the weapon asset. " +
-            "Changes write to the Weapon Definition immediately. No Play Mode needed.\n\n" +
-            "Yellow = gun / socket. Green = right hand. Cyan = left hand / elbows. " +
-            "The left hand does not follow the gun unless Follow Weapon Grip is enabled.",
+            "Edit-mode preview of the equipped world weapon. Yellow = weapon on the right-hand socket. " +
+            "Cyan = LeftHandGrip. Magenta = LeftElbowHint.\n\n" +
+            "Move the weapon, grip, and elbow hint in the Scene view. " +
+            "Do not pose individual arm bones. Play Mode is not required.",
             MessageType.Info);
 
         EditorGUI.BeginChangeCheck();
@@ -147,8 +163,20 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
             }
         }
 
-        if (GUILayout.Button("Snap Left Hand To Grip"))
-            WeaponDefinitionEditor.SnapLeftHandToGrip(definition, stance);
+        if (definition != null && definition.WorldPrefab != null && GUILayout.Button("Select World Prefab"))
+        {
+            Selection.activeObject = definition.WorldPrefab;
+            EditorGUIUtility.PingObject(definition.WorldPrefab);
+        }
+
+        if (GUILayout.Button("Reset Socket Offset"))
+            ResetCurrentStanceGun();
+
+        if (GUILayout.Button("Save Poses To Disk"))
+            SavePosesToDisk(forceReserialize: true);
+
+        if (!string.IsNullOrEmpty(lastSaveSummary))
+            EditorGUILayout.HelpBox(lastSaveSummary, MessageType.Info);
 
         if (previewRoot == null)
             EditorGUILayout.HelpBox("Preview is not in the scene. Click Refresh Preview.", MessageType.Warning);
@@ -259,8 +287,6 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
 
             SampleStanceAnimation();
             ApplyPreviewPose();
-            if (WeaponDefinitionEditor.SeedLeftHandFromGrip(definition, stance))
-                ApplyPreviewPose();
             spawnedStance = stance;
             SceneView.RepaintAll();
         }
@@ -277,21 +303,9 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
 
         float aim = stance == 1 ? 1f : 0f;
         float sprint = stance == 2 ? 1f : 0f;
+        float crouch = stance == 3 ? 1f : 0f;
         float prone = stance == 4 ? 1f : 0f;
-        float weight = 1f;
-        ThirdPersonWeaponPose pose = definition != null ? definition.ThirdPersonPose : null;
-        if (pose != null)
-        {
-            weight = stance switch
-            {
-                2 => pose.sprintWeight,
-                3 => pose.crouchWeight,
-                4 => pose.proneWeight,
-                _ => pose.defaultWeight
-            };
-        }
-
-        previewRig.ApplyEditorPreview(aim, sprint, prone, aimPitch, weight);
+        previewRig.ApplyEditorPreview(aim, sprint, prone, aimPitch, 1f, crouch);
     }
 
     private void SampleStanceAnimation()
@@ -319,6 +333,23 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
             previewAnimator.Play(hash, 0, 0.05f);
         else
             previewAnimator.Play(state, 0, 0.05f);
+
+        int poseLayer = previewAnimator.GetLayerIndex("WeaponPose");
+        if (poseLayer >= 0)
+        {
+            string poseState = stance switch
+            {
+                2 => "LongGunSprint",
+                4 => "LongGunProne",
+                _ => "LongGunReady"
+            };
+            int poseHash = Animator.StringToHash(poseState);
+            if (previewAnimator.HasState(poseLayer, poseHash))
+                previewAnimator.Play(poseHash, poseLayer, 0f);
+            previewAnimator.SetLayerWeight(poseLayer, definition != null &&
+                definition.PoseCategory == ThirdPersonPoseCategory.LongGun ? 1f : 0.35f);
+        }
+
         previewAnimator.Update(0.016f);
     }
 
@@ -429,9 +460,36 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
             Object.DestroyImmediate(leftover);
     }
 
+    private void ResetCurrentStanceGun()
+    {
+        if (definition == null)
+            return;
+
+        SerializedObject so = new SerializedObject(definition);
+        so.Update();
+        so.FindProperty("worldLocalPosition").vector3Value = Vector3.zero;
+        so.FindProperty("worldLocalEuler").vector3Value = Vector3.zero;
+        if (so.ApplyModifiedProperties())
+            WeaponDefinitionEditor.SaveDefinition(definition, refreshPreview: true);
+    }
+
+    private void SavePosesToDisk(bool forceReserialize = false)
+    {
+        if (definition == null)
+            return;
+
+        WeaponDefinitionEditor.DiscardInspectorStaleEdits(definition);
+        WeaponDefinitionEditor.SaveDefinition(definition, refreshPreview: false, forceReserialize: forceReserialize);
+        WeaponDefinitionEditor.FlushDefinitionsToDisk();
+        lastSaveSummary = WeaponDefinitionEditor.DescribeSavedPose(definition, stance);
+        Repaint();
+    }
+
     private void OnEditorUpdate()
     {
         if (Application.isPlaying || previewRoot == null || previewRig == null)
+            return;
+        if (GUIUtility.hotControl != 0)
             return;
 
         SampleStanceAnimation();
@@ -441,12 +499,20 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
     private void OnPlayModeChanged(PlayModeStateChange change)
     {
         if (change == PlayModeStateChange.ExitingEditMode)
+        {
+            SavePosesToDisk();
             DestroyPreview();
+        }
     }
 
     private void OnSceneSaving(Scene scene, string path)
     {
-        DestroyPreview();
+        SavePosesToDisk();
+    }
+
+    private void OnBeforeAssemblyReload()
+    {
+        SavePosesToDisk();
     }
 
     private static WeaponDefinition LoadDefaultDefinition()

@@ -105,12 +105,16 @@ MonoBehaviour:
   adsHidesViewmodel: 0
   scopePresentation: {fileID: 0}
   worldLocalPosition: {x: 0, y: 0.02, z: 0.05}
-  worldLocalEuler: {x: 0, y: 0, z: 0}
+  worldLocalEuler: {x: 0, y: 0, z: -6}
   worldLocalScale: {x: 1, y: 1, z: 1}
   worldStanceHeightOffset: 0.2
+  thirdPersonPoseCategory: 1
+  supportHandIkEnabled: 1
+  ikBlendDuration: 0.12
+  sprintSupportIkWeight: 0.55
   thirdPersonClass: 2
   thirdPersonPose:
-    gunEuler: {x: 0, y: 0, z: -6}
+    gunEuler: {x: 0, y: 0, z: 0}
     gunScale: {x: 1.15, y: 1.15, z: 1.15}
     rightHandPosition: {x: 0.1, y: -0.1, z: 0.4}
     rightWristEuler: {x: 50, y: 0, z: 10}
@@ -122,6 +126,16 @@ MonoBehaviour:
     sprintRightWristEuler: {x: 14, y: 16, z: -8}
     proneRightHandPosition: {x: 0.21, y: -0.08, z: 0.5}
     proneRightWristEuler: {x: 0, y: 0, z: 0}
+    crouchRightHandPosition: {x: 0, y: 0, z: 0}
+    crouchRightWristEuler: {x: 0, y: 0, z: 0}
+    aimGunPosition: {x: 0, y: 0, z: 0}
+    aimGunEuler: {x: 0, y: 0, z: 0}
+    sprintGunPosition: {x: 0, y: 0, z: 0}
+    sprintGunEuler: {x: 0, y: 0, z: 0}
+    crouchGunPosition: {x: 0, y: 0, z: 0}
+    crouchGunEuler: {x: 0, y: 0, z: 0}
+    proneGunPosition: {x: 0, y: 0, z: 0}
+    proneGunEuler: {x: 0, y: 0, z: 0}
     leftHandFollowGrip: 0
     leftHandPosition: {x: 0, y: 0, z: 0}
     leftWristEuler: {x: 50, y: 50, z: 0}
@@ -133,6 +147,8 @@ MonoBehaviour:
     sprintLeftWristEuler: {x: 0, y: 0, z: 0}
     proneLeftHandPosition: {x: 0, y: 0, z: 0}
     proneLeftWristEuler: {x: 0, y: 0, z: 0}
+    crouchLeftHandPosition: {x: 0, y: 0, z: 0}
+    crouchLeftWristEuler: {x: 0, y: 0, z: 0}
     sprintLeftIkWeight: 0.45
     defaultWeight: 1
     sprintWeight: 0.22

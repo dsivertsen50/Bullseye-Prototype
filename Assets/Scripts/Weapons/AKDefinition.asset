@@ -104,28 +104,51 @@ MonoBehaviour:
   adsSensitivityMultiplier: 0.4
   adsHidesViewmodel: 0
   scopePresentation: {fileID: 0}
-  worldLocalPosition: {x: 0, y: 0.02, z: 0.05}
-  worldLocalEuler: {x: 0, y: 0, z: 0}
+  worldLocalPosition: {x: -0.29079676, y: 0.3420776, z: -0.055195387}
+  worldLocalEuler: {x: 358.15, y: 268.24774, z: 37.197865}
   worldLocalScale: {x: 1, y: 1, z: 1}
   worldStanceHeightOffset: 0.2
+  thirdPersonPoseCategory: 1
+  supportHandIkEnabled: 1
+  ikBlendDuration: 0.12
+  sprintSupportIkWeight: 0.55
   thirdPersonClass: 1
   thirdPersonPose:
-    gunEuler: {x: 0, y: 0, z: -8}
+    gunEuler: {x: 0, y: 0, z: 0}
     gunScale: {x: 1.15, y: 1.15, z: 1.15}
-    rightHandPosition: {x: 0.2, y: -0.3, z: 0.5}
-    rightWristEuler: {x: 30, y: 0, z: 20}
+    rightHandPosition: {x: 0.1577785, y: -0.0872339, z: 0.3626918}
+    rightWristEuler: {x: 50.68905, y: 11.812509, z: 27.918701}
     rightArmReach: 0.7
     rightElbowYaw: 108
-    aimRightHandPosition: {x: 0.16, y: -0.22, z: 0.44}
-    aimRightWristEuler: {x: 30, y: 0, z: 20}
+    aimRightHandPosition: {x: 0.049560547, y: 0.048333645, z: 0.6055774}
+    aimRightWristEuler: {x: 49.348663, y: 4.1051807, z: 10.651735}
     sprintRightHandPosition: {x: 0.26, y: -0.14, z: 0.38}
     sprintRightWristEuler: {x: 12, y: 16, z: -8}
-    proneRightHandPosition: {x: 0.2, y: -0.08, z: 0.52}
-    proneRightWristEuler: {x: 0, y: 0, z: 0}
-    leftWristEuler: {x: 50, y: 45, z: -10}
+    proneRightHandPosition: {x: 0.30259705, y: -0.5707624, z: 0.2553927}
+    proneRightWristEuler: {x: 326.85617, y: 7.4688177, z: 169.67673}
+    crouchRightHandPosition: {x: 0, y: 0, z: 0}
+    crouchRightWristEuler: {x: 0, y: 0, z: 0}
+    aimGunPosition: {x: 0, y: 0, z: 0}
+    aimGunEuler: {x: 0, y: 0, z: 0}
+    sprintGunPosition: {x: 0, y: 0, z: 0}
+    sprintGunEuler: {x: 0, y: 0, z: 0}
+    crouchGunPosition: {x: 0, y: 0, z: 0}
+    crouchGunEuler: {x: 0, y: 0, z: 0}
+    proneGunPosition: {x: 0, y: 0, z: 0}
+    proneGunEuler: {x: 0, y: 0, z: 0}
+    leftHandFollowGrip: 0
+    leftHandPosition: {x: 0.11508012, y: -0.08643055, z: 0.43687972}
+    leftWristEuler: {x: 48.009686, y: 41.84442, z: 44.942142}
     leftArmReach: 0.98
-    leftElbowYaw: -133
-    aimLeftWristEuler: {x: 50, y: 45, z: -10}
+    leftElbowYaw: -108.07942
+    aimLeftHandPosition: {x: 0.04066086, y: 0.10591173, z: 0.44840255}
+    aimLeftWristEuler: {x: 71.163635, y: 32.25939, z: 337.72382}
+    sprintLeftHandPosition: {x: -0.4986446, y: -0.4222114, z: 0.28042603}
+    sprintLeftWristEuler: {x: 2.3760962, y: 297.79333, z: 305.73004}
+    proneLeftHandPosition: {x: 0.2667985, y: -0.7804061, z: 0.3746569}
+    proneLeftWristEuler: {x: 313.1957, y: 28.056398, z: 222.08809}
+    crouchLeftHandPosition: {x: 0, y: 0, z: 0}
+    crouchLeftWristEuler: {x: 0, y: 0, z: 0}
     sprintLeftIkWeight: 0.45
     defaultWeight: 1
     sprintWeight: 0.22

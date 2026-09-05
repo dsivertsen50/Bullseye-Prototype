@@ -1,11 +1,12 @@
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Animations.Rigging;
 
 /// <summary>
-/// Third-person weapon hold, left-hand IK, and upper-body aim.
-/// Parents the world weapon to the right-hand socket and reconstructs
-/// the pose locally from networked gameplay state.
-/// Does not control firing, movement, or first-person weapons.
+/// Third-person weapon architecture: locomotion drives the body, the
+/// right-hand socket carries the weapon, and Animation Rigging Two Bone IK
+/// places the support hand on the weapon grip.
+/// Does not control first-person weapons, firing, or movement.
 /// </summary>
 [DefaultExecutionOrder(80)]
 public class ThirdPersonWeaponRig : MonoBehaviour
@@ -19,8 +20,12 @@ public class ThirdPersonWeaponRig : MonoBehaviour
     [SerializeField] private Transform visualRoot;
     [SerializeField] private Transform weaponSocket;
     [SerializeField] private Transform aimTarget;
+    [SerializeField] private Transform leftHandIkTarget;
     [SerializeField] private Transform leftElbowHint;
-    [SerializeField] private Transform rightElbowHint;
+    [SerializeField] private RigBuilder rigBuilder;
+    [SerializeField] private Rig weaponRig;
+    [SerializeField] private TwoBoneIKConstraint leftHandIk;
+    [SerializeField] private MultiAimConstraint spineAim;
 
     [Header("Blending")]
     [SerializeField] private float poseBlendTime = 0.14f;
@@ -28,84 +33,80 @@ public class ThirdPersonWeaponRig : MonoBehaviour
     [SerializeField] private float sprintBlendTime = 0.16f;
     [SerializeField] private float proneBlendTime = 0.18f;
     [SerializeField] private float switchBlendTime = 0.1f;
+    [SerializeField] private float reloadBlendTime = 0.12f;
     [SerializeField, Range(0f, 1f)] private float ikWeight = 1f;
     [SerializeField, Range(0f, 1f)] private float leftIkWeight = 1f;
-    [SerializeField, Range(0f, 1f)] private float aimIkWeight = 1f;
+    [SerializeField, Range(0f, 1f)] private float hintWeight = 1f;
+    [SerializeField, Range(0f, 1f)] private float aimIkWeight;
 
     [Header("Debug")]
     [SerializeField] private bool drawGizmos = true;
+    [SerializeField] private bool showDebugOverlay;
     [SerializeField, Range(0f, 1f)] private float debugPoseWeight;
     [SerializeField] private string debugWeapon;
+    [SerializeField] private string debugPoseCategory;
+    [SerializeField] private string debugMovementState;
+    [SerializeField] private float debugRigWeight;
+    [SerializeField] private float debugLeftIkWeight;
 
     private NetworkObject networkObject;
     private Transform upperChest;
-    private Transform chest;
-    private Transform spine;
-    private Transform rightUpper;
-    private Transform rightLower;
-    private Transform rightHand;
-    private Transform leftUpper;
-    private Transform leftLower;
-    private Transform leftHand;
+    private string missingGripWarningId;
     private float poseWeight;
     private float aimBlend;
     private float sprintBlend;
+    private float crouchBlend;
     private float proneBlend;
+    private float reloadBlend;
     private float switchBlend = 1f;
-    private float recoilWeight;
     private float previewPitch;
     private Vector3 debugGunPosition;
     private Quaternion debugGunRotation;
-    private Vector3 debugRightHandPosition;
-    private Quaternion debugRightHandRotation;
-    private Vector3 debugLeftHandPosition;
-    private Quaternion debugLeftHandRotation;
-    private Vector3 debugRightElbowPole;
-    private Vector3 debugLeftElbowPole;
-    private Quaternion debugFacing;
-    private Quaternion debugPitchRot;
 
     public float WeaponPoseWeight => poseWeight * switchBlend;
     public bool DrawPoseGuides => drawGizmos;
     public float AimBlend => aimBlend;
+    public float SprintBlend => sprintBlend;
+    public float CrouchBlend => crouchBlend;
+    public float ProneBlend => proneBlend;
+    public float LeftIkWeight => debugLeftIkWeight;
+    public float RigWeight => debugRigWeight;
     public Transform WeaponSocket => weaponSocket;
     public Transform AimTarget => aimTarget;
+    public Transform LeftHandIkTarget => leftHandIkTarget;
+    public Transform LeftElbowHint => leftElbowHint;
     public WeaponDefinition ActiveDefinition => worldWeapon != null ? worldWeapon.Definition : null;
     public bool IsEditorPreview { get; private set; }
+    public ThirdPersonPoseCategory ActivePoseCategory =>
+        ActiveDefinition != null ? ActiveDefinition.PoseCategory : ThirdPersonPoseCategory.Pistol;
 
     public bool TryGetPoseGuide(out ThirdPersonPoseGuide guide)
     {
         guide = default;
-        if (upperChest == null)
+        if (weaponSocket == null && worldWeapon == null)
             return false;
 
         guide.gunPosition = debugGunPosition;
         guide.gunRotation = debugGunRotation;
-        guide.rightHandPosition = debugRightHandPosition;
-        guide.rightHandRotation = debugRightHandRotation;
-        guide.leftHandPosition = debugLeftHandPosition;
-        guide.leftHandRotation = debugLeftHandRotation;
-        guide.rightElbowPole = debugRightElbowPole;
-        guide.leftElbowPole = debugLeftElbowPole;
-        guide.rightUpperPosition = rightUpper != null ? rightUpper.position : debugRightHandPosition;
-        guide.leftUpperPosition = leftUpper != null ? leftUpper.position : debugLeftHandPosition;
+        guide.socketPosition = weaponSocket != null ? weaponSocket.position : debugGunPosition;
+        Transform grip = worldWeapon != null ? worldWeapon.LeftHandIkTarget : leftHandIkTarget;
+        if (grip != null)
+        {
+            guide.leftGripPosition = grip.position;
+            guide.leftGripRotation = grip.rotation;
+        }
+
+        Transform hint = worldWeapon != null && worldWeapon.LeftElbowHint != null
+            ? worldWeapon.LeftElbowHint
+            : leftElbowHint;
+        if (hint != null)
+            guide.leftElbowHintPosition = hint.position;
+
         guide.definition = ActiveDefinition;
-        guide.aimBlend = aimBlend;
-        guide.sprintBlend = sprintBlend;
-        guide.proneBlend = proneBlend;
-        ThirdPersonWeaponPose pose = ActiveDefinition != null ? ActiveDefinition.ThirdPersonPose : null;
-        Transform grip = worldWeapon != null ? worldWeapon.LeftHandIkTarget : null;
-        guide.leftHandFollowsGrip = pose != null &&
-            (pose.leftHandFollowGrip || (pose.leftHandPosition.sqrMagnitude < 0.0001f && grip != null));
+        guide.poseCategory = debugPoseCategory;
+        guide.leftIkWeight = debugLeftIkWeight;
+        guide.rigWeight = debugRigWeight;
         return true;
-    }
-
-    public Vector3 WorldToChest(Vector3 world)
-    {
-        if (upperChest == null)
-            return Vector3.zero;
-
-        return Quaternion.Inverse(debugPitchRot * debugFacing) * (world - upperChest.position);
     }
 
     public Vector3 WorldToSocket(Vector3 world)
@@ -121,24 +122,8 @@ public class ThirdPersonWeaponRig : MonoBehaviour
         if (weaponSocket == null)
             return Vector3.zero;
 
-        Quaternion extra = Quaternion.identity;
-        ThirdPersonWeaponPose pose = ActiveDefinition != null ? ActiveDefinition.ThirdPersonPose : null;
-        if (pose != null)
-            extra = Quaternion.Euler(pose.gunEuler);
-
-        Quaternion local = Quaternion.Inverse(weaponSocket.rotation * extra) * world;
+        Quaternion local = Quaternion.Inverse(weaponSocket.rotation) * world;
         return local.eulerAngles;
-    }
-
-    public Vector3 WorldRotToChestEuler(Quaternion world)
-    {
-        Quaternion local = Quaternion.Inverse(debugPitchRot * debugFacing) * world;
-        return local.eulerAngles;
-    }
-
-    public float ElbowYawFromPole(Vector3 upperPosition, Vector3 handPosition, Vector3 pole, bool left)
-    {
-        return SignedElbowYaw(upperPosition, handPosition, pole, left);
     }
 
     public bool TryGetLeftGripWorld(out Vector3 position, out Quaternion rotation)
@@ -167,61 +152,51 @@ public class ThirdPersonWeaponRig : MonoBehaviour
             coordinator = GetComponent<WeaponPresentationCoordinator>();
         ResolveHierarchy();
         EnsureGuideTransforms();
-    }
-
-    private void OnEnable()
-    {
-        if (coordinator != null)
-            coordinator.Fired += OnFired;
-    }
-
-    private void OnDisable()
-    {
-        if (coordinator != null)
-            coordinator.Fired -= OnFired;
+        EnsureAnimationRig();
     }
 
     private void LateUpdate()
     {
         if (!CanPose())
+        {
+            ApplyRigWeights(0f, 0f, 0f, 0f);
             return;
+        }
 
         ResolveHierarchy();
-        if (thirdPersonAnimator == null || rightHand == null)
+        if (thirdPersonAnimator == null || weaponSocket == null)
             return;
 
-        ThirdPersonWeaponPose pose = worldWeapon != null
-            ? worldWeapon.ActiveThirdPersonPose
-            : null;
-        if (pose == null)
-            pose = ThirdPersonWeaponPose.CreateDefault(ThirdPersonWeaponClass.Pistol);
-
+        WeaponDefinition definition = ActiveDefinition;
         float dt = Time.deltaTime;
-        float targetWeight = ResolveTargetWeight(pose);
-        poseWeight = MoveToward(poseWeight, targetWeight, dt, poseBlendTime);
+        float blendTime = definition != null ? definition.IkBlendDuration : poseBlendTime;
+        float targetWeight = ResolveTargetWeight(definition);
+        poseWeight = MoveToward(poseWeight, targetWeight, dt, blendTime);
         debugPoseWeight = poseWeight;
 
         bool sprinting = animationState != null && animationState.IsSprinting && !animationState.IsProne;
         bool aiming = animationState != null && animationState.IsAiming && !sprinting;
+        bool crouching = animationState != null && animationState.IsCrouching && !animationState.IsProne && !sprinting;
         bool prone = animationState != null && animationState.IsProne;
+        bool reloading = animationState != null && animationState.IsReloading;
         aimBlend = MoveToward(aimBlend, aiming ? 1f : 0f, dt, aimBlendTime);
         sprintBlend = MoveToward(sprintBlend, sprinting ? 1f : 0f, dt, sprintBlendTime);
+        crouchBlend = MoveToward(crouchBlend, crouching ? 1f : 0f, dt, poseBlendTime);
         proneBlend = MoveToward(proneBlend, prone ? 1f : 0f, dt, proneBlendTime);
+        reloadBlend = MoveToward(reloadBlend, reloading ? 1f : 0f, dt, reloadBlendTime);
         switchBlend = MoveToward(switchBlend, 1f, dt, switchBlendTime);
-        recoilWeight = MoveToward(recoilWeight, 0f, dt, pose.recoilOutTime);
 
-        float appliedWeight = poseWeight * switchBlend * ikWeight;
-        CacheFacing(pose);
-        ApplySpineAim(pose, appliedWeight);
-        ApplyRightArm(pose, appliedWeight);
         worldWeapon?.AttachToSocket();
-        ApplyLeftArm(pose, appliedWeight);
-        UpdateGuideTransforms(pose);
+        UpdateIkTargets(definition);
+        UpdateAimTarget();
+        ApplyResolvedWeights(definition);
+        CacheDebug(definition);
     }
 
     public void NotifyWeaponChanged()
     {
         switchBlend = 0f;
+        missingGripWarningId = null;
         worldWeapon?.BindThirdPersonVisual();
         debugWeapon = worldWeapon != null && worldWeapon.Definition != null
             ? worldWeapon.Definition.WeaponId
@@ -233,9 +208,10 @@ public class ThirdPersonWeaponRig : MonoBehaviour
         poseWeight = 0f;
         aimBlend = 0f;
         sprintBlend = 0f;
+        crouchBlend = 0f;
         proneBlend = 0f;
+        reloadBlend = 0f;
         switchBlend = 1f;
-        recoilWeight = 0f;
     }
 
     public void BeginEditorPreview()
@@ -246,51 +222,37 @@ public class ThirdPersonWeaponRig : MonoBehaviour
             worldWeapon = GetComponent<WorldWeaponView>();
         ResolveHierarchy();
         EnsureGuideTransforms();
+        EnsureAnimationRig();
     }
 
-    public void ApplyEditorPreview(float aim, float sprint, float prone, float pitch, float weight = 1f)
+    public void ApplyEditorPreview(float aim, float sprint, float prone, float pitch, float weight = 1f, float crouch = 0f)
     {
         IsEditorPreview = true;
         ResolveHierarchy();
-        if (rightHand == null)
+        if (weaponSocket == null)
             return;
-
-        ThirdPersonWeaponPose pose = worldWeapon != null
-            ? worldWeapon.ActiveThirdPersonPose
-            : null;
-        if (pose == null)
-            pose = ThirdPersonWeaponPose.CreateDefault(ThirdPersonWeaponClass.Pistol);
 
         previewPitch = pitch;
         aimBlend = Mathf.Clamp01(aim);
         sprintBlend = Mathf.Clamp01(sprint);
+        crouchBlend = Mathf.Clamp01(crouch);
         proneBlend = Mathf.Clamp01(prone);
+        reloadBlend = 0f;
         poseWeight = Mathf.Clamp01(weight);
         switchBlend = 1f;
-        recoilWeight = 0f;
         debugPoseWeight = poseWeight;
         debugWeapon = ActiveDefinition != null ? ActiveDefinition.WeaponId : string.Empty;
 
-        float appliedWeight = poseWeight * ikWeight;
-        CacheFacing(pose);
-        ApplySpineAim(pose, appliedWeight);
-        ApplyRightArm(pose, appliedWeight);
         worldWeapon?.AttachToSocket();
-        ApplyLeftArm(pose, appliedWeight);
-        UpdateGuideTransforms(pose);
+        UpdateIkTargets(ActiveDefinition);
+        UpdateAimTarget();
+        ApplyResolvedWeights(ActiveDefinition);
+        CacheDebug(ActiveDefinition);
     }
 
     public void EndEditorPreview()
     {
         IsEditorPreview = false;
-    }
-
-    private void OnFired()
-    {
-        if (!CanPose())
-            return;
-
-        recoilWeight = 1f;
     }
 
     private bool CanPose()
@@ -306,161 +268,124 @@ public class ThirdPersonWeaponRig : MonoBehaviour
         return true;
     }
 
-    private float ResolveTargetWeight(ThirdPersonWeaponPose pose)
+    private float ResolveTargetWeight(WeaponDefinition definition)
     {
         if (playerHealth != null && playerHealth.IsDead)
             return 0f;
+        if (definition == null)
+            return 0f;
         if (animationState == null)
-            return pose.defaultWeight;
+            return 1f;
         if (animationState.IsDolphinDiving)
-            return pose.diveWeight;
-        if (animationState.IsProne)
-            return pose.proneWeight;
-        if (animationState.IsAirborne)
-            return pose.jumpWeight;
-        if (animationState.IsSprinting)
-            return pose.sprintWeight;
-        if (animationState.IsCrouching)
-            return pose.crouchWeight;
-        return pose.defaultWeight;
+            return 0.12f;
+        return 1f;
     }
 
-    private void ApplySpineAim(ThirdPersonWeaponPose pose, float weight)
+    private void ApplyResolvedWeights(WeaponDefinition definition)
     {
-        if (weight <= 0.0001f || pose.spineAimWeight <= 0.0001f)
-            return;
-
-        float pitch = ResolveClampedPitch(pose);
-        pitch += pose.aimRaisePitch * aimBlend;
-        pitch += pose.recoilPitch * recoilWeight;
-        float spinePitch = pitch * pose.spineAimWeight * weight;
-        float roll = pose.recoilRightRoll * recoilWeight * weight;
-        float yaw = pose.recoilYaw * recoilWeight * weight;
-        if (Mathf.Abs(spinePitch) < 0.01f && Mathf.Abs(roll) < 0.01f && Mathf.Abs(yaw) < 0.01f)
-            return;
-
-        Vector3 pitchAxis = transform.right;
-        Vector3 yawAxis = transform.up;
-        Vector3 rollAxis = transform.forward;
-        float chestShare = Mathf.Clamp01(pose.upperChestAimShare);
-        float remainder = 1f - chestShare;
-        if (spine != null)
+        float appliedRig = poseWeight * switchBlend * ikWeight;
+        bool support = definition != null && definition.UsesSupportHandIk;
+        float targetLeft = 0f;
+        if (support && HasSupportGrip(definition, out _))
         {
-            spine.rotation = Quaternion.AngleAxis(yaw * remainder * 0.35f, yawAxis) *
-                Quaternion.AngleAxis(spinePitch * remainder * 0.35f, pitchAxis) *
-                spine.rotation;
+            targetLeft = leftIkWeight;
+            if (sprintBlend > 0.01f)
+            {
+                float sprintIk = definition != null ? definition.SprintSupportIkWeight : 0.55f;
+                targetLeft *= Mathf.Lerp(1f, sprintIk, sprintBlend);
+            }
+
+            targetLeft *= 1f - reloadBlend;
         }
 
-        if (chest != null)
+        float appliedLeft = appliedRig * targetLeft;
+        float appliedHint = appliedLeft * hintWeight;
+        float appliedAim = appliedRig * aimBlend * aimIkWeight;
+        ApplyRigWeights(appliedRig, appliedLeft, appliedHint, appliedAim);
+    }
+
+    private void ApplyRigWeights(float rig, float left, float hint, float aim)
+    {
+        debugRigWeight = rig;
+        debugLeftIkWeight = left;
+        if (weaponRig != null)
+            weaponRig.weight = rig;
+        if (leftHandIk != null)
         {
-            chest.rotation = Quaternion.AngleAxis(yaw * remainder * 0.65f, yawAxis) *
-                Quaternion.AngleAxis(roll * 0.45f, rollAxis) *
-                Quaternion.AngleAxis(spinePitch * remainder * 0.65f, pitchAxis) *
-                chest.rotation;
+            leftHandIk.weight = left;
+            TwoBoneIKConstraintData data = leftHandIk.data;
+            data.hintWeight = hint;
+            leftHandIk.data = data;
         }
 
-        if (upperChest != null)
+        if (spineAim != null)
+            spineAim.weight = aim;
+    }
+
+    private void UpdateIkTargets(WeaponDefinition definition)
+    {
+        if (!HasSupportGrip(definition, out Transform grip))
+            return;
+
+        if (leftHandIkTarget != null)
         {
-            upperChest.rotation = Quaternion.AngleAxis(yaw * chestShare, yawAxis) *
-                Quaternion.AngleAxis(roll * 0.55f, rollAxis) *
-                Quaternion.AngleAxis(spinePitch * chestShare, pitchAxis) *
-                upperChest.rotation;
+            leftHandIkTarget.SetPositionAndRotation(grip.position, grip.rotation);
+        }
+
+        Transform weaponHint = worldWeapon != null ? worldWeapon.LeftElbowHint : null;
+        if (leftElbowHint != null && weaponHint != null)
+            leftElbowHint.SetPositionAndRotation(weaponHint.position, weaponHint.rotation);
+        else if (leftElbowHint != null && leftHandIkTarget != null && upperChest != null)
+        {
+            Vector3 toGrip = leftHandIkTarget.position - upperChest.position;
+            Vector3 side = Vector3.Cross(toGrip.sqrMagnitude > 0.0001f ? toGrip.normalized : transform.forward, transform.up);
+            if (side.sqrMagnitude < 0.0001f)
+                side = -transform.right;
+            leftElbowHint.position = upperChest.position - side.normalized * 0.22f + transform.forward * 0.08f;
         }
     }
 
-    private void CacheFacing(ThirdPersonWeaponPose pose)
+    private bool HasSupportGrip(WeaponDefinition definition, out Transform grip)
     {
-        debugFacing = ResolveUprightFacing();
-        float pitch = ResolveClampedPitch(pose) + pose.aimRaisePitch * aimBlend;
-        pitch = Mathf.Lerp(pitch, pose.ResolvedProneBodyPitch() + ResolveClampedPitch(pose) * 0.25f, proneBlend);
-        debugPitchRot = Quaternion.AngleAxis(pitch, transform.right);
-    }
+        grip = worldWeapon != null ? worldWeapon.LeftHandIkTarget : null;
+        if (definition == null || !definition.UsesSupportHandIk)
+            return false;
+        if (grip != null)
+            return true;
 
-    private void ApplyRightArm(ThirdPersonWeaponPose pose, float weight)
-    {
-        if (rightUpper == null || rightLower == null || rightHand == null || upperChest == null)
-            return;
-
-        Vector3 localPos = Vector3.Lerp(pose.rightHandPosition, pose.ResolvedSprintRightHand(), sprintBlend);
-        localPos = Vector3.Lerp(localPos, pose.ResolvedProneRightHand(), proneBlend);
-        localPos = Vector3.Lerp(localPos, pose.aimRightHandPosition, aimBlend * aimIkWeight);
-
-        Quaternion localRot = Quaternion.Slerp(
-            Quaternion.Euler(pose.rightWristEuler),
-            Quaternion.Euler(pose.ResolvedSprintRightWrist()),
-            sprintBlend);
-        localRot = Quaternion.Slerp(localRot, Quaternion.Euler(pose.ResolvedProneRightWrist()), proneBlend);
-        localRot = Quaternion.Slerp(localRot, Quaternion.Euler(pose.aimRightWristEuler), aimBlend * aimIkWeight);
-
-        Vector3 worldPos = ChestToWorld(localPos);
-        Quaternion worldRot = ChestToWorldRotation(localRot);
-        Vector3 pole = ElbowPole(rightUpper.position, worldPos, pose.rightElbowYaw, false);
-
-        debugRightHandPosition = worldPos;
-        debugRightHandRotation = worldRot;
-        debugRightElbowPole = pole;
-        if (rightElbowHint != null)
-            rightElbowHint.position = pole;
-
-        ThirdPersonTwoBoneIK.Solve(rightUpper, rightLower, rightHand, worldPos, pole, weight, pose.rightArmReach);
-        ThirdPersonTwoBoneIK.ApplyEndRotation(rightHand, worldRot, weight);
-    }
-
-    private void ApplyLeftArm(ThirdPersonWeaponPose pose, float weight)
-    {
-        if (leftUpper == null || leftLower == null || leftHand == null)
-            return;
-
-        Transform grip = worldWeapon != null ? worldWeapon.LeftHandIkTarget : null;
-        bool followGrip = pose.leftHandFollowGrip ||
-                          (pose.leftHandPosition.sqrMagnitude < 0.0001f && grip != null);
-
-        Vector3 worldPos;
-        Quaternion worldRot;
-        if (followGrip && grip != null)
+        if (missingGripWarningId != definition.WeaponId)
         {
-            worldPos = grip.position;
-            worldRot = grip.rotation * Quaternion.Euler(
-                Vector3.Lerp(pose.leftWristEuler, pose.aimLeftWristEuler, aimBlend));
-        }
-        else if (upperChest != null)
-        {
-            Vector3 localPos = Vector3.Lerp(pose.ResolvedLeftHand(), pose.ResolvedSprintLeftHand(), sprintBlend);
-            localPos = Vector3.Lerp(localPos, pose.ResolvedProneLeftHand(), proneBlend);
-            localPos = Vector3.Lerp(localPos, pose.ResolvedAimLeftHand(), aimBlend * aimIkWeight);
-
-            Quaternion localRot = Quaternion.Slerp(
-                Quaternion.Euler(pose.leftWristEuler),
-                Quaternion.Euler(pose.ResolvedSprintLeftWrist()),
-                sprintBlend);
-            localRot = Quaternion.Slerp(localRot, Quaternion.Euler(pose.ResolvedProneLeftWrist()), proneBlend);
-            localRot = Quaternion.Slerp(localRot, Quaternion.Euler(pose.aimLeftWristEuler), aimBlend * aimIkWeight);
-
-            worldPos = ChestToWorld(localPos);
-            worldRot = ChestToWorldRotation(localRot);
-        }
-        else
-        {
-            return;
+            missingGripWarningId = definition.WeaponId;
+            Debug.LogWarning(
+                $"[ThirdPersonWeaponRig] {definition.DisplayName} is configured as a two-handed weapon but no LeftHandGrip target was found.",
+                this);
         }
 
-        float leftWeight = weight * leftIkWeight;
-        if (sprintBlend > 0.01f)
-            leftWeight *= Mathf.Lerp(1f, pose.ResolvedSprintLeftIkWeight(), sprintBlend);
-
-        Vector3 pole = ElbowPole(leftUpper.position, worldPos, pose.leftElbowYaw, true);
-        debugLeftHandPosition = worldPos;
-        debugLeftHandRotation = worldRot;
-        debugLeftElbowPole = pole;
-        if (leftElbowHint != null)
-            leftElbowHint.position = pole;
-
-        ThirdPersonTwoBoneIK.Solve(leftUpper, leftLower, leftHand, worldPos, pole, leftWeight, pose.leftArmReach);
-        ThirdPersonTwoBoneIK.ApplyEndRotation(leftHand, worldRot, leftWeight);
+        return false;
     }
 
-    private void UpdateGuideTransforms(ThirdPersonWeaponPose pose)
+    private void UpdateAimTarget()
     {
+        if (aimTarget == null)
+            return;
+
+        Vector3 origin = upperChest != null
+            ? upperChest.position
+            : transform.position + Vector3.up * 1.4f;
+        float pitch = IsEditorPreview
+            ? previewPitch
+            : animationState != null ? animationState.AimPitch : 0f;
+        pitch = Mathf.Clamp(pitch, -50f, 50f);
+        Quaternion facing = ResolveUprightFacing();
+        Quaternion pitchRot = Quaternion.AngleAxis(pitch, transform.right);
+        aimTarget.position = origin + pitchRot * (facing * Vector3.forward) * 2.2f;
+        aimTarget.rotation = pitchRot * facing;
+    }
+
+    private void CacheDebug(WeaponDefinition definition)
+    {
+        debugPoseCategory = definition != null ? definition.PoseCategory.ToString() : "None";
+        debugWeapon = definition != null ? definition.WeaponId : string.Empty;
         if (worldWeapon != null && worldWeapon.WorldWeaponRoot != null)
         {
             debugGunPosition = worldWeapon.WorldWeaponRoot.position;
@@ -472,69 +397,24 @@ public class ThirdPersonWeaponRig : MonoBehaviour
             debugGunRotation = weaponSocket.rotation;
         }
 
-        if (aimTarget == null)
+        if (animationState == null)
+        {
+            debugMovementState = IsEditorPreview ? "Preview" : "None";
             return;
+        }
 
-        Vector3 origin = upperChest != null ? upperChest.position : transform.position + Vector3.up * 1.4f;
-        aimTarget.position = origin + debugPitchRot * (debugFacing * Vector3.forward) * 2.2f;
-        aimTarget.rotation = debugPitchRot * debugFacing;
-    }
-
-    private Vector3 ChestToWorld(Vector3 local)
-    {
-        return upperChest.position + debugPitchRot * (debugFacing * local);
-    }
-
-    private Quaternion ChestToWorldRotation(Quaternion local)
-    {
-        return debugPitchRot * debugFacing * local;
-    }
-
-    private Vector3 ElbowPole(Vector3 upperPosition, Vector3 handPosition, float yaw, bool left)
-    {
-        Vector3 toHand = handPosition - upperPosition;
-        if (toHand.sqrMagnitude < 0.0001f)
-            toHand = transform.forward;
-        toHand.Normalize();
-
-        Vector3 side = Vector3.Cross(toHand, transform.up);
-        if (side.sqrMagnitude < 0.0001f)
-            side = Vector3.Cross(toHand, transform.right);
-        side.Normalize();
-        if (left)
-            side = -side;
-
-        Vector3 poleDir = Quaternion.AngleAxis(yaw, toHand) * side;
-        return upperPosition + poleDir * 0.4f;
-    }
-
-    private float SignedElbowYaw(Vector3 upperPosition, Vector3 handPosition, Vector3 pole, bool left)
-    {
-        Vector3 toHand = handPosition - upperPosition;
-        if (toHand.sqrMagnitude < 0.0001f)
-            return 0f;
-        toHand.Normalize();
-
-        Vector3 side = Vector3.Cross(toHand, transform.up);
-        if (side.sqrMagnitude < 0.0001f)
-            side = Vector3.Cross(toHand, transform.right);
-        side.Normalize();
-        if (left)
-            side = -side;
-
-        Vector3 poleDir = Vector3.ProjectOnPlane(pole - upperPosition, toHand);
-        if (poleDir.sqrMagnitude < 0.0001f)
-            return 0f;
-
-        return Vector3.SignedAngle(side, poleDir.normalized, toHand);
-    }
-
-    private float ResolveClampedPitch(ThirdPersonWeaponPose pose)
-    {
-        float pitch = IsEditorPreview
-            ? previewPitch
-            : animationState != null ? animationState.AimPitch : 0f;
-        return Mathf.Clamp(pitch, -Mathf.Abs(pose.ResolvedMaxAimPitchDown()), Mathf.Abs(pose.maxAimPitch));
+        if (animationState.IsProne)
+            debugMovementState = "Prone";
+        else if (animationState.IsSprinting)
+            debugMovementState = "Sprint";
+        else if (animationState.IsCrouching)
+            debugMovementState = "Crouch";
+        else if (animationState.IsAirborne)
+            debugMovementState = "Jump";
+        else if (animationState.IsMoving)
+            debugMovementState = "Move";
+        else
+            debugMovementState = "Idle";
     }
 
     private Quaternion ResolveUprightFacing()
@@ -569,32 +449,140 @@ public class ThirdPersonWeaponRig : MonoBehaviour
             return;
 
         if (upperChest == null)
-            upperChest = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.UpperChest);
-        if (chest == null)
-            chest = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.Chest);
-        if (spine == null)
-            spine = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.Spine);
-        if (upperChest == null)
-            upperChest = chest;
-        if (rightUpper == null)
-            rightUpper = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.RightUpperArm);
-        if (rightLower == null)
-            rightLower = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.RightLowerArm);
-        if (rightHand == null)
-            rightHand = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.RightHand);
-        if (leftUpper == null)
-            leftUpper = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
-        if (leftLower == null)
-            leftLower = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.LeftLowerArm);
-        if (leftHand == null)
-            leftHand = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.LeftHand);
-
+            upperChest = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.UpperChest)
+                ?? thirdPersonAnimator.GetBoneTransform(HumanBodyBones.Chest);
         EnsureWeaponSocket();
+        CacheRig();
+    }
+
+    private void CacheRig()
+    {
+        if (thirdPersonAnimator == null)
+            return;
+
+        if (rigBuilder == null)
+            rigBuilder = thirdPersonAnimator.GetComponent<RigBuilder>();
+        if (weaponRig == null && thirdPersonAnimator != null)
+            weaponRig = thirdPersonAnimator.GetComponentInChildren<Rig>(true);
+        if (leftHandIk == null && weaponRig != null)
+            leftHandIk = weaponRig.GetComponentInChildren<TwoBoneIKConstraint>(true);
+        if (spineAim == null && weaponRig != null)
+            spineAim = weaponRig.GetComponentInChildren<MultiAimConstraint>(true);
+    }
+
+    private void EnsureAnimationRig()
+    {
+        CacheRig();
+        if (thirdPersonAnimator == null)
+            return;
+
+        if (rigBuilder == null)
+            rigBuilder = thirdPersonAnimator.GetComponent<RigBuilder>()
+                ?? thirdPersonAnimator.gameObject.AddComponent<RigBuilder>();
+
+        if (weaponRig == null)
+        {
+            Transform rigTransform = thirdPersonAnimator.transform.Find("ThirdPersonWeaponRig");
+            if (rigTransform == null)
+            {
+                GameObject rigGo = new GameObject("ThirdPersonWeaponRig");
+                rigGo.transform.SetParent(thirdPersonAnimator.transform, false);
+                rigTransform = rigGo.transform;
+            }
+
+            weaponRig = rigTransform.GetComponent<Rig>() ?? rigTransform.gameObject.AddComponent<Rig>();
+        }
+
+        if (leftHandIk == null)
+        {
+            Transform ikTransform = weaponRig.transform.Find("LeftHandIK");
+            if (ikTransform == null)
+            {
+                GameObject ikGo = new GameObject("LeftHandIK");
+                ikGo.transform.SetParent(weaponRig.transform, false);
+                ikTransform = ikGo.transform;
+            }
+
+            leftHandIk = ikTransform.GetComponent<TwoBoneIKConstraint>()
+                ?? ikTransform.gameObject.AddComponent<TwoBoneIKConstraint>();
+        }
+
+        TwoBoneIKConstraintData ikData = leftHandIk.data;
+        if (ikData.root == null)
+            ikData.root = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+        if (ikData.mid == null)
+            ikData.mid = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.LeftLowerArm);
+        if (ikData.tip == null)
+            ikData.tip = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.LeftHand);
+        ikData.target = leftHandIkTarget;
+        ikData.hint = leftElbowHint;
+        ikData.targetPositionWeight = 1f;
+        ikData.targetRotationWeight = 1f;
+        ikData.hintWeight = 1f;
+        leftHandIk.data = ikData;
+
+        if (spineAim == null)
+        {
+            Transform aimTransform = weaponRig.transform.Find("AimRig");
+            if (aimTransform == null)
+            {
+                GameObject aimGo = new GameObject("AimRig");
+                aimGo.transform.SetParent(weaponRig.transform, false);
+                aimTransform = aimGo.transform;
+            }
+
+            spineAim = aimTransform.GetComponent<MultiAimConstraint>()
+                ?? aimTransform.gameObject.AddComponent<MultiAimConstraint>();
+            MultiAimConstraintData aimData = spineAim.data;
+            if (aimData.constrainedObject == null)
+            {
+                aimData.constrainedObject = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.Chest)
+                    ?? thirdPersonAnimator.GetBoneTransform(HumanBodyBones.Spine);
+            }
+
+            WeightedTransformArray sources = aimData.sourceObjects;
+            if (aimTarget != null)
+            {
+                if (sources.Count == 0)
+                    sources.Add(new WeightedTransform(aimTarget, 1f));
+                else
+                    sources[0] = new WeightedTransform(aimTarget, 1f);
+            }
+
+            aimData.sourceObjects = sources;
+            spineAim.data = aimData;
+            spineAim.weight = 0f;
+        }
+
+        bool hasLayer = false;
+        if (rigBuilder.layers != null)
+        {
+            for (int i = 0; i < rigBuilder.layers.Count; i++)
+            {
+                if (rigBuilder.layers[i].rig == weaponRig)
+                {
+                    hasLayer = true;
+                    break;
+                }
+            }
+        }
+
+        if (!hasLayer)
+            rigBuilder.layers.Add(new RigLayer(weaponRig, true));
+
+        if (Application.isPlaying)
+            rigBuilder.Build();
     }
 
     private void EnsureWeaponSocket()
     {
-        if (weaponSocket != null || rightHand == null)
+        if (weaponSocket != null)
+            return;
+
+        Transform rightHand = thirdPersonAnimator != null
+            ? thirdPersonAnimator.GetBoneTransform(HumanBodyBones.RightHand)
+            : null;
+        if (rightHand == null)
             return;
 
         Transform existing = rightHand.Find("WeaponSocket") ?? rightHand.Find("RightHandWeaponSocket");
@@ -604,7 +592,7 @@ public class ThirdPersonWeaponRig : MonoBehaviour
             return;
         }
 
-        GameObject socket = new GameObject("WeaponSocket");
+        GameObject socket = new GameObject("RightHandWeaponSocket");
         socket.transform.SetParent(rightHand, false);
         socket.transform.localPosition = Vector3.zero;
         socket.transform.localRotation = Quaternion.identity;
@@ -631,6 +619,15 @@ public class ThirdPersonWeaponRig : MonoBehaviour
             aimTarget = aim.transform;
         }
 
+        if (leftHandIkTarget == null)
+            leftHandIkTarget = FindNamed(transform, "LeftHandIKTarget");
+        if (leftHandIkTarget == null)
+        {
+            GameObject target = new GameObject("LeftHandIKTarget");
+            target.transform.SetParent(host, false);
+            leftHandIkTarget = target.transform;
+        }
+
         if (leftElbowHint == null)
             leftElbowHint = FindNamed(transform, "LeftElbowHint");
         if (leftElbowHint == null)
@@ -638,15 +635,6 @@ public class ThirdPersonWeaponRig : MonoBehaviour
             GameObject hint = new GameObject("LeftElbowHint");
             hint.transform.SetParent(host, false);
             leftElbowHint = hint.transform;
-        }
-
-        if (rightElbowHint == null)
-            rightElbowHint = FindNamed(transform, "RightElbowHint");
-        if (rightElbowHint == null)
-        {
-            GameObject hint = new GameObject("RightElbowHint");
-            hint.transform.SetParent(host, false);
-            rightElbowHint = hint.transform;
         }
     }
 
@@ -672,7 +660,7 @@ public class ThirdPersonWeaponRig : MonoBehaviour
 #if UNITY_EDITOR
     private void OnDrawGizmos()
     {
-        if (!drawGizmos || !CanPose())
+        if (!drawGizmos || (!CanPose() && !IsEditorPreview))
             return;
 
         Gizmos.color = new Color(1f, 0.85f, 0.15f, 0.95f);
@@ -685,27 +673,36 @@ public class ThirdPersonWeaponRig : MonoBehaviour
             Gizmos.DrawWireSphere(weaponSocket.position, 0.016f);
         }
 
-        Gizmos.color = new Color(0.25f, 1f, 0.35f, 0.95f);
-        Gizmos.DrawWireSphere(debugRightHandPosition, 0.028f);
-        if (rightUpper != null)
+        Transform grip = worldWeapon != null ? worldWeapon.LeftHandIkTarget : leftHandIkTarget;
+        if (grip != null)
         {
-            Gizmos.DrawLine(rightUpper.position, debugRightElbowPole);
-            Gizmos.DrawLine(debugRightElbowPole, debugRightHandPosition);
+            Gizmos.color = new Color(0.2f, 0.75f, 1f, 0.95f);
+            Gizmos.DrawWireSphere(grip.position, 0.024f);
+            Gizmos.DrawLine(grip.position, grip.position + grip.forward * 0.08f);
         }
 
-        Gizmos.color = new Color(0.2f, 0.75f, 1f, 0.95f);
-        Gizmos.DrawWireSphere(debugLeftHandPosition, 0.028f);
-        if (leftUpper != null)
+        Transform hint = worldWeapon != null && worldWeapon.LeftElbowHint != null
+            ? worldWeapon.LeftElbowHint
+            : leftElbowHint;
+        if (hint != null)
         {
-            Gizmos.DrawLine(leftUpper.position, debugLeftElbowPole);
-            Gizmos.DrawLine(debugLeftElbowPole, debugLeftHandPosition);
+            Gizmos.color = new Color(0.95f, 0.45f, 1f, 0.95f);
+            Gizmos.DrawWireSphere(hint.position, 0.02f);
+            if (grip != null)
+                Gizmos.DrawLine(hint.position, grip.position);
         }
+    }
 
-        if (aimTarget != null)
-        {
-            Gizmos.color = new Color(1f, 0.9f, 0.2f, 0.9f);
-            Gizmos.DrawWireSphere(aimTarget.position, 0.03f);
-        }
+    private void OnGUI()
+    {
+        if (!showDebugOverlay || !CanPose())
+            return;
+
+        GUI.color = Color.white;
+        GUI.Label(
+            new Rect(12f, 12f, 420f, 70f),
+            $"TP Weapon  {debugWeapon}  {debugPoseCategory}\n" +
+            $"State {debugMovementState}  Rig {debugRigWeight:0.00}  LeftIK {debugLeftIkWeight:0.00}");
     }
 #endif
 }
@@ -714,17 +711,12 @@ public struct ThirdPersonPoseGuide
 {
     public Vector3 gunPosition;
     public Quaternion gunRotation;
-    public Vector3 rightHandPosition;
-    public Quaternion rightHandRotation;
-    public Vector3 leftHandPosition;
-    public Quaternion leftHandRotation;
-    public Vector3 rightElbowPole;
-    public Vector3 leftElbowPole;
-    public Vector3 rightUpperPosition;
-    public Vector3 leftUpperPosition;
+    public Vector3 leftGripPosition;
+    public Quaternion leftGripRotation;
+    public Vector3 leftElbowHintPosition;
+    public Vector3 socketPosition;
     public WeaponDefinition definition;
-    public float aimBlend;
-    public float sprintBlend;
-    public float proneBlend;
-    public bool leftHandFollowsGrip;
+    public string poseCategory;
+    public float leftIkWeight;
+    public float rigWeight;
 }

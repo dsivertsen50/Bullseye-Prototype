@@ -301,6 +301,11 @@ public static class ThirdPersonWeaponSetup
             property.floatValue = value;
     }
 
+    public static void CreateUpperBodyMaskIfNeeded()
+    {
+        CreateUpperBodyMask();
+    }
+
     private static void CreateUpperBodyMask()
     {
         AvatarMask mask = AssetDatabase.LoadAssetAtPath<AvatarMask>(MaskPath);

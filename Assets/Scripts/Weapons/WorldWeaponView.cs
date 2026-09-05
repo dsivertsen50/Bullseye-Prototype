@@ -42,6 +42,7 @@ public class WorldWeaponView : NetworkBehaviour
     public bool IsRemotePresentationActive => remotePresentationEnabled;
     public ThirdPersonWeaponVisual CurrentVisual => currentVisual;
     public Transform LeftHandIkTarget => currentVisual != null ? currentVisual.LeftHandIkTarget : null;
+    public Transform LeftElbowHint => currentVisual != null ? currentVisual.LeftElbowHint : null;
     public ThirdPersonWeaponPose ActiveThirdPersonPose =>
         definition != null ? definition.ThirdPersonPose : null;
 
@@ -260,18 +261,19 @@ public class WorldWeaponView : NetworkBehaviour
         if (weaponHandAnchor != null && worldWeaponRoot.parent != weaponHandAnchor)
             worldWeaponRoot.SetParent(weaponHandAnchor, true);
 
-        Vector3 localPosition = definition != null ? definition.WorldLocalPosition : Vector3.zero;
-        Vector3 localEuler = definition != null ? definition.WorldLocalEuler : Vector3.zero;
+        Vector3 localPosition = definition != null ? definition.ThirdPersonWeaponPositionOffset : Vector3.zero;
+        Vector3 localEuler = definition != null ? definition.ThirdPersonWeaponRotationOffset : Vector3.zero;
         Vector3 localScale = definition != null ? definition.WorldLocalScale : Vector3.one;
+        Quaternion extra = Quaternion.identity;
         ThirdPersonWeaponPose pose = ActiveThirdPersonPose;
         if (pose != null)
         {
-            localEuler += pose.gunEuler;
+            extra = Quaternion.Euler(pose.gunEuler);
             if (pose.gunScale.sqrMagnitude > 0.0001f)
                 localScale = Vector3.Scale(localScale, pose.gunScale);
         }
 
-        Quaternion worldRot = socket.rotation * Quaternion.Euler(localEuler);
+        Quaternion worldRot = socket.rotation * Quaternion.Euler(localEuler) * extra;
         // Mixamo hand bones are scaled to 0.01. TransformPoint would treat
         // inspector meters as 100x too large, so offsets use rotation only.
         worldWeaponRoot.SetPositionAndRotation(

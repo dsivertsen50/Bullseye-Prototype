@@ -72,6 +72,10 @@ public class WeaponDefinition : ScriptableObject
     [SerializeField] private float worldStanceHeightOffset = 0.28f;
 
     [Header("Third-Person Pose")]
+    [SerializeField] private ThirdPersonPoseCategory thirdPersonPoseCategory = ThirdPersonPoseCategory.Pistol;
+    [SerializeField] private bool supportHandIkEnabled = true;
+    [SerializeField, Min(0.01f)] private float ikBlendDuration = 0.12f;
+    [SerializeField, Range(0f, 1f)] private float sprintSupportIkWeight = 0.55f;
     [SerializeField] private ThirdPersonWeaponClass thirdPersonClass = ThirdPersonWeaponClass.Pistol;
     [SerializeField] private ThirdPersonWeaponPose thirdPersonPose;
 
@@ -129,7 +133,15 @@ public class WeaponDefinition : ScriptableObject
     public Vector3 WorldLocalPosition => worldLocalPosition;
     public Vector3 WorldLocalEuler => worldLocalEuler;
     public Vector3 WorldLocalScale => worldLocalScale;
+    public Vector3 ThirdPersonWeaponPositionOffset => worldLocalPosition;
+    public Vector3 ThirdPersonWeaponRotationOffset => worldLocalEuler;
     public float WorldStanceHeightOffset => worldStanceHeightOffset;
+    public ThirdPersonPoseCategory PoseCategory => thirdPersonPoseCategory;
+    public bool SupportHandIkEnabled => supportHandIkEnabled;
+    public float IkBlendDuration => Mathf.Max(0.01f, ikBlendDuration);
+    public float SprintSupportIkWeight => Mathf.Clamp01(sprintSupportIkWeight);
+    public bool UsesSupportHandIk =>
+        supportHandIkEnabled && thirdPersonPoseCategory == ThirdPersonPoseCategory.LongGun;
     public ThirdPersonWeaponClass ThirdPersonClass => thirdPersonClass;
     public ThirdPersonWeaponPose ThirdPersonPose => thirdPersonPose ??= ThirdPersonWeaponPose.CreateDefault(thirdPersonClass);
     public Vector3 PickupLocalPosition => pickupLocalPosition;
@@ -161,6 +173,8 @@ public class WeaponDefinition : ScriptableObject
         adsEnterDuration = Mathf.Max(0.01f, adsEnterDuration);
         adsExitDuration = Mathf.Max(0.01f, adsExitDuration);
         adsSensitivityMultiplier = Mathf.Clamp(adsSensitivityMultiplier, 0.05f, 1.5f);
+        ikBlendDuration = Mathf.Max(0.01f, ikBlendDuration);
+        sprintSupportIkWeight = Mathf.Clamp01(sprintSupportIkWeight);
         thirdPersonPose ??= ThirdPersonWeaponPose.CreateDefault(thirdPersonClass);
     }
 }

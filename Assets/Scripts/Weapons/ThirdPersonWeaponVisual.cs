@@ -8,6 +8,7 @@ using UnityEngine;
 public class ThirdPersonWeaponVisual : MonoBehaviour
 {
     [SerializeField] private Transform leftHandIkTarget;
+    [SerializeField] private Transform leftElbowHint;
     [SerializeField] private Transform muzzle;
     [SerializeField] private Transform rightHandGrip;
     [SerializeField] private Transform aimTarget;
@@ -15,6 +16,7 @@ public class ThirdPersonWeaponVisual : MonoBehaviour
 
     public Transform LeftHandIkTarget => leftHandIkTarget;
     public Transform LeftHandGrip => leftHandIkTarget;
+    public Transform LeftElbowHint => leftElbowHint;
     public Transform Muzzle => muzzle;
     public Transform RightHandGrip => rightHandGrip;
     public Transform AimTarget => aimTarget;
@@ -28,12 +30,18 @@ public class ThirdPersonWeaponVisual : MonoBehaviour
         leftHandIkTarget.localRotation = Quaternion.Euler(localEuler);
     }
 
-    public void Assign(Transform leftHand, Transform muzzlePoint, Transform grip = null, Transform aim = null)
+    public void Assign(
+        Transform leftHand,
+        Transform muzzlePoint,
+        Transform grip = null,
+        Transform aim = null,
+        Transform elbowHint = null)
     {
         leftHandIkTarget = leftHand;
         muzzle = muzzlePoint;
         rightHandGrip = grip;
         aimTarget = aim;
+        leftElbowHint = elbowHint;
     }
 
     public void ResolveFallbacks()
@@ -43,6 +51,8 @@ public class ThirdPersonWeaponVisual : MonoBehaviour
             leftHandIkTarget = FindChild(transform, "LeftHandGrip")
                 ?? FindChild(transform, "LeftHandIKTarget");
         }
+        if (leftElbowHint == null)
+            leftElbowHint = FindChild(transform, "LeftElbowHint");
         if (muzzle == null)
             muzzle = FindChild(transform, "Muzzle") ?? FindChild(transform, "MuzzlePoint");
         if (rightHandGrip == null)
@@ -73,6 +83,7 @@ public class ThirdPersonWeaponVisual : MonoBehaviour
             return;
 
         DrawMarker(leftHandIkTarget, new Color(0.2f, 0.75f, 1f), 0.025f);
+        DrawMarker(leftElbowHint, new Color(0.95f, 0.45f, 1f), 0.022f);
         DrawMarker(muzzle, new Color(1f, 0.45f, 0.15f), 0.018f);
         DrawMarker(rightHandGrip, new Color(0.3f, 1f, 0.35f), 0.02f);
         DrawMarker(aimTarget, new Color(1f, 0.9f, 0.2f), 0.016f);

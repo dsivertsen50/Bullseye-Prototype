@@ -9,9 +9,9 @@ public enum ThirdPersonWeaponClass
 }
 
 /// <summary>
-/// Upper-body hold used by the third-person weapon rig.
-/// The gun itself is parented to the right-hand socket; these values pose
-/// the right arm and shape the left-arm IK. They are not a floating gun offset.
+/// Legacy per-bone hold data from REQ-047. REQ-048 no longer poses arms from
+/// these fields. Kept so existing WeaponDefinition assets deserialize cleanly.
+/// Socket scale and a small extra gun tilt are still read where useful.
 /// </summary>
 [Serializable]
 public class ThirdPersonWeaponPose
@@ -37,6 +37,16 @@ public class ThirdPersonWeaponPose
     public Vector3 sprintRightWristEuler;
     public Vector3 proneRightHandPosition;
     public Vector3 proneRightWristEuler;
+    public Vector3 crouchRightHandPosition;
+    public Vector3 crouchRightWristEuler;
+    public Vector3 aimGunPosition;
+    public Vector3 aimGunEuler;
+    public Vector3 sprintGunPosition;
+    public Vector3 sprintGunEuler;
+    public Vector3 crouchGunPosition;
+    public Vector3 crouchGunEuler;
+    public Vector3 proneGunPosition;
+    public Vector3 proneGunEuler;
 
     [Header("Left Arm")]
     [Tooltip("When enabled, the left hand sticks to the weapon LeftHandGrip and moves with the gun.")]
@@ -55,6 +65,8 @@ public class ThirdPersonWeaponPose
     public Vector3 sprintLeftWristEuler;
     public Vector3 proneLeftHandPosition;
     public Vector3 proneLeftWristEuler;
+    public Vector3 crouchLeftHandPosition;
+    public Vector3 crouchLeftWristEuler;
     [Range(0f, 1f)] public float sprintLeftIkWeight = 0.45f;
 
     [Header("Weights")]
@@ -154,6 +166,76 @@ public class ThirdPersonWeaponPose
         if (proneRightWristEuler.sqrMagnitude < 0.0001f)
             return rightWristEuler;
         return proneRightWristEuler;
+    }
+
+    public Vector3 ResolvedCrouchRightHand()
+    {
+        return HasOverride(crouchRightHandPosition, crouchRightWristEuler)
+            ? crouchRightHandPosition
+            : rightHandPosition;
+    }
+
+    public Vector3 ResolvedCrouchRightWrist()
+    {
+        return HasOverride(crouchRightHandPosition, crouchRightWristEuler)
+            ? crouchRightWristEuler
+            : rightWristEuler;
+    }
+
+    public Vector3 ResolvedCrouchLeftHand()
+    {
+        return HasOverride(crouchLeftHandPosition, crouchLeftWristEuler)
+            ? crouchLeftHandPosition
+            : ResolvedLeftHand();
+    }
+
+    public Vector3 ResolvedCrouchLeftWrist()
+    {
+        return HasOverride(crouchLeftHandPosition, crouchLeftWristEuler)
+            ? crouchLeftWristEuler
+            : leftWristEuler;
+    }
+
+    public void ResolveSocket(
+        Vector3 fallbackPosition,
+        Vector3 fallbackEuler,
+        float aim,
+        float sprint,
+        float crouch,
+        float prone,
+        out Vector3 position,
+        out Vector3 euler)
+    {
+        position = fallbackPosition;
+        euler = fallbackEuler;
+        if (HasOverride(crouchGunPosition, crouchGunEuler))
+        {
+            position = Vector3.Lerp(position, crouchGunPosition, crouch);
+            euler = Quaternion.Slerp(Quaternion.Euler(euler), Quaternion.Euler(crouchGunEuler), crouch).eulerAngles;
+        }
+
+        if (HasOverride(sprintGunPosition, sprintGunEuler))
+        {
+            position = Vector3.Lerp(position, sprintGunPosition, sprint);
+            euler = Quaternion.Slerp(Quaternion.Euler(euler), Quaternion.Euler(sprintGunEuler), sprint).eulerAngles;
+        }
+
+        if (HasOverride(proneGunPosition, proneGunEuler))
+        {
+            position = Vector3.Lerp(position, proneGunPosition, prone);
+            euler = Quaternion.Slerp(Quaternion.Euler(euler), Quaternion.Euler(proneGunEuler), prone).eulerAngles;
+        }
+
+        if (HasOverride(aimGunPosition, aimGunEuler))
+        {
+            position = Vector3.Lerp(position, aimGunPosition, aim);
+            euler = Quaternion.Slerp(Quaternion.Euler(euler), Quaternion.Euler(aimGunEuler), aim).eulerAngles;
+        }
+    }
+
+    public static bool HasOverride(Vector3 position, Vector3 euler)
+    {
+        return position.sqrMagnitude > 0.0000001f || euler.sqrMagnitude > 0.0000001f;
     }
 
     public float ResolvedSprintLeftIkWeight()

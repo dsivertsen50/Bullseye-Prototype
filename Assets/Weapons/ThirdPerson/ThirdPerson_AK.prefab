@@ -25,7 +25,7 @@ Transform:
   m_GameObject: {fileID: 2598292408076973882}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.02, y: -0.02, z: 0.22}
+  m_LocalPosition: {x: 0.020000054, y: -0.00849451, z: 0.21999985}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -94,6 +94,7 @@ Transform:
   m_Children:
   - {fileID: 8211331370645976606}
   - {fileID: 801183160733665840}
+  - {fileID: 9101847291038472611}
   - {fileID: 4536442553773653011}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -110,10 +111,42 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ThirdPersonWeaponVisual
   leftHandIkTarget: {fileID: 801183160733665840}
+  leftElbowHint: {fileID: 9101847291038472611}
   muzzle: {fileID: 3705671354305035677}
   rightHandGrip: {fileID: 4536442553773653011}
   aimTarget: {fileID: 4677933735418652545}
   drawGizmos: 1
+--- !u!1 &9101847291038472610
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 9101847291038472611}
+  m_Layer: 0
+  m_Name: LeftElbowHint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &9101847291038472611
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9101847291038472610}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.12000004, y: -0.080000006, z: 0.45541322}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7047021078341358148}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &5681929685597998136
 PrefabInstance:
   m_ObjectHideFlags: 0

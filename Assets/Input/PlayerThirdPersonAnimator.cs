@@ -42,6 +42,8 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     private static readonly int JumpTriggerHash = Animator.StringToHash("Jump");
     private static readonly int AimWeightHash = Animator.StringToHash("AimWeight");
     private static readonly int WeaponPoseWeightHash = Animator.StringToHash("WeaponPoseWeight");
+    private static readonly int WeaponPoseStateHash = Animator.StringToHash("WeaponPoseState");
+    private static readonly int PoseCategoryHash = Animator.StringToHash("PoseCategory");
 
     [SerializeField] private Animator thirdPersonAnimator;
     [SerializeField] private PlayerAnimationState animationState;
@@ -229,13 +231,34 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         thirdPersonAnimator.SetInteger(CurrentWeaponHash, Animator.StringToHash(animationState.CurrentWeapon));
         float aimWeight = thirdPersonRig != null ? thirdPersonRig.AimBlend : (animationState.IsAiming ? 1f : 0f);
         float weaponPoseWeight = thirdPersonRig != null ? thirdPersonRig.WeaponPoseWeight : 0f;
+        ThirdPersonPoseCategory poseCategory = thirdPersonRig != null
+            ? thirdPersonRig.ActivePoseCategory
+            : ThirdPersonPoseCategory.Pistol;
+        int poseState = 0;
+        if (poseCategory == ThirdPersonPoseCategory.LongGun)
+        {
+            if (animationState.IsProne)
+                poseState = 2;
+            else if (animationState.IsSprinting)
+                poseState = 1;
+        }
+
         if (HasParameter(AimWeightHash))
             thirdPersonAnimator.SetFloat(AimWeightHash, aimWeight);
         if (HasParameter(WeaponPoseWeightHash))
             thirdPersonAnimator.SetFloat(WeaponPoseWeightHash, weaponPoseWeight);
+        if (HasParameter(WeaponPoseStateHash))
+            thirdPersonAnimator.SetInteger(WeaponPoseStateHash, poseState);
+        if (HasParameter(PoseCategoryHash))
+            thirdPersonAnimator.SetInteger(PoseCategoryHash, (int)poseCategory);
         int weaponLayer = thirdPersonAnimator.GetLayerIndex("WeaponPose");
         if (weaponLayer >= 0)
-            thirdPersonAnimator.SetLayerWeight(weaponLayer, weaponPoseWeight);
+        {
+            float layerWeight = poseCategory == ThirdPersonPoseCategory.LongGun
+                ? weaponPoseWeight
+                : weaponPoseWeight * 0.35f;
+            thirdPersonAnimator.SetLayerWeight(weaponLayer, layerWeight);
+        }
         WriteDebug();
     }
 
