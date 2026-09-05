@@ -12,7 +12,8 @@ public class WeaponDefinitionEditor : Editor
     {
         serializedObject.Update();
         WeaponDefinition definition = (WeaponDefinition)target;
-        bool previewOwns = ThirdPersonWeaponPosePreviewWindow.OwnsDefinition(definition);
+        bool previewOwns = ThirdPersonWeaponHoldSetupWindow.OwnsDefinition(definition)
+            || ThirdPersonWeaponPoseAuthoringWindow.OwnsDefinition(definition);
 
         using (new EditorGUI.DisabledScope(true))
             EditorGUILayout.PropertyField(serializedObject.FindProperty("m_Script"));
@@ -25,9 +26,17 @@ public class WeaponDefinitionEditor : Editor
             "worldLocalEuler",
             "worldLocalScale",
             "worldStanceHeightOffset",
+            "weaponPoseClass",
+            "thirdPersonAnchorPositionOffset",
+            "thirdPersonAnchorRotationOffset",
+            "useLeftHandGrip",
+            "optionalHoldProfileOverride",
+            "thirdPersonPoseProfile",
+            "poseClassAssigned",
             "thirdPersonPoseCategory",
             "supportHandIkEnabled",
             "ikBlendDuration",
+            "weaponPoseBlendDuration",
             "sprintSupportIkWeight",
             "thirdPersonClass",
             "thirdPersonPose");
@@ -36,9 +45,8 @@ public class WeaponDefinitionEditor : Editor
         if (previewOwns)
         {
             EditorGUILayout.HelpBox(
-                "Third-Person Pose Preview is editing this asset. Socket and hold numbers " +
-                "are locked here so Inspector text fields cannot overwrite Scene drags " +
-                "when you click Save.",
+                "Third-Person Weapon Pose Authoring is editing this asset. Socket numbers " +
+                "are locked here so Inspector text fields cannot overwrite Scene drags.",
                 MessageType.Warning);
             DrawLockedPoseSummary(definition);
         }
@@ -57,27 +65,24 @@ public class WeaponDefinitionEditor : Editor
 
     private void DrawSocket()
     {
-        EditorGUILayout.LabelField("Third-Person Weapon Socket", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Third-Person Weapon Anchor", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "The world weapon attaches to RightHandWeaponSocket. " +
-            "These offsets move the weapon relative to the hand, not the arms. " +
-            "Left-hand placement lives on the weapon prefab as LeftHandGrip / LeftElbowHint.",
+            "The world weapon sits on ThirdPersonWeaponAnchor from the class hold profile. " +
+            "These offsets fine-tune that class placement. Hands follow Grip_R / Grip_L.",
             MessageType.Info);
         EditorGUILayout.PropertyField(
-            serializedObject.FindProperty("worldLocalPosition"),
-            new GUIContent("Weapon Position Offset"));
+            serializedObject.FindProperty("thirdPersonAnchorPositionOffset"),
+            new GUIContent("Anchor Position Offset"));
         EditorGUILayout.PropertyField(
-            serializedObject.FindProperty("worldLocalEuler"),
-            new GUIContent("Weapon Rotation Offset"));
+            serializedObject.FindProperty("thirdPersonAnchorRotationOffset"),
+            new GUIContent("Anchor Rotation Offset"));
         EditorGUILayout.PropertyField(
             serializedObject.FindProperty("worldLocalScale"),
             new GUIContent("Weapon Scale"));
-        if (GUILayout.Button("Reset Socket Rotation"))
+        if (GUILayout.Button("Reset Anchor Offsets"))
         {
-            serializedObject.FindProperty("worldLocalEuler").vector3Value = Vector3.zero;
-            SerializedProperty extraTilt = serializedObject.FindProperty("thirdPersonPose").FindPropertyRelative("gunEuler");
-            if (extraTilt != null)
-                extraTilt.vector3Value = Vector3.zero;
+            serializedObject.FindProperty("thirdPersonAnchorPositionOffset").vector3Value = Vector3.zero;
+            serializedObject.FindProperty("thirdPersonAnchorRotationOffset").vector3Value = Vector3.zero;
         }
     }
 
@@ -88,16 +93,16 @@ public class WeaponDefinitionEditor : Editor
             return;
 
         EditorGUILayout.Space(8f);
-        EditorGUILayout.LabelField("Third-Person Animation Rig", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Third-Person Procedural Hold", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "Long-gun weapons share an upper-body pose. The right hand carries the weapon. " +
-            "Two Bone IK puts the left hand on LeftHandGrip. Tune grip and elbow hint on the world prefab.",
+            "Assign LongGun, ShortGun, or HeavyGun. Shared hold profiles place the weapon. " +
+            "Open Third-Person Weapon Hold Setup to preview and edit Grip_R / Grip_L / Aim.",
             MessageType.Info);
 
         using (new EditorGUILayout.HorizontalScope())
         {
-            if (GUILayout.Button("Preview In Scene"))
-                ThirdPersonWeaponPosePreviewWindow.Open((WeaponDefinition)target);
+            if (GUILayout.Button("Weapon Hold Setup"))
+                ThirdPersonWeaponHoldSetupWindow.Open((WeaponDefinition)target);
             if (GUILayout.Button("Save To Disk"))
             {
                 DiscardInspectorStaleEdits((WeaponDefinition)target);
@@ -107,8 +112,14 @@ public class WeaponDefinitionEditor : Editor
         }
 
         EditorGUILayout.PropertyField(
-            serializedObject.FindProperty("thirdPersonPoseCategory"),
-            new GUIContent("Pose Category", "Pistol or LongGun. AK, DMR, and shotgun share LongGun."));
+            serializedObject.FindProperty("weaponPoseClass"),
+            new GUIContent("Weapon Hold Class", "LongGun, ShortGun, or HeavyGun."));
+        EditorGUILayout.PropertyField(
+            serializedObject.FindProperty("useLeftHandGrip"),
+            new GUIContent("Use Left Hand Grip"));
+        EditorGUILayout.PropertyField(
+            serializedObject.FindProperty("optionalHoldProfileOverride"),
+            new GUIContent("Hold Profile Override"));
         EditorGUILayout.PropertyField(
             serializedObject.FindProperty("supportHandIkEnabled"),
             new GUIContent("Support Hand IK"));
@@ -116,11 +127,11 @@ public class WeaponDefinitionEditor : Editor
             serializedObject.FindProperty("ikBlendDuration"),
             new GUIContent("IK Blend Duration"));
         EditorGUILayout.PropertyField(
+            serializedObject.FindProperty("weaponPoseBlendDuration"),
+            new GUIContent("Weapon Pose Blend Duration"));
+        EditorGUILayout.PropertyField(
             serializedObject.FindProperty("sprintSupportIkWeight"),
             new GUIContent("Sprint Support IK Weight"));
-        EditorGUILayout.PropertyField(
-            serializedObject.FindProperty("thirdPersonClass"),
-            new GUIContent("Legacy Shape", "Older pistol/rifle/shotgun label. Pose Category is the authoring control."));
 
         showWeights = EditorGUILayout.Foldout(showWeights, "Legacy Per-Bone Pose (unused by REQ-048)", true);
         if (showWeights)
@@ -430,7 +441,10 @@ public class WeaponDefinitionEditor : Editor
 
         SyncInspectors(definition);
         if (refreshPreview)
-            ThirdPersonWeaponPosePreviewWindow.NotifyDefinitionChanged(definition);
+        {
+            ThirdPersonWeaponHoldSetupWindow.NotifyDefinitionChanged(definition);
+            ThirdPersonWeaponPoseAuthoringWindow.NotifyDefinitionChanged(definition);
+        }
     }
 
     public static void FlushDefinitionsToDisk()
@@ -479,20 +493,21 @@ public class WeaponDefinitionEditor : Editor
         return
             $"Saved {definition.DisplayName} {stanceName} to {AssetDatabase.GetAssetPath(definition)}\n" +
             $"Socket Pos {definition.WorldLocalPosition}  Rot {definition.WorldLocalEuler}\n" +
-            $"Category {definition.PoseCategory}  Support IK {definition.UsesSupportHandIk}";
+            $"Class {definition.WeaponPoseClass}  Support IK {definition.UsesSupportHandIk}";
     }
 
     private void DrawLockedPoseSummary(WeaponDefinition definition)
     {
-        EditorGUILayout.LabelField("Third-Person Weapon Socket", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("Socket Position", definition.WorldLocalPosition.ToString("F3"));
-        EditorGUILayout.LabelField("Socket Rotation", definition.WorldLocalEuler.ToString("F2"));
-        EditorGUILayout.LabelField("Socket Scale", definition.WorldLocalScale.ToString("F2"));
+        EditorGUILayout.LabelField("Third-Person Weapon Anchor", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Anchor Position Offset", definition.ThirdPersonAnchorPositionOffset.ToString("F3"));
+        EditorGUILayout.LabelField("Anchor Rotation Offset", definition.ThirdPersonAnchorRotationOffset.ToString("F2"));
+        EditorGUILayout.LabelField("Hold Class", definition.ThirdPersonHoldClass.ToString());
+        EditorGUILayout.LabelField("Use Left Hand", definition.UseLeftHandGrip.ToString());
 
         using (new EditorGUILayout.HorizontalScope())
         {
             if (GUILayout.Button("Preview In Scene"))
-                ThirdPersonWeaponPosePreviewWindow.Open(definition);
+                ThirdPersonWeaponHoldSetupWindow.Open(definition);
             if (GUILayout.Button("Save Pose To Disk"))
             {
                 DiscardInspectorStaleEdits(definition);
@@ -503,7 +518,7 @@ public class WeaponDefinitionEditor : Editor
 
         EditorGUILayout.Space(6f);
         EditorGUILayout.LabelField("Current Rig", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("Pose Category", definition.PoseCategory.ToString());
+        EditorGUILayout.LabelField("Pose Class", definition.WeaponPoseClass.ToString());
         EditorGUILayout.LabelField("Support Hand IK", definition.UsesSupportHandIk.ToString());
     }
 

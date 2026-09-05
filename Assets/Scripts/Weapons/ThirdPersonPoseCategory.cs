@@ -1,6 +1,6 @@
 /// <summary>
-/// Shared third-person upper-body posture. Several weapons can use the
-/// same category instead of unique animation sets.
+/// Legacy pose category kept so existing WeaponDefinition assets
+/// deserialize. New code should use ThirdPersonWeaponPoseClass.
 /// </summary>
 public enum ThirdPersonPoseCategory
 {

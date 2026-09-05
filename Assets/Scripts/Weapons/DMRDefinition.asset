@@ -108,9 +108,17 @@ MonoBehaviour:
   worldLocalEuler: {x: 0, y: 0, z: -8}
   worldLocalScale: {x: 1, y: 1, z: 1}
   worldStanceHeightOffset: 0.2
+  weaponPoseClass: 0
+  thirdPersonAnchorPositionOffset: {x: -0.00000014901161, y: -0.00000011920929, z: 0.1364435}
+  thirdPersonAnchorRotationOffset: {x: -0.00000003830255, y: 0.00000030587324, z: 358.7649}
+  useLeftHandGrip: 1
+  optionalHoldProfileOverride: {fileID: 0}
+  thirdPersonPoseProfile: {fileID: 11400000, guid: e6f2760ef7695a64a93ef7e9aac8396d, type: 2}
+  poseClassAssigned: 1
   thirdPersonPoseCategory: 1
   supportHandIkEnabled: 1
   ikBlendDuration: 0.12
+  weaponPoseBlendDuration: 0.14
   sprintSupportIkWeight: 0.55
   thirdPersonClass: 1
   thirdPersonPose:

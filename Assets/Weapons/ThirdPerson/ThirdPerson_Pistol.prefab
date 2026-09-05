@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3933356038912470576}
   m_Layer: 0
-  m_Name: RightHandGrip
+  m_Name: Grip_R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -78,11 +78,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1dac462a7b762ae4d992e7fcfe65d199, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ThirdPersonWeaponVisual
-  leftHandIkTarget: {fileID: 5338210740729390855}
-  leftElbowHint: {fileID: 0}
+  gripR: {fileID: 3933356038912470576}
+  gripL: {fileID: 5338210740729390855}
+  aim: {fileID: 8504440852663839365}
   muzzle: {fileID: 6550827940244282231}
-  rightHandGrip: {fileID: 3933356038912470576}
-  aimTarget: {fileID: 8504440852663839365}
+  rightElbowHint: {fileID: 0}
+  leftElbowHint: {fileID: 0}
   drawGizmos: 1
 --- !u!1 &8615791328529315400
 GameObject:
@@ -123,6 +124,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 8506609943094278471}
     m_Modifications:
+    - target: {fileID: 6084738335709636955, guid: 36b55d417ead88b47bb4207833ec2b99, type: 3}
+      propertyPath: m_Name
+      value: Muzzle
+      objectReference: {fileID: 0}
+    - target: {fileID: 6725592890187061145, guid: 36b55d417ead88b47bb4207833ec2b99, type: 3}
+      propertyPath: m_Name
+      value: Aim
+      objectReference: {fileID: 0}
     - target: {fileID: 7234254856609980122, guid: 36b55d417ead88b47bb4207833ec2b99, type: 3}
       propertyPath: m_Name
       value: Model

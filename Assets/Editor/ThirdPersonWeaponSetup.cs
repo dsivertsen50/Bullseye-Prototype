@@ -16,7 +16,7 @@ public static class ThirdPersonWeaponSetup
     public const string DmrPath = PrefabFolder + "/ThirdPerson_DMR.prefab";
     public const string ShotgunPath = PrefabFolder + "/ThirdPerson_Shotgun.prefab";
 
-    [MenuItem("Bullseye/Weapons/Apply REQ-047 Weapon Rig")]
+    [MenuItem("Bullseye/Weapons/Apply REQ-047 Weapon Rig (Deprecated)")]
     public static void ApplyReq047FromMenu()
     {
         Debug.Log(ApplyReq047());
@@ -332,61 +332,12 @@ public static class ThirdPersonWeaponSetup
 
     public static void EnsureWeaponPoseLayer()
     {
-        AnimatorController controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(
-            PlayerLocomotionAnimatorBuilder.ControllerPath);
-        EnsureWeaponPoseLayer(controller);
+        ThirdPersonWeaponPoseAuthoringSetup.ConfigureAnimatorLayer();
     }
 
     public static void EnsureWeaponPoseLayer(AnimatorController controller)
     {
-        if (controller == null)
-            return;
-
-        AvatarMask mask = AssetDatabase.LoadAssetAtPath<AvatarMask>(MaskPath);
-        if (mask == null)
-        {
-            CreateUpperBodyMask();
-            mask = AssetDatabase.LoadAssetAtPath<AvatarMask>(MaskPath);
-        }
-
-        EnsureAnimatorFloat(controller, "AimWeight");
-        EnsureAnimatorFloat(controller, "WeaponPoseWeight");
-
-        int layerIndex = -1;
-        AnimatorControllerLayer[] layers = controller.layers;
-        for (int i = 0; i < layers.Length; i++)
-        {
-            if (layers[i].name == "WeaponPose")
-            {
-                layerIndex = i;
-                break;
-            }
-        }
-
-        if (layerIndex < 0)
-        {
-            controller.AddLayer("WeaponPose");
-            layers = controller.layers;
-            layerIndex = layers.Length - 1;
-        }
-
-        layers[layerIndex].defaultWeight = 0f;
-        layers[layerIndex].blendingMode = AnimatorLayerBlendingMode.Override;
-        layers[layerIndex].avatarMask = mask;
-        controller.layers = layers;
-
-        AnimatorStateMachine machine = controller.layers[layerIndex].stateMachine;
-        if (machine != null && machine.states.Length == 0)
-        {
-            AnimationClip ready = AssetDatabase.LoadAssetAtPath<AnimationClip>(
-                "Assets/Player/Idle_PlayerThirdPerson.anim");
-            AnimatorState state = machine.AddState("Weapon Ready", new Vector3(300f, 80f, 0f));
-            state.motion = ready;
-            state.writeDefaultValues = true;
-            machine.defaultState = state;
-        }
-
-        EditorUtility.SetDirty(controller);
+        ThirdPersonWeaponPoseAuthoringSetup.ConfigureAnimatorLayer();
     }
 
     private static void EnsureAnimatorFloat(AnimatorController controller, string name)

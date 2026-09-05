@@ -572,6 +572,93 @@ MonoBehaviour:
       x: 1
       y: 1
       z: 1
+--- !u!1 &2545064209898590096
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1534996047630747176}
+  - component: {fileID: 7657858956278988978}
+  m_Layer: 0
+  m_Name: RightHandIK
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1534996047630747176
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2545064209898590096}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 8798000543001513157}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7657858956278988978
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2545064209898590096}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aeda7bfbf984f2a4da5ab4b8967b115d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Animation.Rigging::UnityEngine.Animations.Rigging.TwoBoneIKConstraint
+  m_Weight: 1
+  m_Data:
+    m_Root: {fileID: 2517080466017918031}
+    m_Mid: {fileID: 5924647487154632418}
+    m_Tip: {fileID: 7502541080819711106}
+    m_Target: {fileID: 405993411878246027}
+    m_Hint: {fileID: 7605293254904868063}
+    m_TargetPositionWeight: 1
+    m_TargetRotationWeight: 1
+    m_HintWeight: 1
+    m_MaintainTargetPositionOffset: 0
+    m_MaintainTargetRotationOffset: 0
+--- !u!1 &2580651427868798575
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7605293254904868063}
+  m_Layer: 0
+  m_Name: RightElbowHint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7605293254904868063
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2580651427868798575}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3818448895045287546}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2599109124741425518
 GameObject:
   m_ObjectHideFlags: 0
@@ -688,6 +775,7 @@ GameObject:
   - component: {fileID: 8776071615408029184}
   - component: {fileID: 1940795616203548134}
   - component: {fileID: 710086677395437849}
+  - component: {fileID: 2328653965345181622}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1716,6 +1804,7 @@ MonoBehaviour:
   playerHealth: {fileID: 3086871669323907386}
   coordinator: {fileID: 3788039708433434490}
   thirdPersonRig: {fileID: 0}
+  poseBinder: {fileID: 2328653965345181622}
   firePresentationDuration: 0.12
   evaluateHumanoidAnimation: 1
   parameterDampTime: 0.08
@@ -1757,12 +1846,16 @@ MonoBehaviour:
   worldWeapon: {fileID: 77922413974407629}
   coordinator: {fileID: 3788039708433434490}
   visualRoot: {fileID: 4740219154652216648}
+  weaponAnchor: {fileID: 7529334778606421947}
   weaponSocket: {fileID: 7423848081652154685}
   aimTarget: {fileID: 7501317163123089568}
+  rightHandIkTarget: {fileID: 405993411878246027}
   leftHandIkTarget: {fileID: 4418227624439836343}
+  rightElbowHint: {fileID: 7605293254904868063}
   leftElbowHint: {fileID: 6104577051467670539}
   rigBuilder: {fileID: 2421071577247582423}
   weaponRig: {fileID: 2082207092938478704}
+  rightHandIk: {fileID: 7657858956278988978}
   leftHandIk: {fileID: 3193427413067422330}
   spineAim: {fileID: 1323338532076354576}
   poseBlendTime: 0.14
@@ -1772,6 +1865,7 @@ MonoBehaviour:
   switchBlendTime: 0.1
   reloadBlendTime: 0.12
   ikWeight: 1
+  rightIkWeight: 1
   leftIkWeight: 1
   hintWeight: 1
   aimIkWeight: 1
@@ -1782,6 +1876,7 @@ MonoBehaviour:
   debugPoseCategory: 
   debugMovementState: 
   debugRigWeight: 0
+  debugRightIkWeight: 0
   debugLeftIkWeight: 0
 --- !u!114 &1940795616203548134
 MonoBehaviour:
@@ -1812,6 +1907,24 @@ MonoBehaviour:
   bodyCollider: {fileID: 4030621577181723400}
   playerHealth: {fileID: 3086871669323907386}
   networkObject: {fileID: 3645876338594599811}
+--- !u!114 &2328653965345181622
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a69b2356f94c1174bbb8b53353bb5056, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ThirdPersonWeaponPoseBinder
+  thirdPersonAnimator: {fileID: 2360264708694736603}
+  holdSlot: {fileID: 7400000, guid: efbb66443c3b4c94ea71de7501bdb790, type: 2}
+  sprintSlot: {fileID: 7400000, guid: 9c3eee788da99604abac9e2743aef946, type: 2}
+  proneSlot: {fileID: 7400000, guid: b61c19231c335b645a55c3e355f4dbc0, type: 2}
+  aimSlot: {fileID: 7400000, guid: a8604808904b6334387d962876b1163a, type: 2}
+  crouchSlot: {fileID: 7400000, guid: 3c98b2e0efd24654fbc3c76785b2a648, type: 2}
 --- !u!1 &3625492656395199349
 GameObject:
   m_ObjectHideFlags: 0
@@ -1941,6 +2054,37 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!1 &3677378865439810903
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7529334778606421947}
+  m_Layer: 0
+  m_Name: ThirdPersonWeaponAnchor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7529334778606421947
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3677378865439810903}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3818448895045287546}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &3725513965450167293
 GameObject:
   m_ObjectHideFlags: 0
@@ -2122,6 +2266,37 @@ MonoBehaviour:
   warningHealthNormalized: 0.5
   criticalHealthNormalized: 0.25
   backgroundColor: {r: 0.08, g: 0.08, b: 0.08, a: 0.82}
+--- !u!1 &4561757700098867158
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 405993411878246027}
+  m_Layer: 0
+  m_Name: RightHandIKTarget
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &405993411878246027
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4561757700098867158}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 3818448895045287546}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &5030330981961537881
 GameObject:
   m_ObjectHideFlags: 0
@@ -2515,6 +2690,7 @@ Transform:
   m_Children:
   - {fileID: 1099749221206252443}
   - {fileID: 2623637552922834313}
+  - {fileID: 1534996047630747176}
   m_Father: {fileID: 8512213326944412833}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &2082207092938478704
@@ -2657,6 +2833,9 @@ Transform:
   - {fileID: 7501317163123089568}
   - {fileID: 4418227624439836343}
   - {fileID: 6104577051467670539}
+  - {fileID: 7529334778606421947}
+  - {fileID: 405993411878246027}
+  - {fileID: 7605293254904868063}
   m_Father: {fileID: 8460578298504684699}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &7100266444771259933
@@ -3122,6 +3301,11 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 2559285840627121667, guid: 368e03420717d214dbd03924b519b691, type: 3}
   m_PrefabInstance: {fileID: 8190866394290799434}
   m_PrefabAsset: {fileID: 0}
+--- !u!4 &5924647487154632418 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 2563496969622287784, guid: 368e03420717d214dbd03924b519b691, type: 3}
+  m_PrefabInstance: {fileID: 8190866394290799434}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &6990821939166552910 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8021001004253913084, guid: 368e03420717d214dbd03924b519b691, type: 3}
@@ -3159,6 +3343,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43f26f5967693b343bf7e82731fc48c8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerVisualRig
+  thirdPersonWeaponAnchor: {fileID: 7529334778606421947}
   rightHandWeaponSocket: {fileID: 7423848081652154685}
   leftHandIkTarget: {fileID: 1092294732618249305}
   weaponHolsterSocket: {fileID: 8311441369918363651}

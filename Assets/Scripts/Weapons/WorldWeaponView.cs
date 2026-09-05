@@ -41,8 +41,11 @@ public class WorldWeaponView : NetworkBehaviour
     public WeaponDefinition Definition => definition;
     public bool IsRemotePresentationActive => remotePresentationEnabled;
     public ThirdPersonWeaponVisual CurrentVisual => currentVisual;
-    public Transform LeftHandIkTarget => currentVisual != null ? currentVisual.LeftHandIkTarget : null;
+    public Transform RightHandIkTarget => currentVisual != null ? currentVisual.GripR : null;
+    public Transform LeftHandIkTarget => currentVisual != null ? currentVisual.GripL : null;
+    public Transform RightElbowHint => currentVisual != null ? currentVisual.RightElbowHint : null;
     public Transform LeftElbowHint => currentVisual != null ? currentVisual.LeftElbowHint : null;
+    public Transform AimMarker => currentVisual != null ? currentVisual.Aim : null;
     public ThirdPersonWeaponPose ActiveThirdPersonPose =>
         definition != null ? definition.ThirdPersonPose : null;
 
@@ -80,7 +83,7 @@ public class WorldWeaponView : NetworkBehaviour
         if (weaponKick != null && weaponKick.childCount == 0 && definition != null)
             RebuildWorldModel(definition);
 
-        AttachToSocket();
+        AttachToAnchor();
         BindThirdPersonVisual();
         RefreshRemoteVisibility();
         ResetPresentation();
@@ -117,17 +120,20 @@ public class WorldWeaponView : NetworkBehaviour
         ApplyDefinition(next);
         SetWorldWeaponActive(true);
         BindThirdPersonVisual();
-        AttachToSocket();
+        AttachToAnchor();
     }
 
     public void ApplyDefinition(WeaponDefinition next)
     {
+        bool sameWeapon = definition == next && currentVisual != null;
         definition = next;
         if (IsSpawned && IsOwner)
             return;
+        if (sameWeapon)
+            return;
 
         RebuildWorldModel(next);
-        AttachToSocket();
+        AttachToAnchor();
         CacheRestPoses();
         PrepareAudioSource();
         PreparePresentationObject();
@@ -144,7 +150,8 @@ public class WorldWeaponView : NetworkBehaviour
         WeaponPresentationConfig config = Config;
         PlayClip(config != null ? config.FireSfx : null, config != null ? config.WorldFireSfxVolume : 1f);
         SpawnMuzzleEffect();
-        PlayProceduralFireKick();
+        // REQ-049: do not kick the world weapon. Grip_R / Grip_L live on that
+        // transform, so a kick yanks both arms outward through IK.
     }
 
     public void PlayReloadPresentation()
@@ -202,7 +209,7 @@ public class WorldWeaponView : NetworkBehaviour
             currentVisual.ResolveFallbacks();
         muzzlePoint = currentVisual != null && currentVisual.Muzzle != null
             ? currentVisual.Muzzle
-            : FindChildByName(instance.transform, "Muzzle") ?? FindChildByName(instance.transform, "MuzzlePoint");
+            : ThirdPersonWeaponMarkers.Find(instance.transform, ThirdPersonWeaponMarkers.MuzzleAliases);
         weaponAnimator = instance.GetComponentInChildren<Animator>(true);
         WeaponPresentationConfig config = next != null ? next.Presentation : null;
         if (weaponAnimator != null && config != null && config.AnimatorController != null)
@@ -233,7 +240,7 @@ public class WorldWeaponView : NetworkBehaviour
     {
         if (weaponKick == null)
             ResolveHierarchyFallbacks();
-        AttachToSocket();
+        AttachToAnchor();
         if (currentVisual == null && weaponKick != null)
             currentVisual = weaponKick.GetComponentInChildren<ThirdPersonWeaponVisual>(true);
         if (currentVisual != null)
@@ -247,38 +254,28 @@ public class WorldWeaponView : NetworkBehaviour
 
     public void AttachToSocket()
     {
+        AttachToAnchor();
+    }
+
+    public void AttachToAnchor()
+    {
         if (IsSpawned && IsOwner)
             return;
 
         ResolveHierarchyFallbacks();
-        Transform socket = ResolveSocket();
-        if (worldWeaponRoot == null || socket == null)
+        Transform anchor = ResolveWeaponAnchor();
+        if (worldWeaponRoot == null || anchor == null)
             return;
 
-        // Mixamo bones on this character have a 0.01 lossy scale. Parenting
-        // the gun under the hand shrinks it to a speck. Keep the mesh under
-        // the player and follow the socket in world space instead.
+        // Mixamo bones are scaled 0.01. Parenting the gun under the chest
+        // shrinks it. Keep the mesh under the player-scale hand anchor and
+        // copy the independent weapon-anchor pose in world space.
         if (weaponHandAnchor != null && worldWeaponRoot.parent != weaponHandAnchor)
             worldWeaponRoot.SetParent(weaponHandAnchor, true);
 
-        Vector3 localPosition = definition != null ? definition.ThirdPersonWeaponPositionOffset : Vector3.zero;
-        Vector3 localEuler = definition != null ? definition.ThirdPersonWeaponRotationOffset : Vector3.zero;
         Vector3 localScale = definition != null ? definition.WorldLocalScale : Vector3.one;
-        Quaternion extra = Quaternion.identity;
-        ThirdPersonWeaponPose pose = ActiveThirdPersonPose;
-        if (pose != null)
-        {
-            extra = Quaternion.Euler(pose.gunEuler);
-            if (pose.gunScale.sqrMagnitude > 0.0001f)
-                localScale = Vector3.Scale(localScale, pose.gunScale);
-        }
-
-        Quaternion worldRot = socket.rotation * Quaternion.Euler(localEuler) * extra;
-        // Mixamo hand bones are scaled to 0.01. TransformPoint would treat
-        // inspector meters as 100x too large, so offsets use rotation only.
-        worldWeaponRoot.SetPositionAndRotation(
-            socket.position + socket.rotation * localPosition,
-            worldRot);
+        worldWeaponRoot.SetPositionAndRotation(anchor.position, anchor.rotation);
+        AlignWeaponToAim(anchor.rotation);
         worldWeaponRoot.localScale = CounterParentScale(localScale, worldWeaponRoot.parent);
 
         if (weaponKick != null && kickRoutine == null)
@@ -288,6 +285,21 @@ public class WorldWeaponView : NetworkBehaviour
             weaponKick.localPosition = kickRestLocalPosition;
             weaponKick.localRotation = kickRestLocalRotation;
         }
+    }
+
+    private void AlignWeaponToAim(Quaternion desiredAimRotation)
+    {
+        if (currentVisual == null)
+            currentVisual = weaponKick != null
+                ? weaponKick.GetComponentInChildren<ThirdPersonWeaponVisual>(true)
+                : null;
+        currentVisual?.ResolveFallbacks();
+        Transform aim = currentVisual != null ? currentVisual.Aim : null;
+        if (aim == null)
+            return;
+
+        Quaternion aimLocal = Quaternion.Inverse(worldWeaponRoot.rotation) * aim.rotation;
+        worldWeaponRoot.rotation = desiredAimRotation * Quaternion.Inverse(aimLocal);
     }
 
     private static Vector3 CounterParentScale(Vector3 desiredWorldScale, Transform parent)
@@ -302,6 +314,18 @@ public class WorldWeaponView : NetworkBehaviour
     private static float ScaleComponent(float value)
     {
         return Mathf.Abs(value) < 0.0001f ? 1f : value;
+    }
+
+    private Transform ResolveWeaponAnchor()
+    {
+        if (thirdPersonRig != null && thirdPersonRig.WeaponAnchor != null)
+            return thirdPersonRig.WeaponAnchor;
+
+        PlayerVisualRig visualRig = GetComponentInChildren<PlayerVisualRig>(true);
+        if (visualRig != null && visualRig.ThirdPersonWeaponAnchor != null)
+            return visualRig.ThirdPersonWeaponAnchor;
+
+        return FindChildByName(transform, "ThirdPersonWeaponAnchor") ?? ResolveSocket();
     }
 
     private Transform ResolveSocket()

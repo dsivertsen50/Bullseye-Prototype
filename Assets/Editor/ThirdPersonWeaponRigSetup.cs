@@ -15,7 +15,7 @@ public static class ThirdPersonWeaponRigSetup
     public const string SprintClipPath = "Assets/Player/Animations/LongGunSprint.anim";
     public const string ProneClipPath = "Assets/Player/Animations/LongGunProne.anim";
 
-    [MenuItem("Bullseye/Weapons/Apply REQ-048 Weapon Rig")]
+    [MenuItem("Bullseye/Weapons/Apply REQ-048 Weapon Rig (Deprecated)")]
     public static void ApplyFromMenu()
     {
         Debug.Log(Apply());
@@ -46,38 +46,7 @@ public static class ThirdPersonWeaponRigSetup
 
     public static void ConfigureWeaponPoseLayer()
     {
-        ThirdPersonWeaponSetup.CreateUpperBodyMaskIfNeeded();
-        AnimatorController controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(
-            PlayerLocomotionAnimatorBuilder.ControllerPath);
-        if (controller == null)
-            return;
-
-        EnsureInt(controller, "WeaponPoseState");
-        EnsureInt(controller, "PoseCategory");
-        ThirdPersonWeaponSetup.EnsureWeaponPoseLayer(controller);
-
-        int layerIndex = FindLayer(controller, "WeaponPose");
-        if (layerIndex < 0)
-            return;
-
-        AnimatorControllerLayer[] layers = controller.layers;
-        layers[layerIndex].defaultWeight = 0f;
-        layers[layerIndex].blendingMode = AnimatorLayerBlendingMode.Override;
-        layers[layerIndex].avatarMask = AssetDatabase.LoadAssetAtPath<AvatarMask>(ThirdPersonWeaponSetup.MaskPath);
-        controller.layers = layers;
-
-        AnimatorStateMachine machine = controller.layers[layerIndex].stateMachine;
-        AnimatorState ready = EnsureState(machine, "LongGunReady", ReadyClipPath, new Vector3(280f, 40f, 0f));
-        AnimatorState sprint = EnsureState(machine, "LongGunSprint", SprintClipPath, new Vector3(280f, 140f, 0f));
-        AnimatorState prone = EnsureState(machine, "LongGunProne", ProneClipPath, new Vector3(280f, 240f, 0f));
-        machine.defaultState = ready;
-        EnsureIntTransition(machine, ready, sprint, "WeaponPoseState", 1, 0.16f);
-        EnsureIntTransition(machine, sprint, ready, "WeaponPoseState", 0, 0.16f);
-        EnsureIntTransition(machine, ready, prone, "WeaponPoseState", 2, 0.18f);
-        EnsureIntTransition(machine, sprint, prone, "WeaponPoseState", 2, 0.18f);
-        EnsureIntTransition(machine, prone, ready, "WeaponPoseState", 0, 0.18f);
-        EnsureIntTransition(machine, prone, sprint, "WeaponPoseState", 1, 0.18f);
-        EditorUtility.SetDirty(controller);
+        ThirdPersonWeaponPoseAuthoringSetup.ApplyInfrastructure();
     }
 
     private static void ConfigureAkDefinition()
@@ -173,6 +142,9 @@ public static class ThirdPersonWeaponRigSetup
             ThirdPersonWeaponRig controller = contents.GetComponent<ThirdPersonWeaponRig>();
             if (controller == null)
                 controller = contents.AddComponent<ThirdPersonWeaponRig>();
+            ThirdPersonWeaponPoseBinder poseBinder = contents.GetComponent<ThirdPersonWeaponPoseBinder>();
+            if (poseBinder == null)
+                poseBinder = contents.AddComponent<ThirdPersonWeaponPoseBinder>();
 
             Transform socket = FindChild(contents.transform, "RightHandWeaponSocket")
                 ?? FindChild(contents.transform, "WeaponSocket");
@@ -283,6 +255,23 @@ public static class ThirdPersonWeaponRigSetup
             so.FindProperty("leftHandIk").objectReferenceValue = leftIk;
             so.FindProperty("spineAim").objectReferenceValue = aim;
             so.ApplyModifiedPropertiesWithoutUndo();
+
+            SerializedObject binderSo = new SerializedObject(poseBinder);
+            binderSo.FindProperty("thirdPersonAnimator").objectReferenceValue = animator;
+            binderSo.FindProperty("holdSlot").objectReferenceValue = ThirdPersonWeaponPoseAuthoringSetup.SlotHold;
+            binderSo.FindProperty("sprintSlot").objectReferenceValue = ThirdPersonWeaponPoseAuthoringSetup.SlotSprint;
+            binderSo.FindProperty("proneSlot").objectReferenceValue = ThirdPersonWeaponPoseAuthoringSetup.SlotProne;
+            binderSo.FindProperty("aimSlot").objectReferenceValue = ThirdPersonWeaponPoseAuthoringSetup.SlotAim;
+            binderSo.FindProperty("crouchSlot").objectReferenceValue = ThirdPersonWeaponPoseAuthoringSetup.SlotCrouch;
+            binderSo.ApplyModifiedPropertiesWithoutUndo();
+
+            PlayerThirdPersonAnimator thirdPersonAnimator = contents.GetComponent<PlayerThirdPersonAnimator>();
+            if (thirdPersonAnimator != null)
+            {
+                SerializedObject animSo = new SerializedObject(thirdPersonAnimator);
+                animSo.FindProperty("poseBinder").objectReferenceValue = poseBinder;
+                animSo.ApplyModifiedPropertiesWithoutUndo();
+            }
 
             WorldWeaponView world = contents.GetComponent<WorldWeaponView>();
             if (world != null)

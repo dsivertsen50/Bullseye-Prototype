@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 801183160733665840}
   m_Layer: 0
-  m_Name: LeftHandGrip
+  m_Name: Grip_L
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -24,8 +24,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2598292408076973882}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.020000054, y: -0.00849451, z: 0.21999985}
+  m_LocalRotation: {x: 0.07217064, y: 0.36759147, z: -0.02862614, w: 0.92674077}
+  m_LocalPosition: {x: -0.00889145, y: -0.068115085, z: -0.03229756}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -41,7 +41,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4536442553773653011}
   m_Layer: 0
-  m_Name: RightHandGrip
+  m_Name: Grip_R
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -55,8 +55,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3186973456905120163}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalRotation: {x: 0, y: 0, z: -3.4924597e-10, w: 1}
+  m_LocalPosition: {x: 0.00000024028122, y: -0.05724839, z: -0.19245875}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -110,11 +110,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1dac462a7b762ae4d992e7fcfe65d199, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ThirdPersonWeaponVisual
-  leftHandIkTarget: {fileID: 801183160733665840}
-  leftElbowHint: {fileID: 9101847291038472611}
+  gripR: {fileID: 4536442553773653011}
+  gripL: {fileID: 801183160733665840}
+  aim: {fileID: 4677933735418652545}
   muzzle: {fileID: 3705671354305035677}
-  rightHandGrip: {fileID: 4536442553773653011}
-  aimTarget: {fileID: 4677933735418652545}
+  rightElbowHint: {fileID: 0}
+  leftElbowHint: {fileID: 9101847291038472611}
   drawGizmos: 1
 --- !u!1 &9101847291038472610
 GameObject:
@@ -141,7 +142,7 @@ Transform:
   m_GameObject: {fileID: 9101847291038472610}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.12000004, y: -0.080000006, z: 0.45541322}
+  m_LocalPosition: {x: 0.035278603, y: -0.08000002, z: 0.45541343}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -155,6 +156,26 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 7047021078341358148}
     m_Modifications:
+    - target: {fileID: 1022632690058341305, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -0.00031114955
+      objectReference: {fileID: 0}
+    - target: {fileID: 1022632690058341305, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -0.053085677
+      objectReference: {fileID: 0}
+    - target: {fileID: 1022632690058341305, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -0.26858768
+      objectReference: {fileID: 0}
+    - target: {fileID: 1022632690058341305, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -3.4924597e-10
+      objectReference: {fileID: 0}
+    - target: {fileID: 4035573350707848271, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
+      propertyPath: m_Name
+      value: Muzzle
+      objectReference: {fileID: 0}
     - target: {fileID: 4552794602285775398, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -194,6 +215,10 @@ PrefabInstance:
     - target: {fileID: 4552794602285775398, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4770867547126127060, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
+      propertyPath: m_Name
+      value: Aim
       objectReference: {fileID: 0}
     - target: {fileID: 5204278731374287686, guid: 779c8ebf021c1c9499a49d4ad4a61962, type: 3}
       propertyPath: m_Name

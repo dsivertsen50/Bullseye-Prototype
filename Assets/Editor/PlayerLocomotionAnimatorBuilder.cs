@@ -91,8 +91,7 @@ public static class PlayerLocomotionAnimatorBuilder
         LocomotionGraph graph = BuildGraph(root, clips);
         WireTransitions(root, graph);
 
-        ThirdPersonWeaponSetup.EnsureWeaponPoseLayer(controller);
-        ThirdPersonWeaponRigSetup.ConfigureWeaponPoseLayer();
+        ThirdPersonWeaponPoseAuthoringSetup.ConfigureAnimatorLayer();
         EditorUtility.SetDirty(controller);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();

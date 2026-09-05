@@ -104,13 +104,21 @@ MonoBehaviour:
   adsSensitivityMultiplier: 0.4
   adsHidesViewmodel: 0
   scopePresentation: {fileID: 0}
-  worldLocalPosition: {x: -0.29079676, y: 0.3420776, z: -0.055195387}
-  worldLocalEuler: {x: 358.15, y: 268.24774, z: 37.197865}
+  worldLocalPosition: {x: -0.08002426, y: 0.03442222, z: -0.098577686}
+  worldLocalEuler: {x: 357.6906, y: 267.89877, z: 37.21053}
   worldLocalScale: {x: 1, y: 1, z: 1}
   worldStanceHeightOffset: 0.2
+  weaponPoseClass: 0
+  thirdPersonAnchorPositionOffset: {x: -0.000000044703484, y: 0.000000044703484, z: 0.2681471}
+  thirdPersonAnchorRotationOffset: {x: 0, y: 0, z: 0}
+  useLeftHandGrip: 1
+  optionalHoldProfileOverride: {fileID: 0}
+  thirdPersonPoseProfile: {fileID: 11400000, guid: d26b411dbb583a843bcac3be311dde02, type: 2}
+  poseClassAssigned: 1
   thirdPersonPoseCategory: 1
   supportHandIkEnabled: 1
   ikBlendDuration: 0.12
+  weaponPoseBlendDuration: 0.14
   sprintSupportIkWeight: 0.55
   thirdPersonClass: 1
   thirdPersonPose:

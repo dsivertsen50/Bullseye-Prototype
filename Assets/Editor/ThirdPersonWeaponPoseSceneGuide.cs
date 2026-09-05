@@ -22,14 +22,14 @@ public static class ThirdPersonWeaponPoseSceneGuide
         if (!Application.isPlaying)
         {
             if (GUIUtility.hotControl == 0)
-                ThirdPersonWeaponPosePreviewWindow.TickPreview();
-            ThirdPersonWeaponRig preview = ThirdPersonWeaponPosePreviewWindow.ActivePreviewRig;
+                ThirdPersonWeaponPoseAuthoringWindow.TickPreview();
+            ThirdPersonWeaponRig preview = ThirdPersonWeaponPoseAuthoringWindow.ActivePreviewRig;
             if (preview == null || !preview.DrawPoseGuides || !preview.TryGetPoseGuide(out ThirdPersonPoseGuide previewGuide))
                 return;
 
             DrawLabels(previewGuide);
             DrawHandles(preview, previewGuide);
-            ThirdPersonWeaponPosePreviewWindow.ApplyActivePreview();
+            ThirdPersonWeaponPoseAuthoringWindow.ApplyActivePreview();
             return;
         }
 
@@ -155,8 +155,8 @@ public static class ThirdPersonWeaponPoseSceneGuide
 
     private static bool IsEditing(WeaponDefinition definition, ThirdPersonWeaponRig rig)
     {
-        return ThirdPersonWeaponPosePreviewWindow.IsPreviewRig(rig) &&
-               ThirdPersonWeaponPosePreviewWindow.ActivePreviewDefinition == definition;
+        return ThirdPersonWeaponPoseAuthoringWindow.IsPreviewRig(rig) &&
+               ThirdPersonWeaponPoseAuthoringWindow.ActivePreviewDefinition == definition;
     }
 
     private static Transform FindChild(Transform root, string childName)

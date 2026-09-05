@@ -551,7 +551,8 @@ public class PlayerWeaponInventory : NetworkBehaviour
 
     private void OnSlotChanged(WeaponRuntimeState previous, WeaponRuntimeState next)
     {
-        ApplyActivePresentation();
+        if (previous.CatalogIndex != next.CatalogIndex)
+            ApplyActivePresentation();
         InventoryChanged?.Invoke();
     }
 

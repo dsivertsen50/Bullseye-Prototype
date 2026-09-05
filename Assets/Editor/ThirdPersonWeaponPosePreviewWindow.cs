@@ -76,24 +76,15 @@ public class ThirdPersonWeaponPosePreviewWindow : EditorWindow
         instance.RefreshPreview();
     }
 
-    [MenuItem("Bullseye/Weapons/Third-Person Pose Preview")]
+    [MenuItem("Bullseye/Weapons/Third-Person Pose Preview (Deprecated)")]
     public static void Open()
     {
-        ThirdPersonWeaponPosePreviewWindow window = GetWindow<ThirdPersonWeaponPosePreviewWindow>("TP Weapon Pose");
-        window.minSize = new Vector2(320f, 280f);
-        window.Show();
-        window.EnsurePreview();
+        ThirdPersonWeaponHoldSetupWindow.Open();
     }
 
     public static void Open(WeaponDefinition weapon)
     {
-        Open();
-        if (instance == null)
-            return;
-
-        instance.definition = weapon;
-        instance.EnsurePreview();
-        instance.Repaint();
+        ThirdPersonWeaponPoseAuthoringWindow.Open(weapon);
     }
 
     private void OnEnable()
