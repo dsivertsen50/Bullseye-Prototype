@@ -17,6 +17,8 @@ public static class ControlsGuideFormatter
         "Sprint",
         "Jump",
         "Grenade",
+        "NextGrenade",
+        "Ping",
         "Crouch",
         "Reload",
         "Interact",
@@ -102,6 +104,8 @@ public static class ControlsGuideFormatter
             case "WeaponSwitch": return "Cycle Weapons";
             case "Fire": return "Fire";
             case "Grenade": return "Grenade";
+            case "NextGrenade": return "Switch Grenade";
+            case "Ping": return "Ping / Warning";
             default: return SplitCamel(actionName);
         }
     }
@@ -167,7 +171,9 @@ public static class ControlsGuideFormatter
             case "escape": return "Escape";
             case "space": return "Space";
             case "up": return path.IndexOf("leftStick", System.StringComparison.OrdinalIgnoreCase) >= 0 ? "Left Stick" : "Up";
-            case "down": return path.IndexOf("leftStick", System.StringComparison.OrdinalIgnoreCase) >= 0 ? "Left Stick" : "Down";
+            case "down": return path.IndexOf("leftStick", System.StringComparison.OrdinalIgnoreCase) >= 0
+                ? "Left Stick"
+                : path.IndexOf("dpad", System.StringComparison.OrdinalIgnoreCase) >= 0 ? "D-Pad Down" : "Down";
             case "left": return path.IndexOf("dpad", System.StringComparison.OrdinalIgnoreCase) >= 0 ? "D-Pad Left" : "Left";
             case "right": return path.IndexOf("dpad", System.StringComparison.OrdinalIgnoreCase) >= 0 ? "D-Pad Right" : "Right";
             default:
@@ -193,6 +199,8 @@ public static class ControlsGuideFormatter
             "Sprint  —  Left Shift\n" +
             "Jump  —  Space\n" +
             "Grenade  —  C\n" +
+            "Switch Grenade  —  N\n" +
+            "Ping / Warning  —  Middle Mouse\n" +
             "Crouch  —  Left Ctrl\n" +
             "Reload  —  R\n" +
             "Interact  —  E\n" +
@@ -210,6 +218,8 @@ public static class ControlsGuideFormatter
             "Sprint  —  Left Stick Click\n" +
             "Jump  —  South Button (A)\n" +
             "Grenade  —  Left Shoulder\n" +
+            "Switch Grenade  —  D-Pad Right\n" +
+            "Ping / Warning  —  D-Pad Down\n" +
             "Crouch  —  East Button (B)\n" +
             "Reload / Interact  —  West Button (X)\n" +
             "Switch Weapon  —  North Button (Y) / Right Shoulder\n" +

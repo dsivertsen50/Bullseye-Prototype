@@ -174,6 +174,51 @@ public class BullseyeDetachController : NetworkBehaviour
             BeginDetach(explosionPosition, bullseyeForce, detachRadius, upwardModifier);
     }
 
+    public bool CanAcceptSuctionDetach()
+    {
+        if (!IsServer || !IsSpawned || bullseye == null)
+            return false;
+
+        if (playerHealth != null && playerHealth.IsDead)
+            return false;
+
+        return IsAttached;
+    }
+
+    public bool TryDetachBySuction()
+    {
+        if (!CanAcceptSuctionDetach())
+            return false;
+
+        BeginDetachWithoutImpulse();
+        return true;
+    }
+
+    public void ApplySuctionAttraction(
+        Vector3 attractorPosition,
+        Vector3 attractorVelocity,
+        float force,
+        float maximumSpeed)
+    {
+        if (!IsServer || !IsSpawned || !IsDetached || physicsBody == null || physicsBody.isKinematic)
+            return;
+
+        if (playerHealth != null && playerHealth.IsDead)
+            return;
+
+        Vector3 toAttractor = attractorPosition - physicsBody.position;
+        float distance = toAttractor.magnitude;
+        Vector3 inbound = distance > 0.001f ? toAttractor / distance : Vector3.zero;
+        float catchUp = Mathf.Min(distance * Mathf.Max(1f, force * 0.2f), Mathf.Max(0.1f, maximumSpeed));
+        Vector3 desiredVelocity = attractorVelocity + inbound * catchUp;
+        float maxSpeed = Mathf.Max(0.1f, maximumSpeed);
+        if (desiredVelocity.sqrMagnitude > maxSpeed * maxSpeed)
+            desiredVelocity = desiredVelocity.normalized * maxSpeed;
+
+        float step = Mathf.Max(1f, force) * Time.fixedDeltaTime * 4f;
+        physicsBody.linearVelocity = Vector3.MoveTowards(physicsBody.linearVelocity, desiredVelocity, step);
+    }
+
     public void HandleOwnerDied()
     {
         if (!IsServer)
@@ -202,11 +247,16 @@ public class BullseyeDetachController : NetworkBehaviour
 
     private void BeginDetach(Vector3 explosionPosition, float force, float radius, float upwardModifier)
     {
+        BeginDetachWithoutImpulse();
+        ApplyDetachedExplosionForce(explosionPosition, force, radius, upwardModifier);
+    }
+
+    private void BeginDetachWithoutImpulse()
+    {
         EnsurePhysics();
         WriteDetachedPose(bullseye.position, bullseye.rotation);
         returnAtServerTime.Value = NetworkManager.ServerTime.Time + Mathf.Max(0.1f, detachedReturnDelay);
         SetState(BullseyeAttachState.Detached);
-        ApplyDetachedExplosionForce(explosionPosition, force, radius, upwardModifier);
     }
 
     private void ApplyDetachedExplosionForce(Vector3 explosionPosition, float force, float radius, float upwardModifier)

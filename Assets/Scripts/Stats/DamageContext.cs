@@ -7,7 +7,8 @@ public enum DamageSourceType
     Unknown = 0,
     Firearm = 1,
     Grenade = 2,
-    Environment = 3
+    Environment = 3,
+    BodySlam = 4
 }
 
 /// <summary>
@@ -52,6 +53,21 @@ public struct DamageContext
             Amount = amount,
             SourceType = DamageSourceType.Environment,
             SourceId = "environment"
+        };
+    }
+
+    public static DamageContext FromBodySlam(
+        ulong attackerClientId,
+        ulong victimClientId,
+        int amount)
+    {
+        return new DamageContext
+        {
+            AttackerClientId = attackerClientId,
+            VictimClientId = victimClientId,
+            Amount = amount,
+            SourceType = DamageSourceType.BodySlam,
+            SourceId = "dolphin_dive_body_slam"
         };
     }
 }

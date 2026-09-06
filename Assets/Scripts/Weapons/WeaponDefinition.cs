@@ -30,6 +30,8 @@ public class WeaponDefinition : ScriptableObject
     [SerializeField] private float fireRate = 0.15f;
     [SerializeField] private bool automatic;
     [SerializeField] private float reloadTime = 1.4f;
+    [SerializeField, Tooltip("When enabled, hitscan bullets can reflect from RicochetSurface colliders.")]
+    private bool canRicochet = true;
 
     [Header("Damage")]
     [SerializeField] private WeaponDamageSettings damageSettings = new();
@@ -126,6 +128,7 @@ public class WeaponDefinition : ScriptableObject
     public float FireRate => Mathf.Max(0.01f, fireRate);
     public bool Automatic => automatic;
     public float ReloadTime => Mathf.Max(0.05f, reloadTime);
+    public bool CanRicochet => canRicochet;
     public WeaponDamageSettings DamageSettings => damageSettings ??= new WeaponDamageSettings();
     public WeaponAccuracySettings Accuracy => accuracy ??= new WeaponAccuracySettings();
     public WeaponImpactDecalSettings ImpactDecalSettings => impactDecalSettings ??= new WeaponImpactDecalSettings();

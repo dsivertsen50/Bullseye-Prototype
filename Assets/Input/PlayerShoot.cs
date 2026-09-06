@@ -8,6 +8,7 @@ public class PlayerShoot : NetworkBehaviour
     [SerializeField] private Camera playerCamera;
     [SerializeField] private InputActionReference fireAction;
     [SerializeField] private float range = 100f;
+    [SerializeField] private bool showRicochetDebug;
 
     private readonly RaycastHit[] hits = new RaycastHit[32];
     private readonly List<(BullseyeTarget target, float distance)> pelletHits = new(16);
@@ -30,7 +31,6 @@ public class PlayerShoot : NetworkBehaviour
     private WeaponAccuracyController accuracy;
     private InputAction reloadAction;
     private float nextFireTime;
-    private int pickupLayer = -1;
 
     private void Awake()
     {
@@ -43,7 +43,6 @@ public class PlayerShoot : NetworkBehaviour
         weaponController = GetComponent<PlayerWeaponController>();
         interactor = GetComponent<PlayerWeaponInteractor>();
         accuracy = GetComponent<WeaponAccuracyController>();
-        pickupLayer = LayerMask.NameToLayer("WeaponPickup");
     }
 
     private void OnEnable()
@@ -125,32 +124,59 @@ public class PlayerShoot : NetworkBehaviour
         shotOrigins.Clear();
         shotEnds.Clear();
         directHitPlayers.Clear();
+        bool allowRicochet = definition == null || definition.CanRicochet;
         for (int i = 0; i < projectileCount; i++)
         {
-            bool hitSomething = TryGetHitscanHit(
+            bool hitSomething = TryTraceHitscan(
                 shotRange,
                 pelletSpread,
-                out RaycastHit hit,
+                allowRicochet,
+                out HitscanRicochet.TraceResult trace,
                 out Vector3 origin,
                 out Vector3 direction);
 
-            Vector3 end = hitSomething ? hit.point : origin + direction * shotRange;
-            shotOrigins.Add(origin);
-            shotEnds.Add(end);
+            if (trace.hasBounce)
+            {
+                shotOrigins.Add(origin);
+                shotEnds.Add(trace.bounceHit.point);
+                shotOrigins.Add(trace.bounceOrigin);
+                shotEnds.Add(trace.endPoint);
+            }
+            else
+            {
+                shotOrigins.Add(origin);
+                shotEnds.Add(trace.endPoint);
+            }
 
-            if (!hitSomething)
+            if (showRicochetDebug || (definition != null && definition.DamageSettings != null && definition.DamageSettings.LogDamage))
+            {
+                if (trace.hasBounce)
+                    HitscanRicochet.DrawDebug(trace, 0.35f);
+                else
+                    Debug.DrawRay(origin, direction * shotRange, Color.yellow, 0.2f);
+            }
+
+            int decalBudget = maxDecals;
+            if (trace.hasBounce && maxDecals > 0)
+            {
+                decalBudget = maxDecals + 1;
+                TryCollectSurfaceImpact(trace.bounceHit, impactSettings, decalBudget, trace.bounceHit.distance);
+            }
+
+            if (!hitSomething || !trace.hasFinalHit)
                 continue;
 
+            RaycastHit hit = trace.finalHit;
             TrackDirectPlayerHit(hit.collider);
 
-            if (TryGetBullseyeTarget(hit.collider, out BullseyeTarget target))
+            if (HitscanRicochet.TryGetBullseyeTarget(hit.collider, out BullseyeTarget target))
             {
-                pelletHits.Add((target, hit.distance));
+                pelletHits.Add((target, trace.totalDistance));
                 continue;
             }
 
-            if (maxDecals > 0)
-                TryCollectSurfaceImpact(hit, impactSettings, maxDecals);
+            if (decalBudget > 0)
+                TryCollectSurfaceImpact(hit, impactSettings, decalBudget, trace.totalDistance);
         }
 
         if (damageSettings.LogDamage)
@@ -183,7 +209,8 @@ public class PlayerShoot : NetworkBehaviour
     private void TryCollectSurfaceImpact(
         RaycastHit hit,
         WeaponImpactDecalSettings impactSettings,
-        int maxDecals)
+        int maxDecals,
+        float traveledDistance)
     {
         if (impactPoints.Count >= maxDecals)
             return;
@@ -191,9 +218,9 @@ public class PlayerShoot : NetworkBehaviour
         if (!BulletImpactManager.IsValidSurface(hit.collider))
             return;
 
-        if (hit.distance > impactSettings.MaximumDecalDistance)
+        if (traveledDistance > impactSettings.MaximumDecalDistance)
         {
-            BulletImpactManager.LogDistanceRejected(hit.distance, impactSettings.MaximumDecalDistance, hit.point, hit.normal);
+            BulletImpactManager.LogDistanceRejected(traveledDistance, impactSettings.MaximumDecalDistance, hit.point, hit.normal);
             return;
         }
 
@@ -435,24 +462,16 @@ public class PlayerShoot : NetworkBehaviour
         return interactor != null && interactor.ShouldSuppressReload;
     }
 
-    private bool TryGetHitscanHit(
+    private bool TryTraceHitscan(
         float shotRange,
         float spreadAt1080,
-        out RaycastHit selectedHit,
+        bool allowRicochet,
+        out HitscanRicochet.TraceResult result,
         out Vector3 origin,
         out Vector3 direction)
     {
-        selectedHit = default;
         origin = playerCamera != null ? playerCamera.transform.position : transform.position;
         direction = playerCamera != null ? playerCamera.transform.forward : transform.forward;
-
-        int mask = Physics.DefaultRaycastLayers;
-        if (pickupLayer >= 0)
-            mask &= ~(1 << pickupLayer);
-
-        int debrisLayer = LayerMask.NameToLayer("BullseyeDebris");
-        if (debrisLayer >= 0)
-            mask &= ~(1 << debrisLayer);
 
         if (accuracy != null && playerCamera != null)
         {
@@ -461,113 +480,15 @@ public class PlayerShoot : NetworkBehaviour
             direction = ray.direction;
         }
 
-        if (playerCamera != null && inventory != null)
-        {
-            WeaponDamageSettings settings = inventory.ActiveDefinition != null
-                ? inventory.ActiveDefinition.DamageSettings
-                : null;
-            if (settings != null && settings.LogDamage)
-                Debug.DrawRay(origin, direction * shotRange, Color.yellow, 0.2f);
-        }
-
-        int hitCount = Physics.RaycastNonAlloc(
+        return HitscanRicochet.Trace(
             origin,
             direction,
-            hits,
             shotRange,
-            mask,
-            QueryTriggerInteraction.Collide);
-
-        float worldDistance = float.MaxValue;
-        float bullseyeDistance = float.MaxValue;
-        float otherDistance = float.MaxValue;
-        RaycastHit worldHit = default;
-        RaycastHit bullseyeHit = default;
-        RaycastHit otherHit = default;
-        bool hasWorld = false;
-        bool hasBullseye = false;
-        bool hasOther = false;
-
-        for (int i = 0; i < hitCount; i++)
-        {
-            RaycastHit hit = hits[i];
-            if (hit.collider == null || IsOwnCollider(hit.collider))
-                continue;
-
-            if (TryGetBullseyeTarget(hit.collider, out _))
-            {
-                if (hit.distance >= bullseyeDistance)
-                    continue;
-
-                bullseyeDistance = hit.distance;
-                bullseyeHit = hit;
-                hasBullseye = true;
-                continue;
-            }
-
-            if (hit.collider.GetComponentInParent<PlayerHealth>() != null)
-            {
-                if (hit.distance >= otherDistance)
-                    continue;
-
-                otherDistance = hit.distance;
-                otherHit = hit;
-                hasOther = true;
-                continue;
-            }
-
-            if (hit.distance >= worldDistance)
-                continue;
-
-            worldDistance = hit.distance;
-            worldHit = hit;
-            hasWorld = true;
-        }
-
-        if (hasBullseye && bullseyeDistance <= worldDistance)
-        {
-            selectedHit = bullseyeHit;
-            return true;
-        }
-
-        if (hasOther && otherDistance <= worldDistance)
-        {
-            selectedHit = otherHit;
-            return true;
-        }
-
-        if (hasWorld)
-        {
-            selectedHit = worldHit;
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryGetBullseyeTarget(Collider collider, out BullseyeTarget target)
-    {
-        target = null;
-        if (collider == null)
-            return false;
-
-        target = collider.GetComponentInParent<BullseyeTarget>();
-        return target != null;
-    }
-
-    private bool IsOwnCollider(Collider collider)
-    {
-        if (collider == null)
-            return false;
-
-        if (TryGetBullseyeTarget(collider, out BullseyeTarget target) &&
-            target.OwnerHealth != null &&
-            target.OwnerHealth.NetworkObject == NetworkObject)
-        {
-            return true;
-        }
-
-        NetworkObject ownerObject = collider.GetComponentInParent<NetworkObject>();
-        return ownerObject != null && ownerObject == NetworkObject;
+            allowRicochet,
+            HitscanRicochet.DefaultMaxRicochets,
+            excludePlayersFromReflectedRay: false,
+            NetworkObject,
+            hits,
+            out result);
     }
 }

@@ -38,10 +38,13 @@ public class Grenade : NetworkBehaviour
     private Coroutine fuseRoutine;
     private float nextCollisionSfxTime;
 
+    public virtual GrenadeType Type => GrenadeType.Standard;
+    public ulong ThrowerClientId => throwerClientId;
     public float FuseDuration => fuseDuration;
     public float KnockbackRadius => knockbackRadius;
     public float ExplosionForce => explosionForce;
     public float BullseyeDetachRadius => bullseyeDetachRadius;
+    protected Rigidbody Body => body;
 
     private void Awake()
     {
@@ -72,7 +75,18 @@ public class Grenade : NetworkBehaviour
         }
 
         IgnoreThrowerCollisions();
+        StartThrownLifecycle();
+    }
+
+    protected virtual void StartThrownLifecycle()
+    {
         fuseRoutine = StartCoroutine(FuseThenExplode());
+    }
+
+    protected void DespawnIfSpawned()
+    {
+        if (IsSpawned && NetworkObject != null && NetworkObject.IsSpawned)
+            NetworkObject.Despawn(true);
     }
 
     public override void OnNetworkDespawn()
@@ -109,9 +123,7 @@ public class Grenade : NetworkBehaviour
 
         ApplyExplosionEffects(origin);
         PlayExplosionFxRpc(origin);
-
-        if (IsSpawned && NetworkObject != null && NetworkObject.IsSpawned)
-            NetworkObject.Despawn(true);
+        DespawnIfSpawned();
     }
 
     private void ApplyExplosionEffects(Vector3 origin)

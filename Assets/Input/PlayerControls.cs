@@ -217,6 +217,24 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""NextGrenade"",
+                    ""type"": ""Button"",
+                    ""id"": ""d1e52f87-3a64-4c91-b8e0-7f2c1a9d4e50"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Ping"",
+                    ""type"": ""Button"",
+                    ""id"": ""8b3c4d5e-6f70-4819-9a2b-3c4d5e6f7081"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -569,6 +587,50 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""groups"": """",
                     ""action"": ""Grenade"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""e2f63a98-4b75-4d02-c9f1-8a3d2b0e5f61"",
+                    ""path"": ""<Keyboard>/n"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""NextGrenade"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""f3074b09-5c86-4e13-da02-9b4e3c1f6072"",
+                    ""path"": ""<Gamepad>/dpad/right"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""NextGrenade"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""9c4d5e6f-7081-492a-ab3c-4d5e6f708192"",
+                    ""path"": ""<Mouse>/middleButton"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Ping"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""ad5e6f70-8192-4a3b-bc4d-5e6f708192a3"",
+                    ""path"": ""<Gamepad>/dpad/down"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Ping"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 }
@@ -966,6 +1028,8 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         m_Player_SwitchWeapon = m_Player.FindAction("SwitchWeapon", throwIfNotFound: true);
         m_Player_Pause = m_Player.FindAction("Pause", throwIfNotFound: true);
         m_Player_Grenade = m_Player.FindAction("Grenade", throwIfNotFound: true);
+        m_Player_NextGrenade = m_Player.FindAction("NextGrenade", throwIfNotFound: true);
+        m_Player_Ping = m_Player.FindAction("Ping", throwIfNotFound: true);
         // UI
         m_UI = asset.FindActionMap("UI", throwIfNotFound: true);
         m_UI_Navigate = m_UI.FindAction("Navigate", throwIfNotFound: true);
@@ -1073,6 +1137,8 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_SwitchWeapon;
     private readonly InputAction m_Player_Pause;
     private readonly InputAction m_Player_Grenade;
+    private readonly InputAction m_Player_NextGrenade;
+    private readonly InputAction m_Player_Ping;
     /// <summary>
     /// Provides access to input actions defined in input action map "Player".
     /// </summary>
@@ -1141,6 +1207,14 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         /// </summary>
         public InputAction @Grenade => m_Wrapper.m_Player_Grenade;
         /// <summary>
+        /// Provides access to the underlying input action "Player/NextGrenade".
+        /// </summary>
+        public InputAction @NextGrenade => m_Wrapper.m_Player_NextGrenade;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/Ping".
+        /// </summary>
+        public InputAction @Ping => m_Wrapper.m_Player_Ping;
+        /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
         public InputActionMap Get() { return m_Wrapper.m_Player; }
@@ -1208,6 +1282,12 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @Grenade.started += instance.OnGrenade;
             @Grenade.performed += instance.OnGrenade;
             @Grenade.canceled += instance.OnGrenade;
+            @NextGrenade.started += instance.OnNextGrenade;
+            @NextGrenade.performed += instance.OnNextGrenade;
+            @NextGrenade.canceled += instance.OnNextGrenade;
+            @Ping.started += instance.OnPing;
+            @Ping.performed += instance.OnPing;
+            @Ping.canceled += instance.OnPing;
         }
 
         /// <summary>
@@ -1261,6 +1341,12 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @Grenade.started -= instance.OnGrenade;
             @Grenade.performed -= instance.OnGrenade;
             @Grenade.canceled -= instance.OnGrenade;
+            @NextGrenade.started -= instance.OnNextGrenade;
+            @NextGrenade.performed -= instance.OnNextGrenade;
+            @NextGrenade.canceled -= instance.OnNextGrenade;
+            @Ping.started -= instance.OnPing;
+            @Ping.performed -= instance.OnPing;
+            @Ping.canceled -= instance.OnPing;
         }
 
         /// <summary>
@@ -1594,6 +1680,20 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnGrenade(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "NextGrenade" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnNextGrenade(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Ping" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnPing(InputAction.CallbackContext context);
     }
     /// <summary>
     /// Interface to implement callback methods for all input action callbacks associated with input actions defined by "UI" which allows adding and removing callbacks.
