@@ -2,15 +2,24 @@ using Unity.Netcode;
 using UnityEngine;
 
 /// <summary>
-/// Shared hitscan selection and one-bounce reflection used by both the
+/// Shared hitscan selection and multi-bounce reflection used by both the
 /// authoritative shot and the local bank-shot predictor.
 /// </summary>
 public static class HitscanRicochet
 {
-    public const int DefaultMaxRicochets = 1;
+    public const int DefaultMaxRicochets = 3;
     public const float SurfaceOffset = 0.015f;
     public const float MinimumIncidence = 0.012f;
     public const float MinimumRemainingRange = 0.05f;
+    public const float SubsequentBounceDecalDelay = 0.045f;
+
+    public struct BounceRecord
+    {
+        public RaycastHit hit;
+        public Vector3 reflectedOrigin;
+        public Vector3 reflectedDirection;
+        public float traveledDistance;
+    }
 
     public struct TraceResult
     {
@@ -20,11 +29,33 @@ public static class HitscanRicochet
         public RaycastHit bounceHit;
         public Vector3 bounceOrigin;
         public Vector3 bounceDirection;
+        public BounceRecord bounce0;
+        public BounceRecord bounce1;
+        public BounceRecord bounce2;
         public bool hasFinalHit;
         public RaycastHit finalHit;
         public Vector3 endPoint;
         public float totalDistance;
         public int bounceCount;
+
+        public bool TryGetBounce(int index, out BounceRecord record)
+        {
+            switch (index)
+            {
+                case 0:
+                    record = bounce0;
+                    return bounceCount > 0;
+                case 1:
+                    record = bounce1;
+                    return bounceCount > 1;
+                case 2:
+                    record = bounce2;
+                    return bounceCount > 2;
+                default:
+                    record = default;
+                    return false;
+            }
+        }
     }
 
     public static int BuildHitscanMask()
@@ -130,7 +161,7 @@ public static class HitscanRicochet
         result.endPoint = firstHit.point;
         result.totalDistance = firstHit.distance;
 
-        int allowedBounces = allowRicochet ? Mathf.Max(0, maxRicochets) : 0;
+        int allowedBounces = allowRicochet ? Mathf.Clamp(maxRicochets, 0, DefaultMaxRicochets) : 0;
         Vector3 segmentOrigin = origin;
         Vector3 segmentDirection = direction;
         float traveled = firstHit.distance;
@@ -153,10 +184,27 @@ public static class HitscanRicochet
                 break;
             }
 
+            var record = new BounceRecord
+            {
+                hit = currentHit,
+                reflectedOrigin = bounceOrigin,
+                reflectedDirection = bounceDirection,
+                traveledDistance = traveled
+            };
+            SetBounce(ref result, result.bounceCount, record);
             result.hasBounce = true;
-            result.bounceHit = currentHit;
-            result.bounceOrigin = bounceOrigin;
-            result.bounceDirection = bounceDirection;
+            if (result.bounceCount == 0)
+            {
+                result.bounceHit = currentHit;
+                result.bounceOrigin = bounceOrigin;
+                result.bounceDirection = bounceDirection;
+            }
+            else
+            {
+                result.bounceOrigin = bounceOrigin;
+                result.bounceDirection = bounceDirection;
+            }
+
             result.bounceCount++;
 
             segmentOrigin = bounceOrigin;
@@ -213,20 +261,38 @@ public static class HitscanRicochet
     public static void DrawDebug(in TraceResult result, float duration)
     {
         Debug.DrawRay(result.startOrigin, result.startDirection * 4f, Color.cyan, duration);
-        if (result.hasBounce)
+        Vector3 previous = result.startOrigin;
+        for (int i = 0; i < result.bounceCount; i++)
         {
-            Debug.DrawLine(result.startOrigin, result.bounceHit.point, Color.cyan, duration);
-            Debug.DrawRay(result.bounceHit.point, result.bounceHit.normal * 0.45f, Color.green, duration);
-            Debug.DrawRay(result.bounceOrigin, result.bounceDirection * 4f, Color.yellow, duration);
-            Debug.DrawLine(result.bounceOrigin, result.endPoint, Color.yellow, duration);
+            if (!result.TryGetBounce(i, out BounceRecord bounce))
+                continue;
+
+            Color segment = i == 0 ? Color.cyan : Color.yellow;
+            Debug.DrawLine(previous, bounce.hit.point, segment, duration);
+            Debug.DrawRay(bounce.hit.point, bounce.hit.normal * 0.45f, Color.green, duration);
+            previous = bounce.reflectedOrigin;
         }
-        else
-        {
-            Debug.DrawLine(result.startOrigin, result.endPoint, Color.cyan, duration);
-        }
+
+        Debug.DrawLine(previous, result.endPoint, result.hasBounce ? Color.yellow : Color.cyan, duration);
 
         if (result.hasFinalHit)
             Debug.DrawRay(result.finalHit.point, result.finalHit.normal * 0.3f, Color.red, duration);
+    }
+
+    private static void SetBounce(ref TraceResult result, int index, BounceRecord record)
+    {
+        switch (index)
+        {
+            case 0:
+                result.bounce0 = record;
+                break;
+            case 1:
+                result.bounce1 = record;
+                break;
+            case 2:
+                result.bounce2 = record;
+                break;
+        }
     }
 
     private static bool CanRicochetFrom(Collider collider)
@@ -274,6 +340,9 @@ public static class HitscanRicochet
                 continue;
 
             if (IsOwnCollider(hit.collider, ignoreOwner))
+                continue;
+
+            if (IsLocomotionCollider(hit.collider))
                 continue;
 
             if (TryGetBullseyeTarget(hit.collider, out _))
@@ -325,6 +394,11 @@ public static class HitscanRicochet
         }
 
         return false;
+    }
+
+    private static bool IsLocomotionCollider(Collider collider)
+    {
+        return collider != null && collider.GetComponent<PlayerLocomotionCollider>() != null;
     }
 
     private static bool IsOwnCollider(Collider collider, NetworkObject owner)

@@ -1,23 +1,36 @@
-using System.Collections.Generic;
 using UnityEngine;
 using Unity.Netcode;
 
+/// <summary>
+/// Server-authoritative bullseye movement across a bone-anchored surface graph.
+/// Clients reconstruct the same interpolated surface pose from replicated region state.
+/// </summary>
 public class BullseyeMover : NetworkBehaviour
 {
-    private const float SimulationDt = 1f / 30f;
-    private const float VerticalMargin = 0.06f;
-    private const float MinHeadingDelta = 50f * Mathf.Deg2Rad;
+    [Header("Surface")]
+    [SerializeField] private BullseyeSurfaceMap surfaceMap;
+    [SerializeField] private BullseyeSurfaceVisual surfaceVisual;
+    [SerializeField] private Transform attachedHitTarget;
+    [SerializeField] private Transform physicalBullseye;
+    [SerializeField] private float bullseyeSize = 0.28f;
+    [SerializeField] private float hitTargetThickness = 0.05f;
 
-    [SerializeField] private Transform bullseye;
-    [SerializeField] private CapsuleCollider bodyCapsule;
+    [Header("Movement")]
+    [SerializeField] private float baseMovementSpeed = 0.2f;
+    [SerializeField, Range(0f, 1f)] private float pauseChance = 0f;
+    [SerializeField] private float minPauseDuration = 0f;
+    [SerializeField] private float maxPauseDuration = 0.25f;
+    [SerializeField] private float randomDirectionWeight = 0.35f;
+    [SerializeField] private float continueForwardWeight = 2.4f;
+    [SerializeField] private float maxSpawnPhaseOffset = 0f;
 
-    [SerializeField] private float moveSpeed = 0.75f;
-    [SerializeField] private float surfaceOffset = 0.08f;
-    [SerializeField] private float minDirectionChangeInterval = 1.5f;
-    [SerializeField] private float maxDirectionChangeInterval = 3.5f;
-    [SerializeField] private float directionSmoothingTime = 0.6f;
-    [SerializeField] private float jumpInfluenceStrength = 0.55f;
-    [SerializeField] private float jumpInfluenceDuration = 1.15f;
+    [Header("Jump Influence")]
+    [SerializeField] private float jumpInfluenceAmount = 0.55f;
+    [SerializeField] private float jumpInfluenceWindow = 1.15f;
+    [SerializeField] private float maximumJumpInfluence = 1.8f;
+    [SerializeField] private float jumpInfluenceDecayRate = 0.85f;
+
+    [Header("Other Influence")]
     [SerializeField] private float crouchInfluenceStrength = 0.42f;
     [SerializeField] private float turnBullseyeInfluenceStrength = 0.55f;
     [SerializeField] private float turnInfluenceDelay = 0.35f;
@@ -25,91 +38,113 @@ public class BullseyeMover : NetworkBehaviour
     [SerializeField] private float turnRateForFullInfluence = 180f;
     [SerializeField] private float turnInfluenceSmoothing = 4f;
     [SerializeField] private float turnInfluenceDecayRate = 2.5f;
-    [SerializeField] private float maxSpawnPhaseOffset = 2.5f;
     [SerializeField] private float hideFromOwnerCameraDistance = 0.6f;
 
-    private readonly NetworkVariable<float> pathStartTime = new(0f);
-    private readonly NetworkVariable<int> randomSeed = new(0);
+    [Header("Debug")]
+    [SerializeField] private bool debugVisualization;
 
-    private static int nextPathEntropy;
+    private readonly NetworkVariable<byte> currentRegion = new(
+        0,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
 
-    private NetworkList<float> jumpInfluenceTimes;
-    private NetworkList<float> crouchToggleTimes;
-    private NetworkList<float> turnSampleTimes;
-    private NetworkList<float> turnSampleRates;
+    private readonly NetworkVariable<byte> targetRegion = new(
+        0,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
 
-    private readonly List<Leg> legs = new();
-    private uint rngState;
-    private float u;
-    private float v;
-    private int cachedStep;
-    private int currentLegIndex;
-    private TurnSimState turnSim;
+    private readonly NetworkVariable<float> moveStartTime = new(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
+
+    private readonly NetworkVariable<float> travelDuration = new(
+        0.35f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
+
+    private readonly NetworkVariable<float> pauseUntilTime = new(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
+
+    private readonly NetworkVariable<float> jumpInfluence = new(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
+
+    private readonly NetworkVariable<float> lastJumpTime = new(
+        -100f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
+
+    private readonly NetworkVariable<float> turnInfluence = new(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
+
+    private PlayerHealth playerHealth;
+    private PlayerMovement playerMovement;
+    private BullseyeDetachController detachController;
+    private BullseyeTarget attachedTarget;
+    private Collider attachedCollider;
     private float lastYaw;
+    private bool hasLastYaw;
     private float lastSentTurnRate;
     private float turnSampleSendCooldown;
-    private bool hasLastYaw;
-    private PlayerHealth playerHealth;
-    private BullseyeTarget bullseyeTarget;
-    private BullseyeDetachController detachController;
+    private float localTurnInfluence;
+    private Vector3 lastPosition;
+    private Vector3 lastNormal = Vector3.forward;
+    private Quaternion lastRotation = Quaternion.identity;
+    private int lastAttachedRegion;
+    private int previousRegion = -1;
 
-    private struct Leg
-    {
-        public float startTime;
-        public float duration;
-        public float fromHeading;
-        public float toHeading;
-    }
+    public BullseyeSurfaceMap SurfaceMap => surfaceMap;
+    public Transform PhysicalBullseye => physicalBullseye;
+    public Transform AttachedHitTarget => attachedHitTarget;
+    public int CurrentRegionIndex => currentRegion.Value;
+    public int TargetRegionIndex => targetRegion.Value;
+    public float MovementProgress => GetMovementProgress();
+    public float JumpInfluence => jumpInfluence.Value;
+    public float TurnInfluence => IsServer ? turnInfluence.Value : localTurnInfluence;
+    public float BullseyeSize => bullseyeSize;
+    public bool DebugVisualization => debugVisualization;
 
-    private struct TurnSimState
-    {
-        public float influence;
-        public int sampleIndex;
-    }
+    public Vector3 CurrentWorldPosition => lastPosition;
+    public Vector3 CurrentWorldNormal => lastNormal;
+    public Quaternion CurrentWorldRotation => lastRotation;
 
     private void Awake()
     {
-        if (bodyCapsule == null)
-            bodyCapsule = GetComponentInChildren<CapsuleCollider>();
-
         playerHealth = GetComponent<PlayerHealth>();
+        playerMovement = GetComponent<PlayerMovement>();
         detachController = GetComponent<BullseyeDetachController>();
-        if (bullseye != null)
-            bullseyeTarget = bullseye.GetComponent<BullseyeTarget>();
-        if (bullseyeTarget == null)
-            bullseyeTarget = GetComponentInChildren<BullseyeTarget>();
 
-        jumpInfluenceTimes = new NetworkList<float>();
-        crouchToggleTimes = new NetworkList<float>();
-        turnSampleTimes = new NetworkList<float>();
-        turnSampleRates = new NetworkList<float>();
+        if (surfaceMap == null)
+            surfaceMap = GetComponent<BullseyeSurfaceMap>();
+        if (surfaceVisual == null)
+            surfaceVisual = GetComponent<BullseyeSurfaceVisual>();
+        if (physicalBullseye == null)
+        {
+            BullseyeTarget physical = FindPhysicalTarget();
+            if (physical != null)
+                physicalBullseye = physical.transform;
+        }
+
+        if (attachedHitTarget != null)
+        {
+            attachedTarget = attachedHitTarget.GetComponent<BullseyeTarget>();
+            attachedCollider = attachedHitTarget.GetComponent<Collider>();
+        }
     }
 
     public override void OnNetworkSpawn()
     {
-        pathStartTime.OnValueChanged += OnSyncChanged;
-        randomSeed.OnValueChanged += OnSyncChanged;
-        jumpInfluenceTimes.OnListChanged += OnInfluenceChanged;
-        crouchToggleTimes.OnListChanged += OnInfluenceChanged;
-        turnSampleTimes.OnListChanged += OnInfluenceChanged;
-        turnSampleRates.OnListChanged += OnInfluenceChanged;
-
         if (IsServer)
-            AssignIndependentRandomization();
+            RestartIndependentRandomization();
 
         ResetTurnTracking();
-        RebuildSimulation();
-        SimulateAndApply();
-    }
-
-    public override void OnNetworkDespawn()
-    {
-        pathStartTime.OnValueChanged -= OnSyncChanged;
-        randomSeed.OnValueChanged -= OnSyncChanged;
-        jumpInfluenceTimes.OnListChanged -= OnInfluenceChanged;
-        crouchToggleTimes.OnListChanged -= OnInfluenceChanged;
-        turnSampleTimes.OnListChanged -= OnInfluenceChanged;
-        turnSampleRates.OnListChanged -= OnInfluenceChanged;
+        ApplySurfacePose();
     }
 
     public void NotifyJump()
@@ -122,10 +157,7 @@ public class BullseyeMover : NetworkBehaviour
 
     public void NotifyCrouchChanged()
     {
-        if (!IsSpawned)
-            return;
-
-        RecordCrouchToggleServerRpc();
+        // Crouch is read live from PlayerMovement on the server when picking targets.
     }
 
     public void ClearInfluence()
@@ -133,10 +165,9 @@ public class BullseyeMover : NetworkBehaviour
         if (!IsServer || !IsSpawned)
             return;
 
-        jumpInfluenceTimes.Clear();
-        crouchToggleTimes.Clear();
-        turnSampleTimes.Clear();
-        turnSampleRates.Clear();
+        jumpInfluence.Value = 0f;
+        lastJumpTime.Value = -100f;
+        turnInfluence.Value = 0f;
     }
 
     public void RestartIndependentRandomization()
@@ -145,38 +176,19 @@ public class BullseyeMover : NetworkBehaviour
             return;
 
         ClearInfluence();
-        AssignIndependentRandomization();
-    }
+        previousRegion = -1;
+        int start = PickWeightedRegion(exclude: -1);
+        lastAttachedRegion = start;
+        currentRegion.Value = (byte)start;
+        float now = ServerNow();
+        int next = PickNextRegion(start);
+        if (next == start)
+            next = PickWeightedRegion(start);
 
-    private void AssignIndependentRandomization()
-    {
-        unchecked
-        {
-            nextPathEntropy++;
-            int entropy = nextPathEntropy * 16777619 + Random.Range(1, int.MaxValue);
-            randomSeed.Value = MixSeed(NetworkObjectId, OwnerClientId, entropy);
-        }
-
-        float phaseOffset = maxSpawnPhaseOffset > 0f
-            ? Random.Range(0f, maxSpawnPhaseOffset)
-            : 0f;
-        pathStartTime.Value = (float)NetworkManager.ServerTime.Time - phaseOffset;
-    }
-
-    private static int MixSeed(ulong networkObjectId, ulong ownerClientId, int entropy)
-    {
-        unchecked
-        {
-            uint hash = 2166136261u;
-            hash = (hash ^ (uint)networkObjectId) * 16777619u;
-            hash = (hash ^ (uint)(networkObjectId >> 32)) * 16777619u;
-            hash = (hash ^ (uint)ownerClientId) * 16777619u;
-            hash = (hash ^ (uint)(ownerClientId >> 32)) * 16777619u;
-            hash = (hash ^ (uint)entropy) * 16777619u;
-            if (hash == 0u)
-                hash = 1u;
-            return (int)hash;
-        }
+        targetRegion.Value = (byte)next;
+        moveStartTime.Value = now - (maxSpawnPhaseOffset > 0f ? Random.Range(0f, maxSpawnPhaseOffset) : 0f);
+        travelDuration.Value = EstimateTravelDuration(start, next);
+        pauseUntilTime.Value = 0f;
     }
 
     public void ResetTurnTracking()
@@ -185,205 +197,363 @@ public class BullseyeMover : NetworkBehaviour
         lastSentTurnRate = 0f;
         turnSampleSendCooldown = 0f;
         lastYaw = transform.eulerAngles.y;
+        localTurnInfluence = 0f;
+    }
+
+    public bool TryGetSurfacePose(out Vector3 position, out Vector3 normal, out Quaternion rotation)
+    {
+        position = lastPosition;
+        normal = lastNormal;
+        rotation = lastRotation;
+        return lastNormal.sqrMagnitude > 0.0001f;
+    }
+
+    public int ConsumeReattachRegion(Vector3 worldHint)
+    {
+        if (surfaceMap == null)
+            return 0;
+
+        int region = lastAttachedRegion;
+        if (!surfaceMap.TryGetRegion(region, out _))
+            region = surfaceMap.FindNearestRegion(worldHint);
+
+        if (IsServer)
+        {
+            currentRegion.Value = (byte)region;
+            targetRegion.Value = (byte)region;
+            moveStartTime.Value = ServerNow();
+            travelDuration.Value = 0.01f;
+            pauseUntilTime.Value = ServerNow() + RandomPause();
+        }
+
+        return region;
+    }
+
+    public void RememberAttachedRegion()
+    {
+        lastAttachedRegion = currentRegion.Value;
     }
 
     [Rpc(SendTo.Server)]
     private void RecordJumpServerRpc()
     {
-        jumpInfluenceTimes.Add((float)NetworkManager.ServerTime.Time);
-    }
+        float now = ServerNow();
+        float next = jumpInfluence.Value + jumpInfluenceAmount;
+        if (now - lastJumpTime.Value <= Mathf.Max(0.05f, jumpInfluenceWindow))
+            next += jumpInfluenceAmount * 0.5f;
 
-    [Rpc(SendTo.Server)]
-    private void RecordCrouchToggleServerRpc()
-    {
-        crouchToggleTimes.Add((float)NetworkManager.ServerTime.Time);
+        jumpInfluence.Value = Mathf.Min(maximumJumpInfluence, next);
+        lastJumpTime.Value = now;
     }
 
     [Rpc(SendTo.Server)]
     private void RecordTurnSampleServerRpc(float yawRate)
     {
-        if (turnSampleRates.Count > 0 &&
-            Mathf.Abs(turnSampleRates[turnSampleRates.Count - 1] - yawRate) < 0.01f)
-            return;
-
-        turnSampleTimes.Add((float)NetworkManager.ServerTime.Time);
-        turnSampleRates.Add(yawRate);
-    }
-
-    private void OnSyncChanged(float previous, float next)
-    {
-        RebuildSimulation();
-        SimulateAndApply();
-    }
-
-    private void OnSyncChanged(int previous, int next)
-    {
-        RebuildSimulation();
-        SimulateAndApply();
-    }
-
-    private void OnInfluenceChanged(NetworkListEvent<float> changeEvent)
-    {
-        RebuildSimulation();
-        SimulateAndApply();
+        float target = ScaledTurnInfluence(yawRate);
+        turnInfluence.Value = target;
     }
 
     private void Update()
     {
-        if (!IsSpawned || bullseye == null || bodyCapsule == null)
+        if (!IsSpawned)
             return;
 
         if (playerHealth != null && playerHealth.IsDead)
             return;
 
-        if (detachController != null && !detachController.IsSurfaceDriven)
-        {
-            ApplyOwnerVisibility();
-            return;
-        }
-
         if (IsOwner)
             SampleOwnerYaw();
 
-        SimulateAndApply();
+        if (IsServer)
+            TickServerMovement();
+
+        if (!IsServer)
+            TickClientTurnFollow();
     }
 
-    private void RebuildSimulation()
+    private void LateUpdate()
     {
-        rngState = (uint)randomSeed.Value;
-        if (rngState == 0u)
-            rngState = 1u;
-
-        legs.Clear();
-        currentLegIndex = 0;
-        cachedStep = 0;
-
-        turnSim = default;
-
-        u = NextFloat();
-        v = VerticalMargin + NextFloat() * (1f - 2f * VerticalMargin);
-
-        float heading = WrapAngle(NextFloat() * Mathf.PI * 2f);
-        legs.Add(new Leg
-        {
-            startTime = 0f,
-            duration = NextInterval(),
-            fromHeading = heading,
-            toHeading = heading
-        });
-    }
-
-    private void SimulateAndApply()
-    {
-        if (NetworkManager == null || legs.Count == 0)
+        if (!IsSpawned)
             return;
 
-        float elapsed = (float)NetworkManager.ServerTime.Time - pathStartTime.Value;
-        if (elapsed < 0f)
-            elapsed = 0f;
+        if (playerHealth != null && playerHealth.IsDead)
+            return;
 
-        int targetStep = (int)(elapsed / SimulationDt);
-        while (cachedStep < targetStep)
+        ApplySurfacePose();
+    }
+
+    private void TickServerMovement()
+    {
+        DecayJumpInfluence(Time.deltaTime);
+        DecayTurnInfluence(Time.deltaTime);
+
+        if (detachController != null && !detachController.IsSurfaceDriven)
+            return;
+
+        if (surfaceMap == null || surfaceMap.RegionCount == 0)
+            return;
+
+        float now = ServerNow();
+        if (now < pauseUntilTime.Value)
+            return;
+
+        float progress = GetMovementProgress();
+        if (progress < 1f && currentRegion.Value != targetRegion.Value)
+            return;
+
+        int arrived = targetRegion.Value;
+        previousRegion = currentRegion.Value;
+        currentRegion.Value = (byte)arrived;
+        lastAttachedRegion = arrived;
+
+        if (pauseChance > 0f && Random.value < pauseChance)
         {
-            float stepTime = cachedStep * SimulationDt;
-            Integrate(ref u, ref v, ref turnSim, SimulationDt, stepTime, reflectLegs: true);
-            cachedStep++;
+            pauseUntilTime.Value = now + RandomPause();
+            return;
         }
 
-        float remainder = elapsed - targetStep * SimulationDt;
-        float drawU = u;
-        float drawV = v;
-        TurnSimState drawTurn = turnSim;
-        if (remainder > 0.0001f)
-            Integrate(ref drawU, ref drawV, ref drawTurn, remainder, elapsed - remainder, reflectLegs: false);
-
-        ApplySurfacePose(drawU, drawV);
-        ApplyOwnerVisibility();
+        BeginTravelFrom(arrived, now);
     }
 
-    private void Integrate(
-        ref float uu,
-        ref float vv,
-        ref TurnSimState turn,
-        float dt,
-        float time,
-        bool reflectLegs)
+    private void BeginTravelFrom(int from, float now)
     {
-        CapsuleBodySurface.GetUvScales(bodyCapsule, vv, surfaceOffset, out float metersPerU, out float metersPerV);
+        int next = PickNextRegion(from);
+        if (next == from)
+            next = PickWeightedRegion(from);
 
-        float heading = GetHeading(time);
-        float circumferential = moveSpeed * Mathf.Cos(heading) + StepTurnInfluence(ref turn, dt, time);
-        float vertical = moveSpeed * Mathf.Sin(heading) + GetVerticalInfluence(time);
-        uu = Mathf.Repeat(uu + (circumferential / metersPerU) * dt, 1f);
-        vv += (vertical / metersPerV) * dt;
-
-        float minV = VerticalMargin;
-        float maxV = 1f - VerticalMargin;
-        if (vv >= minV && vv <= maxV)
-            return;
-
-        vv = Mathf.Clamp(vv, minV, maxV);
-        if (reflectLegs)
-            BounceVertically(time, vv);
+        targetRegion.Value = (byte)next;
+        moveStartTime.Value = now;
+        travelDuration.Value = EstimateTravelDuration(from, next);
+        pauseUntilTime.Value = 0f;
     }
 
-    private void BounceVertically(float time, float clampedV)
+    private float EstimateTravelDuration(int from, int to)
     {
-        float heading = GetHeading(time);
-        float circ = Mathf.Cos(heading);
-        float vert = Mathf.Sin(heading);
-        bool atBottom = clampedV <= VerticalMargin + 0.0001f;
-        bool atTop = clampedV >= 1f - VerticalMargin - 0.0001f;
-
-        if (atBottom && vert < 0.25f)
-            vert = Mathf.Max(0.75f, Mathf.Abs(vert));
-        else if (atTop && vert > -0.25f)
-            vert = -Mathf.Max(0.75f, Mathf.Abs(vert));
-        else
-            return;
-
-        float bounced = Mathf.Atan2(vert, circ);
-        Leg leg = legs[currentLegIndex];
-        leg.fromHeading = bounced;
-        leg.toHeading = bounced;
-        legs[currentLegIndex] = leg;
-    }
-
-    private float GetVerticalInfluence(float elapsed)
-    {
-        float influence = 0f;
-        float serverTime = pathStartTime.Value + elapsed;
-
-        if (jumpInfluenceTimes != null)
+        float distance = 0.28f;
+        if (surfaceMap != null &&
+            surfaceMap.TryEvaluate(from, out Vector3 start, out _) &&
+            surfaceMap.TryEvaluate(to, out Vector3 end, out _))
         {
-            float duration = Mathf.Max(0f, jumpInfluenceDuration);
-            for (int i = 0; i < jumpInfluenceTimes.Count; i++)
+            distance = Mathf.Max(0.16f, Vector3.Distance(start, end));
+        }
+
+        return distance / Mathf.Max(0.05f, baseMovementSpeed);
+    }
+
+    private void DecayJumpInfluence(float dt)
+    {
+        if (jumpInfluence.Value <= 0f)
+            return;
+
+        float next = jumpInfluence.Value - Mathf.Max(0f, jumpInfluenceDecayRate) * dt;
+        jumpInfluence.Value = Mathf.Max(0f, next);
+    }
+
+    private void DecayTurnInfluence(float dt)
+    {
+        float target = 0f;
+        float rate = turnInfluenceDecayRate;
+        turnInfluence.Value = Mathf.MoveTowards(turnInfluence.Value, target, Mathf.Max(0f, rate) * dt);
+    }
+
+    private int PickNextRegion(int from)
+    {
+        if (surfaceMap == null)
+            return from;
+
+        int neighborCount = surfaceMap.GetNeighborCount(from);
+        if (neighborCount <= 0)
+            return PickWeightedRegion(from);
+
+        float verticalBias = jumpInfluence.Value;
+        if (playerMovement != null && playerMovement.IsCrouched)
+            verticalBias -= crouchInfluenceStrength;
+
+        float lateralBias = turnInfluence.Value;
+        float total = 0f;
+        float[] weights = new float[neighborCount];
+
+        for (int i = 0; i < neighborCount; i++)
+        {
+            if (!surfaceMap.TryGetNeighbor(from, i, out int neighbor))
             {
-                float start = jumpInfluenceTimes[i];
-                if (serverTime >= start && serverTime < start + duration)
-                    influence += jumpInfluenceStrength;
+                weights[i] = 0f;
+                continue;
             }
+
+            float weight = Mathf.Max(0.01f, surfaceMap.GetWeight(neighbor));
+            float verticalDelta = surfaceMap.GetVertical(neighbor) - surfaceMap.GetVertical(from);
+            float lateral = surfaceMap.GetLateral(neighbor);
+
+            weight *= 1f + Mathf.Max(-0.85f, verticalBias * verticalDelta * 2.4f);
+            weight *= 1f + Mathf.Max(-0.75f, lateralBias * lateral);
+            if (neighbor == previousRegion)
+                weight *= 0.12f;
+            else if (previousRegion >= 0)
+                weight *= Mathf.Max(1f, continueForwardWeight);
+            weight = Mathf.Lerp(weight, 1f, Mathf.Clamp01(randomDirectionWeight));
+            weights[i] = Mathf.Max(0.01f, weight);
+            total += weights[i];
         }
 
-        if (IsCrouchedAt(serverTime))
-            influence -= crouchInfluenceStrength;
+        if (total <= 0f)
+            return from;
 
-        return influence;
+        float pick = Random.value * total;
+        for (int i = 0; i < neighborCount; i++)
+        {
+            pick -= weights[i];
+            if (pick > 0f)
+                continue;
+
+            return surfaceMap.TryGetNeighbor(from, i, out int neighbor) ? neighbor : from;
+        }
+
+        return surfaceMap.TryGetNeighbor(from, neighborCount - 1, out int last) ? last : from;
     }
 
-    private bool IsCrouchedAt(float serverTime)
+    private int PickWeightedRegion(int exclude)
     {
-        if (crouchToggleTimes == null)
-            return false;
+        if (surfaceMap == null || surfaceMap.RegionCount == 0)
+            return 0;
 
-        bool isCrouched = false;
-        for (int i = 0; i < crouchToggleTimes.Count; i++)
+        float total = 0f;
+        int count = surfaceMap.RegionCount;
+        for (int i = 0; i < count; i++)
         {
-            if (crouchToggleTimes[i] <= serverTime)
-                isCrouched = !isCrouched;
+            if (i == exclude)
+                continue;
+            total += Mathf.Max(0.01f, surfaceMap.GetWeight(i));
         }
 
-        return isCrouched;
+        float pick = Random.value * Mathf.Max(0.01f, total);
+        for (int i = 0; i < count; i++)
+        {
+            if (i == exclude)
+                continue;
+
+            pick -= Mathf.Max(0.01f, surfaceMap.GetWeight(i));
+            if (pick <= 0f)
+                return i;
+        }
+
+        return surfaceMap.DefaultAttachedRegion();
+    }
+
+    private float RandomPause()
+    {
+        float min = Mathf.Max(0f, minPauseDuration);
+        float max = Mathf.Max(min, maxPauseDuration);
+        return Random.Range(min, max);
+    }
+
+    private float GetMovementProgress()
+    {
+        float duration = Mathf.Max(0.01f, travelDuration.Value);
+        float now = ServerNow();
+        if (now < pauseUntilTime.Value && currentRegion.Value == targetRegion.Value)
+            return 1f;
+
+        return Mathf.Clamp01((now - moveStartTime.Value) / duration);
+    }
+
+    private void ApplySurfacePose()
+    {
+        bool attached = detachController == null || detachController.IsSurfaceDriven;
+        if (surfaceMap == null)
+            return;
+
+        float progress = GetMovementProgress();
+        if (!surfaceMap.TryEvaluateInterpolated(
+                currentRegion.Value,
+                targetRegion.Value,
+                progress,
+                out Vector3 position,
+                out Vector3 normal))
+        {
+            return;
+        }
+
+        Quaternion rotation = surfaceMap.RotationFromNormal(normal);
+        lastPosition = position;
+        lastNormal = normal;
+        lastRotation = rotation;
+
+        if (!attached)
+        {
+            SetAttachedGameplayActive(false);
+            if (surfaceVisual != null)
+                surfaceVisual.SetAttachedVisible(false);
+            return;
+        }
+
+        lastAttachedRegion = currentRegion.Value;
+        SetAttachedGameplayActive(true);
+        ApplyHitTarget(position, rotation);
+        ApplyPhysicalHidden();
+
+        if (surfaceVisual != null)
+        {
+            surfaceVisual.StampRadius = bullseyeSize * 0.5f;
+            surfaceVisual.SetAttachedVisible(true);
+            surfaceVisual.ApplyPose(position, normal, rotation);
+        }
+
+        ApplyOwnerVisibility(position);
+    }
+
+    private void ApplyHitTarget(Vector3 position, Quaternion rotation)
+    {
+        if (attachedHitTarget == null)
+            return;
+
+        attachedHitTarget.SetPositionAndRotation(position, rotation);
+        float diameter = Mathf.Max(0.08f, bullseyeSize);
+        attachedHitTarget.localScale = new Vector3(diameter, diameter, Mathf.Max(0.03f, hitTargetThickness));
+    }
+
+    private void ApplyPhysicalHidden()
+    {
+        if (physicalBullseye == null)
+            return;
+
+        Renderer[] renderers = physicalBullseye.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null)
+                renderers[i].forceRenderingOff = true;
+        }
+    }
+
+    private void SetAttachedGameplayActive(bool active)
+    {
+        if (attachedCollider != null)
+            attachedCollider.enabled = active && (playerHealth == null || !playerHealth.IsDead);
+
+        if (attachedHitTarget != null && attachedHitTarget.gameObject.activeSelf != (active || attachedHitTarget.gameObject.activeSelf))
+            attachedHitTarget.gameObject.SetActive(true);
+    }
+
+    private void ApplyOwnerVisibility(Vector3 position)
+    {
+        bool show = true;
+        if (IsOwner)
+        {
+            Camera cam = PlayerNetworkSetup.LocalOwnedCamera;
+            if (cam == null)
+                cam = GetComponentInChildren<Camera>();
+
+            if (cam == null || !cam.enabled)
+                show = false;
+            else
+                show = Vector3.Distance(position, cam.transform.position) >= Mathf.Max(0f, hideFromOwnerCameraDistance);
+        }
+
+        if (surfaceVisual != null)
+            surfaceVisual.SetSuppressedForOwner(!show);
+
+        if (attachedTarget != null)
+            attachedTarget.SetVisibleToLocalViewer(show);
     }
 
     private void SampleOwnerYaw()
@@ -407,7 +577,6 @@ public class BullseyeMover : NetworkBehaviour
             yawRate = 0f;
 
         turnSampleSendCooldown -= dt;
-
         bool wasMoving = Mathf.Abs(lastSentTurnRate) >= 0.01f;
         bool isMoving = Mathf.Abs(yawRate) >= 0.01f;
         bool crossedZero = wasMoving != isMoving;
@@ -423,18 +592,13 @@ public class BullseyeMover : NetworkBehaviour
         }
     }
 
-    private float StepTurnInfluence(ref TurnSimState turn, float dt, float time)
+    private void TickClientTurnFollow()
     {
-        float serverTime = pathStartTime.Value + time;
-        float delayedRate = GetYawRateAt(serverTime - turnInfluenceDelay, ref turn.sampleIndex);
-        float target = ScaledTurnInfluence(delayedRate);
-
-        float approachRate = Mathf.Abs(target) < Mathf.Abs(turn.influence) - 0.0001f
+        float target = turnInfluence.Value;
+        float approach = Mathf.Abs(target) < Mathf.Abs(localTurnInfluence) - 0.0001f
             ? turnInfluenceDecayRate
             : turnInfluenceSmoothing;
-        approachRate = Mathf.Max(0f, approachRate);
-        turn.influence = Mathf.MoveTowards(turn.influence, target, approachRate * dt);
-        return turn.influence;
+        localTurnInfluence = Mathf.MoveTowards(localTurnInfluence, target, Mathf.Max(0f, approach) * Time.deltaTime);
     }
 
     private float ScaledTurnInfluence(float yawRateDegrees)
@@ -447,132 +611,96 @@ public class BullseyeMover : NetworkBehaviour
         return scaled * turnBullseyeInfluenceStrength;
     }
 
-    private float GetYawRateAt(float serverTime, ref int sampleIndex)
+    private float ServerNow()
     {
-        if (turnSampleTimes == null || turnSampleTimes.Count == 0 || turnSampleTimes[0] > serverTime)
-            return 0f;
-
-        while (sampleIndex + 1 < turnSampleTimes.Count &&
-               turnSampleTimes[sampleIndex + 1] <= serverTime)
-        {
-            sampleIndex++;
-        }
-
-        if (sampleIndex >= turnSampleRates.Count)
-            return 0f;
-
-        return turnSampleRates[sampleIndex];
+        if (NetworkManager == null)
+            return Time.time;
+        return (float)NetworkManager.ServerTime.Time;
     }
 
-    private float GetHeading(float time)
+    private BullseyeTarget FindPhysicalTarget()
     {
-        EnsureLegs(time);
-
-        while (currentLegIndex < legs.Count - 1 &&
-               time >= legs[currentLegIndex].startTime + legs[currentLegIndex].duration)
+        BullseyeTarget[] targets = GetComponentsInChildren<BullseyeTarget>(true);
+        for (int i = 0; i < targets.Length; i++)
         {
-            currentLegIndex++;
-        }
-
-        Leg leg = legs[currentLegIndex];
-        float blendDuration = Mathf.Max(0.01f, directionSmoothingTime);
-        float blend = Mathf.Clamp01((time - leg.startTime) / blendDuration);
-        blend = blend * blend * (3f - 2f * blend);
-
-        float delta = Mathf.DeltaAngle(leg.fromHeading * Mathf.Rad2Deg, leg.toHeading * Mathf.Rad2Deg) * Mathf.Deg2Rad;
-        return leg.fromHeading + delta * blend;
-    }
-
-    private void EnsureLegs(float time)
-    {
-        while (true)
-        {
-            Leg last = legs[legs.Count - 1];
-            float end = last.startTime + last.duration;
-            if (end > time + 1f)
-                return;
-
-            legs.Add(new Leg
+            if (targets[i] != null &&
+                (attachedHitTarget == null || targets[i].transform != attachedHitTarget))
             {
-                startTime = end,
-                duration = NextInterval(),
-                fromHeading = last.toHeading,
-                toHeading = NextHeading(last.toHeading)
-            });
+                return targets[i];
+            }
         }
+
+        return null;
     }
 
-    private float NextHeading(float current)
+    public string DebugRegionName(int index)
     {
-        float span = Mathf.PI * 2f - 2f * MinHeadingDelta;
-        return WrapAngle(current + MinHeadingDelta + NextFloat() * span);
+        if (surfaceMap != null && surfaceMap.TryGetRegion(index, out BullseyeSurfaceRegion region))
+            return string.IsNullOrEmpty(region.displayName) ? region.id.ToString() : region.displayName;
+        return index.ToString();
     }
 
-    private static float WrapAngle(float angle)
+    private void OnGUI()
     {
-        angle %= Mathf.PI * 2f;
-        if (angle < 0f)
-            angle += Mathf.PI * 2f;
-        return angle;
-    }
-
-    private float NextInterval()
-    {
-        float min = Mathf.Max(0.2f, minDirectionChangeInterval);
-        float max = Mathf.Max(min, maxDirectionChangeInterval);
-        return Mathf.Lerp(min, max, NextFloat());
-    }
-
-    private float NextFloat()
-    {
-        rngState = rngState * 1664525u + 1013904223u;
-        return (rngState & 0x00FFFFFFu) / 16777216f;
-    }
-
-    private void ApplySurfacePose(float orbit, float vertical)
-    {
-        CapsuleBodySurface.Evaluate(
-            bodyCapsule,
-            orbit,
-            vertical,
-            out Vector3 capsuleLocalPosition,
-            out Vector3 capsuleLocalNormal);
-
-        Vector3 worldPosition = bodyCapsule.transform.TransformPoint(
-            capsuleLocalPosition + capsuleLocalNormal * surfaceOffset);
-        Vector3 worldNormal = bodyCapsule.transform.TransformDirection(capsuleLocalNormal).normalized;
-
-        bullseye.position = worldPosition;
-
-        Vector3 upHint = Mathf.Abs(Vector3.Dot(worldNormal, transform.up)) > 0.95f
-            ? transform.forward
-            : transform.up;
-        bullseye.rotation = Quaternion.LookRotation(worldNormal, upHint);
-    }
-
-    private void ApplyOwnerVisibility()
-    {
-        if (bullseyeTarget == null)
+        if (!debugVisualization || !IsSpawned)
             return;
 
-        if (!IsOwner || (detachController != null && !detachController.IsAttached))
+        string state = detachController != null ? detachController.State.ToString() : "Attached";
+        string text =
+            $"Bullseye {state}\n" +
+            $"{DebugRegionName(CurrentRegionIndex)} -> {DebugRegionName(TargetRegionIndex)}\n" +
+            $"Progress {MovementProgress:0.00}  Jump {JumpInfluence:0.00}  Turn {TurnInfluence:0.00}";
+
+        GUI.color = Color.black;
+        GUI.Label(new Rect(12f, 12f, 420f, 70f), text);
+        GUI.color = Color.white;
+        GUI.Label(new Rect(10f, 10f, 420f, 70f), text);
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!debugVisualization)
+            return;
+
+        if (surfaceMap != null && lastNormal.sqrMagnitude > 0.0001f)
         {
-            bullseyeTarget.SetVisibleToLocalViewer(true);
-            return;
+            Gizmos.color = Color.red;
+            Gizmos.DrawSphere(lastPosition, 0.03f);
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawLine(lastPosition, lastPosition + lastNormal * 0.25f);
+
+            if (surfaceMap.TryEvaluate(targetRegion.Value, out Vector3 targetPos, out _))
+            {
+                Gizmos.color = Color.cyan;
+                Gizmos.DrawSphere(targetPos, 0.025f);
+                Gizmos.DrawLine(lastPosition, targetPos);
+            }
         }
 
-        Camera cam = PlayerNetworkSetup.LocalOwnedCamera;
-        if (cam == null)
-            cam = GetComponentInChildren<Camera>();
-
-        if (cam == null || !cam.enabled)
+        if (attachedHitTarget != null && attachedCollider != null && attachedCollider.enabled)
         {
-            bullseyeTarget.SetVisibleToLocalViewer(false);
-            return;
+            Gizmos.color = new Color(0.2f, 1f, 0.3f, 0.35f);
+            Gizmos.matrix = attachedHitTarget.localToWorldMatrix;
+            Gizmos.DrawSphere(Vector3.zero, 0.5f);
+            Gizmos.matrix = Matrix4x4.identity;
         }
+    }
 
-        float hideDistance = Mathf.Max(0f, hideFromOwnerCameraDistance);
-        bool coveringCamera = Vector3.Distance(bullseye.position, cam.transform.position) < hideDistance;
-        bullseyeTarget.SetVisibleToLocalViewer(!coveringCamera);
+    private void OnValidate()
+    {
+        bullseyeSize = Mathf.Max(0.06f, bullseyeSize);
+        hitTargetThickness = Mathf.Max(0.02f, hitTargetThickness);
+        baseMovementSpeed = Mathf.Max(0.05f, baseMovementSpeed);
+        pauseChance = Mathf.Clamp01(pauseChance);
+        minPauseDuration = Mathf.Max(0f, minPauseDuration);
+        maxPauseDuration = Mathf.Max(minPauseDuration, maxPauseDuration);
+        randomDirectionWeight = Mathf.Clamp01(randomDirectionWeight);
+        continueForwardWeight = Mathf.Max(1f, continueForwardWeight);
+        jumpInfluenceAmount = Mathf.Max(0f, jumpInfluenceAmount);
+        jumpInfluenceWindow = Mathf.Max(0.05f, jumpInfluenceWindow);
+        maximumJumpInfluence = Mathf.Max(jumpInfluenceAmount, maximumJumpInfluence);
+        jumpInfluenceDecayRate = Mathf.Max(0f, jumpInfluenceDecayRate);
+        crouchInfluenceStrength = Mathf.Max(0f, crouchInfluenceStrength);
+        hideFromOwnerCameraDistance = Mathf.Max(0f, hideFromOwnerCameraDistance);
     }
 }

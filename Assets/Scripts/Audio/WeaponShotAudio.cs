@@ -74,6 +74,22 @@ public class WeaponShotAudio : MonoBehaviour
         Ensure().PlayImpactInternal(points, clips, settings);
     }
 
+    public static void PlayRicochets(IList<Vector3> points)
+    {
+        WeaponShotAudioSettings settings = Settings;
+        if (settings == null || !settings.RicochetEnabled)
+            return;
+
+        if (points == null || points.Count == 0)
+            return;
+
+        AudioClip[] clips = settings.RicochetClips;
+        if (!HasAnyClip(clips))
+            return;
+
+        Ensure().PlayRicochetInternal(points, clips, settings);
+    }
+
     public static void PlayFlyby(Vector3 closestPoint, float distance, WeaponShotAudioOverrides overrides)
     {
         WeaponShotAudioSettings settings = Settings;
@@ -161,6 +177,29 @@ public class WeaponShotAudio : MonoBehaviour
                 pitch,
                 settings.ImpactMinDistance,
                 settings.ImpactMaxDistance);
+        }
+    }
+
+    private void PlayRicochetInternal(
+        IList<Vector3> points,
+        AudioClip[] clips,
+        WeaponShotAudioSettings settings)
+    {
+        for (int i = 0; i < points.Count; i++)
+        {
+            AudioClip clip = PickClip(clips);
+            if (clip == null)
+                continue;
+
+            float volume = settings.RicochetVolume * RandomVolumeScale(settings.RicochetVolumeVariation);
+            float pitch = RandomPitch(settings.RicochetPitchVariation);
+            PlayOne(
+                clip,
+                points[i],
+                volume,
+                pitch,
+                settings.RicochetMinDistance,
+                settings.RicochetMaxDistance);
         }
     }
 

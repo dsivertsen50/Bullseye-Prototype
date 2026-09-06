@@ -12,6 +12,17 @@ public class BulletImpactManager : MonoBehaviour
 
     private readonly List<BulletImpactDecal> active = new(128);
     private readonly Queue<BulletImpactDecal> pool = new();
+    private readonly List<PendingImpact> pending = new(16);
+
+    private struct PendingImpact
+    {
+        public Vector3 point;
+        public Vector3 normal;
+        public float size;
+        public Material material;
+        public float rotation;
+        public float spawnTime;
+    }
 
     private BulletImpactSettings settings;
     private Transform poolRoot;
@@ -104,6 +115,18 @@ public class BulletImpactManager : MonoBehaviour
         int seed,
         BulletImpactDecalSet variantSet)
     {
+        SpawnImpacts(points, normals, scale, seed, variantSet, null, null);
+    }
+
+    public void SpawnImpacts(
+        IList<Vector3> points,
+        IList<Vector3> normals,
+        float scale,
+        int seed,
+        BulletImpactDecalSet variantSet,
+        IList<float> delays,
+        IList<bool> sparks)
+    {
         if (points == null || normals == null || points.Count == 0)
             return;
 
@@ -130,12 +153,37 @@ public class BulletImpactManager : MonoBehaviour
         {
             Material material = set != null ? set.GetVariant(rng.Next()) : null;
             float rotation = (float)(rng.NextDouble() * 360.0);
-            SpawnOne(points[i], normals[i], size, material, rotation);
+            float delay = delays != null && i < delays.Count ? Mathf.Max(0f, delays[i]) : 0f;
+            if (delay <= 0f)
+            {
+                SpawnOne(points[i], normals[i], size, material, rotation);
+                continue;
+            }
+
+            pending.Add(new PendingImpact
+            {
+                point = points[i],
+                normal = normals[i],
+                size = size,
+                material = material,
+                rotation = rotation,
+                spawnTime = Time.unscaledTime + delay
+            });
         }
     }
 
     private void Update()
     {
+        for (int i = pending.Count - 1; i >= 0; i--)
+        {
+            PendingImpact waiting = pending[i];
+            if (Time.unscaledTime < waiting.spawnTime)
+                continue;
+
+            pending.RemoveAt(i);
+            SpawnOne(waiting.point, waiting.normal, waiting.size, waiting.material, waiting.rotation);
+        }
+
         for (int i = active.Count - 1; i >= 0; i--)
         {
             BulletImpactDecal decal = active[i];
@@ -182,6 +230,8 @@ public class BulletImpactManager : MonoBehaviour
     {
         if (settings != null && settings.DebugImpacts && DebugEnabled)
             Debug.DrawRay(point, normal.normalized * 0.3f, Color.green, 2f);
+
+        RicochetSparkVfx.Play(point, normal);
 
         BulletImpactDecal decal = Rent();
         if (decal == null)

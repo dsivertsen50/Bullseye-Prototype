@@ -38,6 +38,18 @@ public class WeaponShotAudioSettings : ScriptableObject
     [SerializeField, Min(0.05f)] private float flybyMinDistance = 0.35f;
     [SerializeField, Min(1f)] private float flybyMaxDistance = 10f;
 
+    [Header("Ricochet Audio")]
+    [SerializeField] private bool ricochetEnabled = true;
+    [SerializeField, Tooltip("Drop several ricochet clips here, or into Assets/Audio/Resources/Ricochets.")]
+    private AudioClip[] ricochetClips;
+    [SerializeField, Range(0f, 2f)] private float ricochetVolume = 0.85f;
+    [SerializeField, Range(0f, 0.25f), Tooltip("Pitch is randomized ± this amount around 1.")]
+    private float ricochetPitchVariation = 0.08f;
+    [SerializeField, Range(0f, 0.25f), Tooltip("Volume is randomized down from Ricochet Volume by this fraction.")]
+    private float ricochetVolumeVariation = 0.12f;
+    [SerializeField, Min(0.1f)] private float ricochetMinDistance = 1.2f;
+    [SerializeField, Min(1f)] private float ricochetMaxDistance = 42f;
+
     [Header("Debug")]
     [SerializeField, Tooltip("Draws shot lines and logs near-miss decisions. Editor / development builds only unless enabled.")]
     private bool debugNearMiss;
@@ -64,9 +76,43 @@ public class WeaponShotAudioSettings : ScriptableObject
     public float FlybyMaxDistance => Mathf.Max(FlybyMinDistance + 0.1f, flybyMaxDistance);
     public bool DebugNearMiss => debugNearMiss;
 
+    public bool RicochetEnabled => ricochetEnabled;
+    public AudioClip[] RicochetClips => ResolveRicochetClips();
+    public float RicochetVolume => Mathf.Max(0f, ricochetVolume);
+    public float RicochetPitchVariation => Mathf.Max(0f, ricochetPitchVariation);
+    public float RicochetVolumeVariation => Mathf.Clamp01(ricochetVolumeVariation);
+    public float RicochetMinDistance => Mathf.Max(0.1f, ricochetMinDistance);
+    public float RicochetMaxDistance => Mathf.Max(RicochetMinDistance + 0.1f, ricochetMaxDistance);
+
     public static WeaponShotAudioSettings Load()
     {
         return Resources.Load<WeaponShotAudioSettings>(ResourcesName);
+    }
+
+    private AudioClip[] ResolveRicochetClips()
+    {
+        if (HasAnyClip(ricochetClips))
+            return ricochetClips;
+
+        AudioClip[] loaded = Resources.LoadAll<AudioClip>("Ricochets");
+        if (HasAnyClip(loaded))
+            return loaded;
+
+        return impactClips;
+    }
+
+    private static bool HasAnyClip(AudioClip[] clips)
+    {
+        if (clips == null)
+            return false;
+
+        for (int i = 0; i < clips.Length; i++)
+        {
+            if (clips[i] != null)
+                return true;
+        }
+
+        return false;
     }
 
     private void OnValidate()
@@ -86,5 +132,10 @@ public class WeaponShotAudioSettings : ScriptableObject
         nearMissCooldown = Mathf.Max(0f, nearMissCooldown);
         flybyMinDistance = Mathf.Max(0.05f, flybyMinDistance);
         flybyMaxDistance = Mathf.Max(flybyMinDistance + 0.1f, flybyMaxDistance);
+        ricochetVolume = Mathf.Max(0f, ricochetVolume);
+        ricochetPitchVariation = Mathf.Max(0f, ricochetPitchVariation);
+        ricochetVolumeVariation = Mathf.Clamp01(ricochetVolumeVariation);
+        ricochetMinDistance = Mathf.Max(0.1f, ricochetMinDistance);
+        ricochetMaxDistance = Mathf.Max(ricochetMinDistance + 0.1f, ricochetMaxDistance);
     }
 }

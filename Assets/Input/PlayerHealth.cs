@@ -240,6 +240,9 @@ public class PlayerHealth : NetworkBehaviour
     {
         if (bullseyeTarget != null)
             bullseyeTarget.PlayHitFlash();
+
+        if (TryGetComponent(out BullseyeSurfaceVisual visual))
+            visual.PlayHitFlash();
     }
 
     [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
@@ -368,6 +371,16 @@ public class PlayerHealth : NetworkBehaviour
         if (bullseyeCollider != null)
             bullseyeCollider.enabled = !dead;
 
+        if (TryGetComponent(out BullseyeMover mover) && mover.AttachedHitTarget != null)
+        {
+            Collider attached = mover.AttachedHitTarget.GetComponent<Collider>();
+            if (attached != null)
+                attached.enabled = !dead && (detachController == null || detachController.IsAttached);
+        }
+
+        if (TryGetComponent(out BullseyeSurfaceVisual visual) && dead)
+            visual.SetAttachedVisible(false);
+
         if (shatterController != null)
             shatterController.HandleDeadChanged(dead);
     }
@@ -471,6 +484,14 @@ public class PlayerHealth : NetworkBehaviour
         if (detachController != null && detachController.IsDetached)
             return BullseyeBodyZone.Head;
 
+        if (TryGetComponent(out BullseyeMover mover) &&
+            TryGetComponent(out BullseyeSurfaceMap map))
+        {
+            float progress = mover.MovementProgress;
+            int region = progress < 0.5f ? mover.CurrentRegionIndex : mover.TargetRegionIndex;
+            return map.GetZone(region);
+        }
+
         if (bodyCapsule == null || bullseye == null)
             return BullseyeBodyZone.Head;
 
@@ -517,7 +538,17 @@ public class PlayerHealth : NetworkBehaviour
         if (attackerObject == null)
             return 0f;
 
-        Vector3 point = bullseye != null ? bullseye.position : transform.position;
+        Vector3 point = transform.position;
+        if (TryGetComponent(out BullseyeMover mover) &&
+            (detachController == null || detachController.IsAttached) &&
+            mover.TryGetSurfacePose(out Vector3 surfacePoint, out _, out _))
+        {
+            point = surfacePoint;
+        }
+        else if (bullseye != null)
+        {
+            point = bullseye.position;
+        }
         return Vector3.Distance(attackerObject.transform.position, point);
     }
 

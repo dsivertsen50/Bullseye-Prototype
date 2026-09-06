@@ -3,6 +3,7 @@ using UnityEngine;
 /// <summary>
 /// Opt-in marker that lets hitscan bullets reflect from this collider.
 /// Add to any GameObject that has a collider, or to a parent of that collider.
+/// This does not change mesh, scale, or collider shape.
 /// </summary>
 public class RicochetSurface : MonoBehaviour
 {
@@ -20,26 +21,4 @@ public class RicochetSurface : MonoBehaviour
         surface = collider.GetComponentInParent<RicochetSurface>();
         return surface != null && surface.isActiveAndEnabled && surface.ricochetEnabled;
     }
-
-#if UNITY_EDITOR
-    private void OnDrawGizmosSelected()
-    {
-        Gizmos.color = new Color(1f, 0.75f, 0.2f, 0.35f);
-        Collider[] colliders = GetComponentsInChildren<Collider>();
-        for (int i = 0; i < colliders.Length; i++)
-        {
-            Collider col = colliders[i];
-            if (col == null)
-                continue;
-
-            Gizmos.matrix = col.transform.localToWorldMatrix;
-            if (col is BoxCollider box)
-                Gizmos.DrawWireCube(box.center, box.size);
-            else if (col is SphereCollider sphere)
-                Gizmos.DrawWireSphere(sphere.center, sphere.radius);
-            else
-                Gizmos.DrawWireCube(Vector3.zero, Vector3.one);
-        }
-    }
-#endif
 }

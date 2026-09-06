@@ -14,9 +14,9 @@ public static class GrenadeTypeNames
         switch (type)
         {
             case GrenadeType.Suction:
-                return "Suction";
+                return "Magnetism";
             default:
-                return "Standard";
+                return "Combustion";
         }
     }
 }

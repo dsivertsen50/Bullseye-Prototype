@@ -1,9 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Capsule-only surface math for the current player body.
-/// Isolated so a later animated mesh can replace this mapping without
-/// rewriting bullseye movement or hit detection.
+/// Legacy capsule surface math. Bullseye movement now uses
+/// <see cref="BullseyeSurfaceMap"/>. Kept for HUD/damage fallbacks and any
+/// remaining capsule-space helpers.
 /// </summary>
 public static class CapsuleBodySurface
 {
