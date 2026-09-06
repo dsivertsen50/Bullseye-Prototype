@@ -17,6 +17,7 @@ public class SuctionGrenade : Grenade
     [SerializeField] private float suctionRadius = 3.5f;
     [SerializeField] private float suctionForce = 90f;
     [SerializeField] private float maximumSuctionSpeed = 18f;
+    [SerializeField] private float followStandoff = 0.35f;
     [SerializeField] private float ownerGracePeriod = 0.4f;
     [SerializeField] private float overlapInterval = 0.05f;
 
@@ -29,6 +30,7 @@ public class SuctionGrenade : Grenade
 
     private readonly HashSet<ulong> affectedPlayers = new();
     private readonly List<PlayerHealth> detectedPlayers = new();
+    private Collider[] grenadeColliders;
     private Coroutine suctionRoutine;
     private ParticleSystem fieldParticles;
     private float activatedAt = -1f;
@@ -152,6 +154,7 @@ public class SuctionGrenade : Grenade
         if (!controller.TryDetachBySuction())
             return;
 
+        IgnoreAttractedBullseye(controller);
         affectedPlayers.Add(health.OwnerClientId);
     }
 
@@ -180,12 +183,26 @@ public class SuctionGrenade : Grenade
         if (GetClosestActive(bullseyePosition) != this)
             return;
 
+        IgnoreAttractedBullseye(controller);
+
         Vector3 velocity = Body != null ? Body.linearVelocity : Vector3.zero;
         controller.ApplySuctionAttraction(
             transform.position,
             velocity,
             suctionForce,
-            maximumSuctionSpeed);
+            maximumSuctionSpeed,
+            followStandoff);
+    }
+
+    private void IgnoreAttractedBullseye(BullseyeDetachController controller)
+    {
+        if (controller == null)
+            return;
+
+        if (grenadeColliders == null || grenadeColliders.Length == 0)
+            grenadeColliders = GetComponentsInChildren<Collider>(true);
+
+        controller.IgnoreCollisionsWith(grenadeColliders, true);
     }
 
     private bool IsPlayerEligibleForDetach(PlayerHealth health)
@@ -293,9 +310,10 @@ public class SuctionGrenade : Grenade
         if (fieldParticles == null)
             fieldParticles = visual.AddComponent<ParticleSystem>();
 
+        fieldParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         ParticleSystem.MainModule main = fieldParticles.main;
-        main.loop = true;
         main.playOnAwake = false;
+        main.loop = true;
         main.duration = 1f;
         main.startLifetime = 0.7f;
         main.startSpeed = -2.4f;
@@ -346,6 +364,7 @@ public class SuctionGrenade : Grenade
         suctionRadius = Mathf.Max(0.1f, suctionRadius);
         suctionForce = Mathf.Max(0f, suctionForce);
         maximumSuctionSpeed = Mathf.Max(0.1f, maximumSuctionSpeed);
+        followStandoff = Mathf.Max(0.05f, followStandoff);
         ownerGracePeriod = Mathf.Max(0f, ownerGracePeriod);
         overlapInterval = Mathf.Max(0.02f, overlapInterval);
     }

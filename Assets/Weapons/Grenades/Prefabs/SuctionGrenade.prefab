@@ -304,6 +304,7 @@ MonoBehaviour:
   suctionRadius: 3.5
   suctionForce: 90
   maximumSuctionSpeed: 18
+  followStandoff: 0.35
   ownerGracePeriod: 0.4
   overlapInterval: 0.05
   fieldColor: {r: 0.2, g: 0.85, b: 1, a: 1}

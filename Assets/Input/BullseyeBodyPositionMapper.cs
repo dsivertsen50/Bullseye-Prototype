@@ -48,6 +48,18 @@ public class BullseyeBodyPositionMapper : MonoBehaviour
         position = default;
         ResolveReferences();
 
+        BullseyeMover mover = GetComponent<BullseyeMover>();
+        BullseyeSurfaceMap map = GetComponent<BullseyeSurfaceMap>();
+        if (mover != null && map != null && mover.TryGetSurfacePose(out Vector3 surfacePos, out _, out _))
+        {
+            position = map.ToBodyPosition(
+                mover.CurrentRegionIndex,
+                mover.TargetRegionIndex,
+                mover.MovementProgress,
+                surfacePos);
+            return true;
+        }
+
         if (bullseye == null)
             return false;
 

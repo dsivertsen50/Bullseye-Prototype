@@ -14,6 +14,10 @@ public class PlayerShoot : NetworkBehaviour
     private readonly List<(BullseyeTarget target, float distance)> pelletHits = new(16);
     private readonly List<Vector3> impactPoints = new(16);
     private readonly List<Vector3> impactNormals = new(16);
+    private readonly List<float> impactDelays = new(16);
+    private readonly List<bool> impactSparks = new(16);
+    private readonly List<Vector3> ricochetAudioPoints = new(16);
+    private readonly List<Vector3> standardAudioPoints = new(16);
     private readonly List<Vector3> shotOrigins = new(16);
     private readonly List<Vector3> shotEnds = new(16);
     private readonly List<PlayerHealth> directHitPlayers = new(8);
@@ -121,6 +125,8 @@ public class PlayerShoot : NetworkBehaviour
         pelletHits.Clear();
         impactPoints.Clear();
         impactNormals.Clear();
+        impactDelays.Clear();
+        impactSparks.Clear();
         shotOrigins.Clear();
         shotEnds.Clear();
         directHitPlayers.Clear();
@@ -135,18 +141,7 @@ public class PlayerShoot : NetworkBehaviour
                 out Vector3 origin,
                 out Vector3 direction);
 
-            if (trace.hasBounce)
-            {
-                shotOrigins.Add(origin);
-                shotEnds.Add(trace.bounceHit.point);
-                shotOrigins.Add(trace.bounceOrigin);
-                shotEnds.Add(trace.endPoint);
-            }
-            else
-            {
-                shotOrigins.Add(origin);
-                shotEnds.Add(trace.endPoint);
-            }
+            CollectShotSegments(origin, trace);
 
             if (showRicochetDebug || (definition != null && definition.DamageSettings != null && definition.DamageSettings.LogDamage))
             {
@@ -157,10 +152,21 @@ public class PlayerShoot : NetworkBehaviour
             }
 
             int decalBudget = maxDecals;
-            if (trace.hasBounce && maxDecals > 0)
+            if (trace.bounceCount > 0 && maxDecals > 0)
+                decalBudget = maxDecals + trace.bounceCount;
+
+            for (int b = 0; b < trace.bounceCount; b++)
             {
-                decalBudget = maxDecals + 1;
-                TryCollectSurfaceImpact(trace.bounceHit, impactSettings, decalBudget, trace.bounceHit.distance);
+                if (!trace.TryGetBounce(b, out HitscanRicochet.BounceRecord bounce))
+                    continue;
+
+                TryCollectSurfaceImpact(
+                    bounce.hit,
+                    impactSettings,
+                    decalBudget,
+                    bounce.traveledDistance,
+                    b == 0 ? 0f : HitscanRicochet.SubsequentBounceDecalDelay,
+                    spark: true);
             }
 
             if (!hitSomething || !trace.hasFinalHit)
@@ -176,7 +182,15 @@ public class PlayerShoot : NetworkBehaviour
             }
 
             if (decalBudget > 0)
-                TryCollectSurfaceImpact(hit, impactSettings, decalBudget, trace.totalDistance);
+            {
+                TryCollectSurfaceImpact(
+                    hit,
+                    impactSettings,
+                    decalBudget,
+                    trace.totalDistance,
+                    trace.bounceCount > 0 ? HitscanRicochet.SubsequentBounceDecalDelay : 0f,
+                    RicochetSurface.TryGetEnabled(hit.collider, out _));
+            }
         }
 
         if (damageSettings.LogDamage)
@@ -206,11 +220,30 @@ public class PlayerShoot : NetworkBehaviour
             accuracy.NotifyShotFired();
     }
 
+    private void CollectShotSegments(Vector3 origin, in HitscanRicochet.TraceResult trace)
+    {
+        Vector3 previous = origin;
+        for (int i = 0; i < trace.bounceCount; i++)
+        {
+            if (!trace.TryGetBounce(i, out HitscanRicochet.BounceRecord bounce))
+                continue;
+
+            shotOrigins.Add(previous);
+            shotEnds.Add(bounce.hit.point);
+            previous = bounce.reflectedOrigin;
+        }
+
+        shotOrigins.Add(previous);
+        shotEnds.Add(trace.endPoint);
+    }
+
     private void TryCollectSurfaceImpact(
         RaycastHit hit,
         WeaponImpactDecalSettings impactSettings,
         int maxDecals,
-        float traveledDistance)
+        float traveledDistance,
+        float delay,
+        bool spark)
     {
         if (impactPoints.Count >= maxDecals)
             return;
@@ -237,6 +270,8 @@ public class PlayerShoot : NetworkBehaviour
 
         impactPoints.Add(hit.point);
         impactNormals.Add(hit.normal.sqrMagnitude > 0.0001f ? hit.normal.normalized : Vector3.up);
+        impactDelays.Add(Mathf.Max(0f, delay));
+        impactSparks.Add(spark);
     }
 
     private void SubmitSurfaceImpacts(WeaponImpactDecalSettings impactSettings)
@@ -248,17 +283,36 @@ public class PlayerShoot : NetworkBehaviour
         int seed = Random.Range(int.MinValue, int.MaxValue);
         BulletImpactDecalSet variantSet = impactSettings.VariantSet;
 
-        BulletImpactManager.Ensure().SpawnImpacts(impactPoints, impactNormals, scale, seed, variantSet);
-        PlayImpactAudio(impactPoints);
+        BulletImpactManager.Ensure().SpawnImpacts(
+            impactPoints,
+            impactNormals,
+            scale,
+            seed,
+            variantSet,
+            impactDelays,
+            impactSparks);
+        PlayImpactAudio(impactPoints, impactSparks);
 
         if (!IsSpawned)
             return;
 
-        SurfaceImpactRpc(impactPoints.ToArray(), impactNormals.ToArray(), scale, seed);
+        SurfaceImpactRpc(
+            impactPoints.ToArray(),
+            impactNormals.ToArray(),
+            scale,
+            seed,
+            impactDelays.ToArray(),
+            impactSparks.ToArray());
     }
 
     [Rpc(SendTo.Everyone, InvokePermission = RpcInvokePermission.Owner)]
-    private void SurfaceImpactRpc(Vector3[] points, Vector3[] normals, float scale, int seed)
+    private void SurfaceImpactRpc(
+        Vector3[] points,
+        Vector3[] normals,
+        float scale,
+        int seed,
+        float[] delays,
+        bool[] sparks)
     {
         if (IsOwner)
             return;
@@ -270,16 +324,31 @@ public class PlayerShoot : NetworkBehaviour
         if (inventory != null && inventory.ActiveDefinition != null)
             variantSet = inventory.ActiveDefinition.ImpactDecalSettings.VariantSet;
 
-        BulletImpactManager.Ensure().SpawnImpacts(points, normals, scale, seed, variantSet);
-        PlayImpactAudio(points);
+        BulletImpactManager.Ensure().SpawnImpacts(points, normals, scale, seed, variantSet, delays, sparks);
+        PlayImpactAudio(points, sparks);
     }
 
-    private void PlayImpactAudio(IList<Vector3> points)
+    private void PlayImpactAudio(IList<Vector3> points, IList<bool> sparks)
     {
         WeaponShotAudioOverrides overrides = inventory != null && inventory.ActiveDefinition != null
             ? inventory.ActiveDefinition.ShotAudioOverrides
             : null;
-        WeaponShotAudio.PlayImpacts(points, overrides);
+
+        ricochetAudioPoints.Clear();
+        standardAudioPoints.Clear();
+        if (points == null)
+            return;
+
+        for (int i = 0; i < points.Count; i++)
+        {
+            if (sparks != null && i < sparks.Count && sparks[i])
+                ricochetAudioPoints.Add(points[i]);
+            else
+                standardAudioPoints.Add(points[i]);
+        }
+
+        WeaponShotAudio.PlayImpacts(standardAudioPoints, overrides);
+        WeaponShotAudio.PlayRicochets(ricochetAudioPoints);
     }
 
     private void SubmitNearMisses()

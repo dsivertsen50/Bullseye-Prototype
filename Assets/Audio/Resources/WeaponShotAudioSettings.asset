@@ -40,4 +40,11 @@ MonoBehaviour:
   nearMissCooldown: 0.12
   flybyMinDistance: 0.35
   flybyMaxDistance: 10
+  ricochetEnabled: 1
+  ricochetClips: []
+  ricochetVolume: 0.85
+  ricochetPitchVariation: 0.08
+  ricochetVolumeVariation: 0.12
+  ricochetMinDistance: 1.2
+  ricochetMaxDistance: 42
   debugNearMiss: 0

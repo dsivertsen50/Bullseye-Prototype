@@ -147,6 +147,9 @@ public class BullseyeShatterController : MonoBehaviour
 
     private void HideIntactBullseye()
     {
+        if (TryGetComponent(out BullseyeSurfaceVisual visual))
+            visual.SetAttachedVisible(false);
+
         for (int i = 0; i < intactRenderers.Length; i++)
         {
             if (intactRenderers[i] == null)
@@ -164,18 +167,23 @@ public class BullseyeShatterController : MonoBehaviour
 
     private void RestoreIntactBullseye()
     {
+        bool attached = !TryGetComponent(out BullseyeDetachController detach) || detach.IsAttached;
+
+        if (TryGetComponent(out BullseyeSurfaceVisual visual))
+            visual.SetAttachedVisible(attached);
+
         for (int i = 0; i < intactRenderers.Length; i++)
         {
             if (intactRenderers[i] == null)
                 continue;
-            intactRenderers[i].enabled = true;
-            intactRenderers[i].forceRenderingOff = false;
+            intactRenderers[i].enabled = !attached;
+            intactRenderers[i].forceRenderingOff = attached;
         }
 
         for (int i = 0; i < intactColliders.Length; i++)
         {
             if (intactColliders[i] != null)
-                intactColliders[i].enabled = true;
+                intactColliders[i].enabled = !attached;
         }
 
         if (intactBullseye != null && !intactBullseye.gameObject.activeSelf)
@@ -252,6 +260,15 @@ public class BullseyeShatterController : MonoBehaviour
 
     private void CaptureBullseyePose(out Vector3 position, out Quaternion rotation, out Vector3 scale)
     {
+        if (TryGetComponent(out BullseyeDetachController detach) &&
+            detach.IsAttached &&
+            TryGetComponent(out BullseyeMover mover) &&
+            mover.TryGetSurfacePose(out position, out _, out rotation))
+        {
+            scale = intactBullseye != null ? intactBullseye.lossyScale : Vector3.one;
+            return;
+        }
+
         if (intactBullseye != null)
         {
             position = intactBullseye.position;

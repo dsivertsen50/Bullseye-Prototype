@@ -12,6 +12,9 @@ public class BullseyeDetachController : NetworkBehaviour
     [SerializeField] private Transform bullseye;
     [SerializeField] private BullseyeTarget bullseyeTarget;
     [SerializeField] private CapsuleCollider bodyCapsule;
+    [SerializeField] private BullseyeMover surfaceMover;
+    [SerializeField] private BullseyeSurfaceMap surfaceMap;
+    [SerializeField] private BullseyeSurfaceVisual surfaceVisual;
 
     [Header("Return")]
     [SerializeField] private float detachedReturnDelay = 6f;
@@ -77,11 +80,18 @@ public class BullseyeDetachController : NetworkBehaviour
     public bool IsDetached => State == BullseyeAttachState.Detached;
     public bool IsSurfaceDriven => IsAttached;
     public Transform BullseyeTransform => bullseye;
+    public Vector3 ActiveWorldPosition => GetActiveWorldPosition();
     public PlayerHealth OwnerHealth => playerHealth;
 
     private void Awake()
     {
         playerHealth = GetComponent<PlayerHealth>();
+        if (surfaceMover == null)
+            surfaceMover = GetComponent<BullseyeMover>();
+        if (surfaceMap == null)
+            surfaceMap = GetComponent<BullseyeSurfaceMap>();
+        if (surfaceVisual == null)
+            surfaceVisual = GetComponent<BullseyeSurfaceVisual>();
 
         if (bodyCapsule == null)
             bodyCapsule = GetComponentInChildren<CapsuleCollider>();
@@ -158,7 +168,8 @@ public class BullseyeDetachController : NetworkBehaviour
         if (playerHealth != null && playerHealth.IsDead)
             return;
 
-        float distance = Vector3.Distance(bullseye.position, explosionPosition);
+        Vector3 bullseyePosition = GetActiveWorldPosition();
+        float distance = Vector3.Distance(bullseyePosition, explosionPosition);
 
         if (State == BullseyeAttachState.Returning)
             return;
@@ -198,7 +209,8 @@ public class BullseyeDetachController : NetworkBehaviour
         Vector3 attractorPosition,
         Vector3 attractorVelocity,
         float force,
-        float maximumSpeed)
+        float maximumSpeed,
+        float followStandoff)
     {
         if (!IsServer || !IsSpawned || !IsDetached || physicsBody == null || physicsBody.isKinematic)
             return;
@@ -209,14 +221,44 @@ public class BullseyeDetachController : NetworkBehaviour
         Vector3 toAttractor = attractorPosition - physicsBody.position;
         float distance = toAttractor.magnitude;
         Vector3 inbound = distance > 0.001f ? toAttractor / distance : Vector3.zero;
-        float catchUp = Mathf.Min(distance * Mathf.Max(1f, force * 0.2f), Mathf.Max(0.1f, maximumSpeed));
-        Vector3 desiredVelocity = attractorVelocity + inbound * catchUp;
+        float standoff = Mathf.Max(0.05f, followStandoff);
         float maxSpeed = Mathf.Max(0.1f, maximumSpeed);
+
+        // One-way tow: match the grenade, then close the gap. Never drive into
+        // the grenade's volume, and never apply force back onto the grenade.
+        Vector3 desiredVelocity = attractorVelocity;
+        if (distance > standoff)
+        {
+            float catchUp = Mathf.Min(
+                (distance - standoff) * Mathf.Max(1f, force * 0.2f),
+                maxSpeed);
+            desiredVelocity += inbound * catchUp;
+        }
+
         if (desiredVelocity.sqrMagnitude > maxSpeed * maxSpeed)
             desiredVelocity = desiredVelocity.normalized * maxSpeed;
 
         float step = Mathf.Max(1f, force) * Time.fixedDeltaTime * 4f;
         physicsBody.linearVelocity = Vector3.MoveTowards(physicsBody.linearVelocity, desiredVelocity, step);
+    }
+
+    public void IgnoreCollisionsWith(Collider[] others, bool ignore)
+    {
+        if (others == null || others.Length == 0)
+            return;
+
+        EnsurePhysics();
+        if (physicsCollider == null)
+            return;
+
+        for (int i = 0; i < others.Length; i++)
+        {
+            Collider other = others[i];
+            if (other == null || other == physicsCollider || other.isTrigger)
+                continue;
+
+            Physics.IgnoreCollision(physicsCollider, other, ignore);
+        }
     }
 
     public void HandleOwnerDied()
@@ -254,7 +296,11 @@ public class BullseyeDetachController : NetworkBehaviour
     private void BeginDetachWithoutImpulse()
     {
         EnsurePhysics();
-        WriteDetachedPose(bullseye.position, bullseye.rotation);
+        GetActiveWorldPose(out Vector3 origin, out Quaternion originRotation);
+        if (surfaceMover != null)
+            surfaceMover.RememberAttachedRegion();
+
+        WriteDetachedPose(origin, originRotation);
         returnAtServerTime.Value = NetworkManager.ServerTime.Time + Mathf.Max(0.1f, detachedReturnDelay);
         SetState(BullseyeAttachState.Detached);
     }
@@ -376,44 +422,66 @@ public class BullseyeDetachController : NetworkBehaviour
 
     private Vector3 GetReattachPosition()
     {
-        if (bodyCapsule == null)
-            return transform.position + Vector3.up * 1.2f;
-
-        CapsuleBodySurface.Evaluate(
-            bodyCapsule,
-            0f,
-            0.62f,
-            out Vector3 localPosition,
-            out Vector3 localNormal);
-
-        return bodyCapsule.transform.TransformPoint(localPosition + localNormal * 0.08f);
+        GetReattachPose(out Vector3 position, out _);
+        return position;
     }
 
     private Quaternion GetReattachRotation()
     {
-        if (bodyCapsule == null)
-            return transform.rotation;
+        GetReattachPose(out _, out Quaternion rotation);
+        return rotation;
+    }
 
-        CapsuleBodySurface.Evaluate(
-            bodyCapsule,
-            0f,
-            0.62f,
-            out _,
-            out Vector3 localNormal);
+    private void GetReattachPose(out Vector3 position, out Quaternion rotation)
+    {
+        if (surfaceMover != null && surfaceMover.TryGetSurfacePose(out position, out _, out rotation))
+            return;
 
-        Vector3 worldNormal = bodyCapsule.transform.TransformDirection(localNormal).normalized;
-        Vector3 upHint = Mathf.Abs(Vector3.Dot(worldNormal, transform.up)) > 0.95f
-            ? transform.forward
-            : transform.up;
-        return Quaternion.LookRotation(worldNormal, upHint);
+        if (surfaceMap != null)
+        {
+            int region = surfaceMap.DefaultAttachedRegion();
+            if (surfaceMap.TryEvaluate(region, out position, out Vector3 normal))
+            {
+                rotation = surfaceMap.RotationFromNormal(normal);
+                return;
+            }
+        }
+
+        position = transform.position + Vector3.up * 1.2f;
+        rotation = transform.rotation;
+    }
+
+    private Vector3 GetActiveWorldPosition()
+    {
+        GetActiveWorldPose(out Vector3 position, out _);
+        return position;
+    }
+
+    private void GetActiveWorldPose(out Vector3 position, out Quaternion rotation)
+    {
+        if (IsAttached && surfaceMover != null &&
+            surfaceMover.TryGetSurfacePose(out position, out _, out rotation))
+        {
+            return;
+        }
+
+        if (bullseye != null)
+        {
+            position = bullseye.position;
+            rotation = bullseye.rotation;
+            return;
+        }
+
+        position = detachedPosition.Value;
+        rotation = Quaternion.Euler(detachedEuler.Value);
     }
 
     private void OnAttachStateChanged(byte previous, byte next)
     {
-        ApplyVisualState((BullseyeAttachState)next, playFeedback: previous != next);
+        ApplyVisualState((BullseyeAttachState)next, playFeedback: previous != next, restoreSurface: previous != next && next == (byte)BullseyeAttachState.Attached);
     }
 
-    private void ApplyVisualState(BullseyeAttachState state, bool playFeedback)
+    private void ApplyVisualState(BullseyeAttachState state, bool playFeedback, bool restoreSurface = false)
     {
         if (bullseye == null)
             return;
@@ -427,14 +495,16 @@ public class BullseyeDetachController : NetworkBehaviour
                 EnterReturning(playFeedback);
                 break;
             default:
-                EnterAttached();
+                EnterAttached(restoreSurface);
                 break;
         }
     }
 
     private void EnterDetached(bool playFeedback)
     {
+        SetAttachedRepresentationVisible(false);
         UnparentBullseye();
+        SetPhysicalRepresentationVisible(true);
         EnsurePhysics();
         ConfigurePhysics(active: true, colliding: true);
 
@@ -457,7 +527,9 @@ public class BullseyeDetachController : NetworkBehaviour
 
     private void EnterReturning(bool playFeedback)
     {
+        SetAttachedRepresentationVisible(false);
         UnparentBullseye();
+        SetPhysicalRepresentationVisible(true);
         EnsurePhysics();
         ConfigurePhysics(active: false, colliding: false);
         hasClientVisual = false;
@@ -465,13 +537,48 @@ public class BullseyeDetachController : NetworkBehaviour
             PlayClip(bullseyeReturnSfx);
     }
 
-    private void EnterAttached()
+    private void EnterAttached(bool restoreSurface)
     {
         StopReturnRoutine();
         ConfigurePhysics(active: false, colliding: false);
         ForceLocalAttach(disablePhysicsOnly: true);
+        if (restoreSurface && IsServer && surfaceMover != null)
+            surfaceMover.ConsumeReattachRegion(GetReattachPosition());
+        SetPhysicalRepresentationVisible(false);
+        SetAttachedRepresentationVisible(true);
         hasClientVisual = false;
         ownerMessageUntil = 0f;
+    }
+
+    private void SetAttachedRepresentationVisible(bool visible)
+    {
+        if (surfaceVisual != null)
+            surfaceVisual.SetAttachedVisible(visible);
+
+        if (surfaceMover != null && surfaceMover.AttachedHitTarget != null)
+        {
+            Collider hit = surfaceMover.AttachedHitTarget.GetComponent<Collider>();
+            if (hit != null)
+                hit.enabled = visible && (playerHealth == null || !playerHealth.IsDead);
+        }
+    }
+
+    private void SetPhysicalRepresentationVisible(bool visible)
+    {
+        if (bullseye == null)
+            return;
+
+        if (visible && !bullseye.gameObject.activeSelf)
+            bullseye.gameObject.SetActive(true);
+
+        Renderer[] renderers = bullseye.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] == null)
+                continue;
+            renderers[i].enabled = visible;
+            renderers[i].forceRenderingOff = !visible;
+        }
     }
 
     private void ForceLocalAttach(bool disablePhysicsOnly)
