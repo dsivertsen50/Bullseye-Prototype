@@ -106,6 +106,15 @@ public class WeaponAccuracyController : MonoBehaviour
         return GetHitscanRay(camera, CurrentSpread);
     }
 
+    public Ray GetCenterHitscanRay(Camera camera)
+    {
+        if (camera == null)
+            return new Ray(transform.position, transform.forward);
+
+        var screenPoint = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f, 0f);
+        return camera.ScreenPointToRay(screenPoint);
+    }
+
     public Ray GetHitscanRay(Camera camera, float spreadAt1080)
     {
         if (camera == null)

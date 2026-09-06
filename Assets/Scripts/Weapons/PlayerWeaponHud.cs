@@ -49,9 +49,10 @@ public class PlayerWeaponHud : NetworkBehaviour
             return;
 
         int count = Mathf.Max(0, grenadeThrower.RemainingGrenades);
+        string typeName = grenadeThrower.SelectedGrenadeDisplayName;
         string label = count == 1 ? "GRENADE" : "GRENADES";
         var rect = new Rect(Screen.width - 360f, Screen.height - 128f, 340f, 32f);
-        DrawShadowedLabel(rect, $"{label}  {count}", GetGrenadeStyle());
+        DrawShadowedLabel(rect, $"{label}  [{typeName}]  {count}", GetGrenadeStyle());
     }
 
     private void DrawAmmo()

@@ -4,7 +4,8 @@ using UnityEngine.InputSystem;
 
 /// <summary>
 /// Owner input and server-authoritative grenade spawning.
-/// Keyboard: C. Gamepad: Left Shoulder / LB.
+/// Keyboard throw: C. Gamepad throw: Left Shoulder / LB.
+/// Next grenade: N / D-Pad Right.
 /// </summary>
 public class PlayerGrenadeThrower : NetworkBehaviour
 {
@@ -13,6 +14,7 @@ public class PlayerGrenadeThrower : NetworkBehaviour
 
     [Header("Throw")]
     [SerializeField] private Grenade grenadePrefab;
+    [SerializeField] private Grenade suctionGrenadePrefab;
     [SerializeField] private Transform throwOrigin;
     [SerializeField] private float throwForce = 20f;
     [SerializeField] private float throwUpwardBias = 0.28f;
@@ -27,6 +29,7 @@ public class PlayerGrenadeThrower : NetworkBehaviour
 
     [Header("Input")]
     [SerializeField] private InputActionReference grenadeAction;
+    [SerializeField] private InputActionReference nextGrenadeAction;
     [SerializeField] private Camera playerCamera;
 
     private readonly NetworkVariable<int> remainingGrenades = new(
@@ -34,12 +37,20 @@ public class PlayerGrenadeThrower : NetworkBehaviour
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server);
 
+    private readonly NetworkVariable<byte> selectedGrenadeType = new(
+        (byte)GrenadeType.Standard,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
+
     private PlayerHealth playerHealth;
     private InputAction resolvedGrenadeAction;
+    private InputAction resolvedNextGrenadeAction;
     private AudioSource audioSource;
 
     public int RemainingGrenades => remainingGrenades.Value;
     public int StartingGrenades => Mathf.Max(0, startingGrenades);
+    public GrenadeType SelectedGrenadeType => (GrenadeType)selectedGrenadeType.Value;
+    public string SelectedGrenadeDisplayName => GrenadeTypeNames.DisplayName(SelectedGrenadeType);
 
     private void Awake()
     {
@@ -51,18 +62,23 @@ public class PlayerGrenadeThrower : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         if (IsServer)
+        {
             remainingGrenades.Value = StartingGrenades;
+            selectedGrenadeType.Value = (byte)FirstAvailableType();
+        }
 
         if (!IsOwner)
             return;
 
-        BindGrenadeAction();
+        BindGrenadeActions();
         resolvedGrenadeAction?.Enable();
+        resolvedNextGrenadeAction?.Enable();
     }
 
     public override void OnNetworkDespawn()
     {
         resolvedGrenadeAction = null;
+        resolvedNextGrenadeAction = null;
     }
 
     private void Update()
@@ -78,6 +94,9 @@ public class PlayerGrenadeThrower : NetworkBehaviour
 
         if (LocalPlayerMenuState.IsOpen(this))
             return;
+
+        if (resolvedNextGrenadeAction != null && resolvedNextGrenadeAction.WasPressedThisFrame())
+            SelectNextGrenadeServerRpc();
 
         if (resolvedGrenadeAction == null || !resolvedGrenadeAction.WasPressedThisFrame())
             return;
@@ -95,18 +114,23 @@ public class PlayerGrenadeThrower : NetworkBehaviour
 
     private void TryThrow()
     {
-        if (remainingGrenades.Value <= 0 || grenadePrefab == null)
+        Grenade prefab = GetPrefab(SelectedGrenadeType);
+        if (remainingGrenades.Value <= 0 || prefab == null)
             return;
 
         ResolveThrowPose(out Vector3 origin, out Vector3 velocity);
         PlayThrowFeedback();
         if (TryGetComponent(out PlayerAnimationState animationState))
             animationState.NotifyThrowStarted();
-        ThrowServerRpc(origin, velocity);
+        ThrowServerRpc(origin, velocity, (byte)SelectedGrenadeType);
     }
 
     [Rpc(SendTo.Server)]
-    private void ThrowServerRpc(Vector3 reportedOrigin, Vector3 reportedVelocity, RpcParams rpcParams = default)
+    private void ThrowServerRpc(
+        Vector3 reportedOrigin,
+        Vector3 reportedVelocity,
+        byte reportedType,
+        RpcParams rpcParams = default)
     {
         if (rpcParams.Receive.SenderClientId != OwnerClientId)
             return;
@@ -117,7 +141,9 @@ public class PlayerGrenadeThrower : NetworkBehaviour
         if (TryGetComponent(out PlayerMovement movement) && movement.BlocksCombat)
             return;
 
-        if (remainingGrenades.Value <= 0 || grenadePrefab == null)
+        GrenadeType type = SanitizeType(reportedType);
+        Grenade prefab = GetPrefab(type);
+        if (remainingGrenades.Value <= 0 || prefab == null)
             return;
 
         if (NetworkManager == null || !NetworkManager.IsListening)
@@ -126,8 +152,9 @@ public class PlayerGrenadeThrower : NetworkBehaviour
         SanitizeThrow(reportedOrigin, reportedVelocity, out Vector3 origin, out Vector3 velocity);
 
         remainingGrenades.Value = Mathf.Max(0, remainingGrenades.Value - 1);
+        selectedGrenadeType.Value = (byte)type;
 
-        Grenade instance = Instantiate(grenadePrefab, origin, Quaternion.LookRotation(velocity.normalized, Vector3.up));
+        Grenade instance = Instantiate(prefab, origin, Quaternion.LookRotation(velocity.normalized, Vector3.up));
         instance.InitializeThrow(OwnerClientId, velocity);
 
         NetworkObject networkObject = instance.GetComponent<NetworkObject>();
@@ -139,6 +166,15 @@ public class PlayerGrenadeThrower : NetworkBehaviour
         }
 
         networkObject.Spawn();
+    }
+
+    [Rpc(SendTo.Server)]
+    private void SelectNextGrenadeServerRpc(RpcParams rpcParams = default)
+    {
+        if (rpcParams.Receive.SenderClientId != OwnerClientId)
+            return;
+
+        selectedGrenadeType.Value = (byte)NextAvailableType(SelectedGrenadeType);
     }
 
     private void SanitizeThrow(Vector3 reportedOrigin, Vector3 reportedVelocity, out Vector3 origin, out Vector3 velocity)
@@ -179,16 +215,76 @@ public class PlayerGrenadeThrower : NetworkBehaviour
         velocity = direction.normalized * Mathf.Max(0.1f, throwForce);
     }
 
-    private void BindGrenadeAction()
+    private Grenade GetPrefab(GrenadeType type)
     {
-        if (grenadeAction != null && grenadeAction.action != null)
+        switch (type)
         {
-            resolvedGrenadeAction = grenadeAction.action;
-            return;
+            case GrenadeType.Suction:
+                return suctionGrenadePrefab;
+            default:
+                return grenadePrefab;
+        }
+    }
+
+    private GrenadeType SanitizeType(byte raw)
+    {
+        GrenadeType type = (GrenadeType)raw;
+        if (GetPrefab(type) != null)
+            return type;
+
+        return FirstAvailableType();
+    }
+
+    private GrenadeType FirstAvailableType()
+    {
+        for (int i = 0; i < GrenadeTypeOrder.All.Length; i++)
+        {
+            GrenadeType type = GrenadeTypeOrder.All[i];
+            if (GetPrefab(type) != null)
+                return type;
         }
 
-        if (TryGetComponent(out LocalPlayerInputBinding binding) && binding.PlayerActions != null)
-            resolvedGrenadeAction = binding.PlayerActions.FindAction("Grenade");
+        return GrenadeType.Standard;
+    }
+
+    private GrenadeType NextAvailableType(GrenadeType current)
+    {
+        GrenadeType[] order = GrenadeTypeOrder.All;
+        int start = 0;
+        for (int i = 0; i < order.Length; i++)
+        {
+            if (order[i] == current)
+            {
+                start = i;
+                break;
+            }
+        }
+
+        for (int i = 1; i <= order.Length; i++)
+        {
+            GrenadeType next = order[(start + i) % order.Length];
+            if (GetPrefab(next) != null)
+                return next;
+        }
+
+        return current;
+    }
+
+    private void BindGrenadeActions()
+    {
+        InputActionAsset actions = null;
+        if (TryGetComponent(out LocalPlayerInputBinding binding))
+            actions = binding.PlayerActions;
+
+        if (grenadeAction != null && grenadeAction.action != null)
+            resolvedGrenadeAction = grenadeAction.action;
+        else if (actions != null)
+            resolvedGrenadeAction = actions.FindAction("Grenade");
+
+        if (nextGrenadeAction != null && nextGrenadeAction.action != null)
+            resolvedNextGrenadeAction = nextGrenadeAction.action;
+        else if (actions != null)
+            resolvedNextGrenadeAction = actions.FindAction("NextGrenade");
     }
 
     private void PlayThrowFeedback()
@@ -219,4 +315,13 @@ public class PlayerGrenadeThrower : NetworkBehaviour
         maxReportedOriginDistance = Mathf.Max(0.5f, maxReportedOriginDistance);
         throwSfxVolume = Mathf.Clamp01(throwSfxVolume);
     }
+}
+
+internal static class GrenadeTypeOrder
+{
+    public static readonly GrenadeType[] All =
+    {
+        GrenadeType.Standard,
+        GrenadeType.Suction
+    };
 }

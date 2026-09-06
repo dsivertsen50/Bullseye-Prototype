@@ -776,6 +776,10 @@ GameObject:
   - component: {fileID: 1940795616203548134}
   - component: {fileID: 710086677395437849}
   - component: {fileID: 2328653965345181622}
+  - component: {fileID: 4920202593546085652}
+  - component: {fileID: 5677391733349394398}
+  - component: {fileID: 7606037630162072534}
+  - component: {fileID: 3254731239471296233}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1036,6 +1040,7 @@ MonoBehaviour:
   playerCamera: {fileID: 6286195477711956745}
   fireAction: {fileID: -1270171090544221110, guid: d5774e102d654bd409097006f9ceb460, type: 3}
   range: 100
+  showRicochetDebug: 0
 --- !u!114 &184801294320284036
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1617,6 +1622,7 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   startingGrenades: 20
   grenadePrefab: {fileID: 4880982929259785027, guid: 36aed76c3b7892942b2e76a4d2c126ed, type: 3}
+  suctionGrenadePrefab: {fileID: 4525483118939871019, guid: fbcad976512351e43a7645fa0fb733e7, type: 3}
   throwOrigin: {fileID: 7261387160109099487}
   throwForce: 16
   throwUpwardBias: 0.2
@@ -1627,6 +1633,7 @@ MonoBehaviour:
   grenadeThrowSfx: {fileID: 0}
   throwSfxVolume: 0.7
   grenadeAction: {fileID: 0}
+  nextGrenadeAction: {fileID: 0}
   playerCamera: {fileID: 6286195477711956745}
 --- !u!114 &5660117659077990904
 MonoBehaviour:
@@ -1805,7 +1812,6 @@ MonoBehaviour:
   coordinator: {fileID: 3788039708433434490}
   thirdPersonRig: {fileID: 0}
   poseBinder: {fileID: 2328653965345181622}
-  firePresentationDuration: 0.12
   evaluateHumanoidAnimation: 1
   parameterDampTime: 0.08
   walkReferenceSpeed: 3.25
@@ -1864,6 +1870,7 @@ MonoBehaviour:
   proneBlendTime: 0.18
   switchBlendTime: 0.1
   reloadBlendTime: 0.12
+  lookPitchSmoothTime: 0.12
   ikWeight: 1
   rightIkWeight: 1
   leftIkWeight: 1
@@ -1925,6 +1932,75 @@ MonoBehaviour:
   proneSlot: {fileID: 7400000, guid: b61c19231c335b645a55c3e355f4dbc0, type: 2}
   aimSlot: {fileID: 7400000, guid: a8604808904b6334387d962876b1163a, type: 2}
   crouchSlot: {fileID: 7400000, guid: 3c98b2e0efd24654fbc3c76785b2a648, type: 2}
+--- !u!114 &4920202593546085652
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 549404b8479cc9243ae7823f7b7281a4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BodySlamDetector
+  ShowTopMostFoldoutHeaderGroup: 1
+  bodySlamEnabled: 1
+  bodySlamMinimumDownwardVelocity: 2.25
+  bodySlamHorizontalTolerance: 0.5
+  bodySlamMaximumVerticalSeparation: 1.35
+  showBodySlamDebug: 0
+--- !u!114 &5677391733349394398
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bcaa20bf21374ce43bfa9f84648a21bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::RicochetAimPredictor
+  playerCamera: {fileID: 6286195477711956745}
+  markerRadius: 0.09
+  markerWidth: 0.018
+  markerColor: {r: 1, g: 0.82, b: 0.28, a: 0.85}
+  showRicochetDebug: 0
+--- !u!114 &7606037630162072534
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6486fcf7603114240bbbfa90a7343919, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerTeamIdentity
+  ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &3254731239471296233
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e1d9d1aec06fa0544a87606707d7be65, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerPingController
+  ShowTopMostFoldoutHeaderGroup: 1
+  locationPingDuration: 5
+  enemyPingDuration: 4
+  pingCooldown: 0.5
+  maxPingDistance: 200
+  maxReportedOriginDistance: 4
+  playerCamera: {fileID: 6286195477711956745}
+  pingAction: {fileID: 0}
+  showPingDebug: 0
 --- !u!1 &3625492656395199349
 GameObject:
   m_ObjectHideFlags: 0
