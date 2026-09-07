@@ -14,6 +14,7 @@ public static class ThirdPersonWeaponSetup
     public const string PistolPath = PrefabFolder + "/ThirdPerson_Pistol.prefab";
     public const string RiflePath = PrefabFolder + "/ThirdPerson_AK.prefab";
     public const string DmrPath = PrefabFolder + "/ThirdPerson_DMR.prefab";
+    public const string SniperPath = PrefabFolder + "/ThirdPerson_Sniper.prefab";
     public const string ShotgunPath = PrefabFolder + "/ThirdPerson_Shotgun.prefab";
 
     [MenuItem("Bullseye/Weapons/Apply REQ-047 Weapon Rig (Deprecated)")]
@@ -59,7 +60,7 @@ public static class ThirdPersonWeaponSetup
 
     private static void RenameLeftHandGrips()
     {
-        string[] paths = { PistolPath, RiflePath, DmrPath, ShotgunPath };
+        string[] paths = { PistolPath, RiflePath, DmrPath, SniperPath, ShotgunPath };
         for (int i = 0; i < paths.Length; i++)
         {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(paths[i]);
@@ -135,6 +136,20 @@ public static class ThirdPersonWeaponSetup
             ConfigureDefinition(
                 "Assets/Scripts/Weapons/DMRDefinition.asset",
                 dmr,
+                ThirdPersonWeaponClass.Rifle,
+                ThirdPersonWeaponPose.CreateDefault(ThirdPersonWeaponClass.Rifle),
+                overwritePose: false);
+        }
+
+        GameObject sniperSource = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Weapons/Sniper Rifle/Prefabs/SniperRifle_Gameplay.prefab");
+        GameObject sniper = sniperSource != null
+            ? CreateWrapper("ThirdPerson_Sniper", sniperSource, SniperPath, new Vector3(0.02f, -0.02f, 0.32f))
+            : AssetDatabase.LoadAssetAtPath<GameObject>(SniperPath);
+        if (sniper != null)
+        {
+            ConfigureDefinition(
+                "Assets/Scripts/Weapons/SniperRifleDefinition.asset",
+                sniper,
                 ThirdPersonWeaponClass.Rifle,
                 ThirdPersonWeaponPose.CreateDefault(ThirdPersonWeaponClass.Rifle),
                 overwritePose: false);

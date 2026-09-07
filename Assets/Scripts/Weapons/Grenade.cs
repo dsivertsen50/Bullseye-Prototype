@@ -173,7 +173,8 @@ public class Grenade : NetworkBehaviour
                 bullseyeExplosionForce,
                 knockbackRadius,
                 bullseyeDetachRadius,
-                upwardModifier);
+                upwardModifier,
+                ThrowerClientId);
         }
     }
 

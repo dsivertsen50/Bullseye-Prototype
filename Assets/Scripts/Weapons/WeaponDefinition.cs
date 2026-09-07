@@ -49,7 +49,7 @@ public class WeaponDefinition : ScriptableObject
     [Header("ADS")]
     [SerializeField, Tooltip("When enabled, ADS applies true camera magnification from Ads Magnification. When disabled, ADS only changes weapon pose and handling.")]
     private bool usesMagnifiedAds = true;
-    [SerializeField, Min(1f), Tooltip("Optical magnification while ADS. 1.0x is no zoom. 1.15x is a mild sight picture. 2.5x is the current DMR optic.")]
+    [SerializeField, Min(1f), Tooltip("Optical magnification while ADS. 1.0x is no zoom. 1.15x is a mild sight picture. 2.5x is the current DMR optic. Variable-zoom weapons use this as the fallback if Default Zoom is unset.")]
     private float adsMagnification = 1.15f;
     [SerializeField, Min(0.01f), Tooltip("Seconds to blend into this weapon's ADS camera, sensitivity, and pose.")]
     private float adsEnterDuration = 0.18f;
@@ -59,6 +59,28 @@ public class WeaponDefinition : ScriptableObject
     private float adsSensitivityMultiplier = 0.4f;
     [SerializeField, Tooltip("Hides the first-person weapon while ADS so the view is a scope picture rather than looking down the gun. Does not affect third-person.")]
     private bool adsHidesViewmodel;
+
+    [Header("Variable ADS Zoom")]
+    [SerializeField, Tooltip("When enabled, forward/back input changes magnification while ADS instead of using a single Ads Magnification value.")]
+    private bool usesVariableAdsMagnification;
+    [SerializeField, Min(1f)] private float minAdsMagnification = 2f;
+    [SerializeField, Min(1f)] private float maxAdsMagnification = 6f;
+    [SerializeField, Min(1f), Tooltip("Magnification used when first entering ADS. Typically the minimum zoom.")]
+    private float defaultAdsMagnification = 2f;
+    [SerializeField, Min(0.01f), Tooltip("How many magnification steps per second at full forward/back input.")]
+    private float adsZoomAdjustmentSpeed = 2.2f;
+    [SerializeField, Range(0f, 0.5f), Tooltip("Extra analog deadzone for zoom input on top of the Input System stick deadzone.")]
+    private float adsZoomInputDeadzone = 0.2f;
+    [SerializeField, Tooltip("If disabled, exiting ADS restores Default Zoom for the next scope-in. Enable later to remember the last zoom.")]
+    private bool preserveAdsMagnificationOnExit;
+    [SerializeField, Tooltip("When enabled, look sensitivity is scaled by Default Zoom / current zoom so higher magnification aims slower.")]
+    private bool adsSensitivityScalesWithMagnification;
+
+    [Header("Scoped Locomotion")]
+    [SerializeField, Tooltip("While ADS, block walking, strafing, and sprint. Look, fire, reload, and stance changes stay allowed.")]
+    private bool locksHorizontalLocomotionWhileAds;
+    [SerializeField, Tooltip("Automatically leave ADS if the player becomes airborne so a locomotion lock cannot trap midair movement.")]
+    private bool exitAdsWhenAirborne = true;
 
     [Header("Scope Presentation")]
     [SerializeField, Tooltip("Visual optic overlay while ADS. Independent of Ads Magnification. Leave empty for weapons that only pose-aim.")]
@@ -139,6 +161,20 @@ public class WeaponDefinition : ScriptableObject
     public float AdsExitDuration => Mathf.Max(0.01f, adsExitDuration);
     public float AdsSensitivityMultiplier => Mathf.Clamp(adsSensitivityMultiplier, 0.05f, 1.5f);
     public bool AdsHidesViewmodel => adsHidesViewmodel;
+    public bool UsesVariableAdsMagnification => usesVariableAdsMagnification && usesMagnifiedAds;
+    public float MinAdsMagnification => Mathf.Max(1f, minAdsMagnification);
+    public float MaxAdsMagnification => Mathf.Max(MinAdsMagnification, maxAdsMagnification);
+    public float DefaultAdsMagnification =>
+        Mathf.Clamp(
+            defaultAdsMagnification > 1.0001f ? defaultAdsMagnification : MinAdsMagnification,
+            MinAdsMagnification,
+            MaxAdsMagnification);
+    public float AdsZoomAdjustmentSpeed => Mathf.Max(0.01f, adsZoomAdjustmentSpeed);
+    public float AdsZoomInputDeadzone => Mathf.Clamp(adsZoomInputDeadzone, 0f, 0.5f);
+    public bool PreserveAdsMagnificationOnExit => preserveAdsMagnificationOnExit;
+    public bool AdsSensitivityScalesWithMagnification => adsSensitivityScalesWithMagnification;
+    public bool LocksHorizontalLocomotionWhileAds => locksHorizontalLocomotionWhileAds;
+    public bool ExitAdsWhenAirborne => exitAdsWhenAirborne;
     public ScopeDefinition ScopePresentation => scopePresentation;
     public bool UsesScopeOverlay => scopePresentation != null && scopePresentation.UsesScopeOverlay;
     public Vector3 WorldLocalPosition => worldLocalPosition;
@@ -218,6 +254,13 @@ public class WeaponDefinition : ScriptableObject
         adsEnterDuration = Mathf.Max(0.01f, adsEnterDuration);
         adsExitDuration = Mathf.Max(0.01f, adsExitDuration);
         adsSensitivityMultiplier = Mathf.Clamp(adsSensitivityMultiplier, 0.05f, 1.5f);
+        minAdsMagnification = Mathf.Max(1f, minAdsMagnification);
+        maxAdsMagnification = Mathf.Max(minAdsMagnification, maxAdsMagnification);
+        if (defaultAdsMagnification < 1.0001f)
+            defaultAdsMagnification = minAdsMagnification;
+        defaultAdsMagnification = Mathf.Clamp(defaultAdsMagnification, minAdsMagnification, maxAdsMagnification);
+        adsZoomAdjustmentSpeed = Mathf.Max(0.01f, adsZoomAdjustmentSpeed);
+        adsZoomInputDeadzone = Mathf.Clamp(adsZoomInputDeadzone, 0f, 0.5f);
         ikBlendDuration = Mathf.Max(0.01f, ikBlendDuration);
         weaponPoseBlendDuration = Mathf.Max(0.01f, weaponPoseBlendDuration);
         sprintSupportIkWeight = Mathf.Clamp01(sprintSupportIkWeight);

@@ -9,6 +9,8 @@ public static class BullseyeSurfaceSetup
     public const string StampMaterialPath = "Assets/Player/BullseyeMeshStamp.mat";
     public const string DecalMaterialPath = "Assets/Player/BullseyeSurfaceDecal.mat";
     public const string DecalTexturePath = "Assets/Player/BullseyeSurfaceDecal.png";
+    public const string PhysicalDiscMeshPath = "Assets/Player/BullseyePhysicalDisc.asset";
+    public const string PhysicalDiscMaterialPath = "Assets/Player/BullseyePhysicalDisc.mat";
 
     private static readonly Dictionary<BullseyeSurfaceRegionId, string[]> BoneAliases = new()
     {
@@ -29,6 +31,46 @@ public static class BullseyeSurfaceSetup
         { BullseyeSurfaceRegionId.LeftLowerLeg, new[] { "mixamorig:LeftLeg", "LeftLowerLeg" } },
         { BullseyeSurfaceRegionId.RightLowerLeg, new[] { "mixamorig:RightLeg", "RightLowerLeg" } }
     };
+
+    public static string RefreshVisuals()
+    {
+        Texture2D decalTexture = EnsureDecalTexture();
+        Material stampMaterial = EnsureStampMaterial();
+        Material decalMaterial = EnsureDecalMaterial(decalTexture);
+        AssetDatabase.SaveAssets();
+        return "Refreshed bullseye stamp/decal. stamp=" +
+               (stampMaterial != null ? stampMaterial.shader.name : "null") +
+               " decal=" + (decalMaterial != null ? decalMaterial.shader.name : "null");
+    }
+
+    public static string ApplyPhysicalDisc()
+    {
+        Texture2D decalTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(DecalTexturePath);
+        Mesh mesh = EnsurePhysicalDiscMesh();
+        Material material = EnsurePhysicalDiscMaterial(decalTexture);
+
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
+        if (prefab == null)
+            return "FAILED: missing " + PlayerPrefabPath;
+
+        string prefabPath = AssetDatabase.GetAssetPath(prefab);
+        GameObject root = PrefabUtility.LoadPrefabContents(prefabPath);
+        try
+        {
+            Transform physical = root.transform.Find("Bullseye");
+            if (physical == null)
+                return "FAILED: Player.prefab has no Bullseye child";
+
+            ApplyPhysicalDiscTo(physical, mesh, material);
+            PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+            AssetDatabase.SaveAssets();
+            return "Physical bullseye is a thin cylinder using " + PhysicalDiscMaterialPath;
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(root);
+        }
+    }
 
     public static string Apply()
     {
@@ -75,9 +117,13 @@ public static class BullseyeSurfaceSetup
             visualSo.FindProperty("stampRadius").floatValue = 0.14f;
             SerializedProperty brightness = visualSo.FindProperty("stampBrightness");
             if (brightness != null)
-                brightness.floatValue = 3.8f;
+                brightness.floatValue = 1.35f;
+            SerializedProperty opacity = visualSo.FindProperty("stampOpacity");
+            if (opacity != null)
+                opacity.floatValue = 1f;
             visualSo.ApplyModifiedPropertiesWithoutUndo();
             HidePhysicalWhileAuthoring(physical);
+            ApplyPhysicalDiscTo(physical, EnsurePhysicalDiscMesh(), EnsurePhysicalDiscMaterial(decalTexture));
 
             CreateCombatHitboxes(root.transform);
 
@@ -434,15 +480,13 @@ public static class BullseyeSurfaceSetup
         }
 
         if (material.HasProperty("_Brightness"))
-            material.SetFloat("_Brightness", 3.8f);
-        if (material.HasProperty("_RingOuter"))
-            material.SetColor("_RingOuter", new Color(8f, 0.18f, 0.08f, 1f));
-        if (material.HasProperty("_RingMid"))
-            material.SetColor("_RingMid", new Color(6.5f, 6.5f, 6.5f, 1f));
-        if (material.HasProperty("_RingInner"))
-            material.SetColor("_RingInner", new Color(9f, 0.28f, 0.1f, 1f));
-        if (material.HasProperty("_CenterColor"))
-            material.SetColor("_CenterColor", new Color(10f, 8.5f, 1.4f, 1f));
+            material.SetFloat("_Brightness", 1.35f);
+        if (material.HasProperty("_Opacity"))
+            material.SetFloat("_Opacity", 1f);
+        if (material.HasProperty("_ColorRed"))
+            material.SetColor("_ColorRed", new Color(1.15f, 0.04f, 0.04f, 1f));
+        if (material.HasProperty("_ColorWhite"))
+            material.SetColor("_ColorWhite", new Color(1.2f, 1.2f, 1.2f, 1f));
 
         EditorUtility.SetDirty(material);
         return material;
@@ -485,11 +529,167 @@ public static class BullseyeSurfaceSetup
         return material;
     }
 
+    private static void ApplyPhysicalDiscTo(Transform physical, Mesh mesh, Material material)
+    {
+        if (physical == null)
+            return;
+
+        MeshFilter filter = physical.GetComponent<MeshFilter>();
+        if (filter == null)
+            filter = physical.gameObject.AddComponent<MeshFilter>();
+        filter.sharedMesh = mesh;
+
+        MeshRenderer renderer = physical.GetComponent<MeshRenderer>();
+        if (renderer == null)
+            renderer = physical.gameObject.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = material;
+
+        MeshCollider collider = physical.GetComponent<MeshCollider>();
+        if (collider == null)
+            collider = physical.gameObject.AddComponent<MeshCollider>();
+        collider.sharedMesh = mesh;
+        collider.convex = true;
+
+        physical.localScale = new Vector3(0.45f, 0.45f, 0.05f);
+    }
+
+    private static Mesh EnsurePhysicalDiscMesh()
+    {
+        Mesh mesh = AssetDatabase.LoadAssetAtPath<Mesh>(PhysicalDiscMeshPath);
+        if (mesh == null)
+        {
+            mesh = BuildPhysicalDiscMesh(32);
+            AssetDatabase.CreateAsset(mesh, PhysicalDiscMeshPath);
+        }
+        else
+        {
+            Mesh built = BuildPhysicalDiscMesh(32);
+            mesh.Clear();
+            mesh.vertices = built.vertices;
+            mesh.uv = built.uv;
+            mesh.triangles = built.triangles;
+            mesh.normals = built.normals;
+            mesh.bounds = built.bounds;
+            mesh.name = "BullseyePhysicalDisc";
+            EditorUtility.SetDirty(mesh);
+        }
+
+        return mesh;
+    }
+
+    private static Mesh BuildPhysicalDiscMesh(int segments)
+    {
+        segments = Mathf.Max(12, segments);
+        const float radius = 0.5f;
+        const float half = 0.5f;
+
+        int capCount = segments + 1;
+        int sideFront = capCount * 2;
+        int vertCount = sideFront + segments * 2;
+        var vertices = new Vector3[vertCount];
+        var uvs = new Vector2[vertCount];
+        var triangles = new int[segments * 12];
+
+        vertices[0] = new Vector3(0f, 0f, half);
+        uvs[0] = new Vector2(0.5f, 0.5f);
+        int backCenter = capCount;
+        vertices[backCenter] = new Vector3(0f, 0f, -half);
+        uvs[backCenter] = new Vector2(0.5f, 0.5f);
+
+        for (int i = 0; i < segments; i++)
+        {
+            float angle = (i / (float)segments) * Mathf.PI * 2f;
+            float x = Mathf.Cos(angle) * radius;
+            float y = Mathf.Sin(angle) * radius;
+            Vector2 capUv = new Vector2(x + 0.5f, y + 0.5f);
+
+            vertices[1 + i] = new Vector3(x, y, half);
+            uvs[1 + i] = capUv;
+            vertices[backCenter + 1 + i] = new Vector3(x, y, -half);
+            uvs[backCenter + 1 + i] = new Vector2(1f - capUv.x, capUv.y);
+
+            float sideU = i / (float)segments;
+            vertices[sideFront + i] = new Vector3(x, y, half);
+            uvs[sideFront + i] = new Vector2(sideU, 1f);
+            vertices[sideFront + segments + i] = new Vector3(x, y, -half);
+            uvs[sideFront + segments + i] = new Vector2(sideU, 0f);
+        }
+
+        int tri = 0;
+        for (int i = 0; i < segments; i++)
+        {
+            int next = (i + 1) % segments;
+            triangles[tri++] = 0;
+            triangles[tri++] = 1 + i;
+            triangles[tri++] = 1 + next;
+
+            triangles[tri++] = backCenter;
+            triangles[tri++] = backCenter + 1 + next;
+            triangles[tri++] = backCenter + 1 + i;
+
+            int sf = sideFront + i;
+            int sb = sideFront + segments + i;
+            int sfN = sideFront + next;
+            int sbN = sideFront + segments + next;
+            triangles[tri++] = sf;
+            triangles[tri++] = sb;
+            triangles[tri++] = sfN;
+            triangles[tri++] = sfN;
+            triangles[tri++] = sb;
+            triangles[tri++] = sbN;
+        }
+
+        var mesh = new Mesh
+        {
+            name = "BullseyePhysicalDisc"
+        };
+        mesh.vertices = vertices;
+        mesh.uv = uvs;
+        mesh.triangles = triangles;
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+        return mesh;
+    }
+
+    private static Material EnsurePhysicalDiscMaterial(Texture2D texture)
+    {
+        Material material = AssetDatabase.LoadAssetAtPath<Material>(PhysicalDiscMaterialPath);
+        Shader shader = Shader.Find("Bullseye/PhysicalDisc");
+        if (shader == null)
+            shader = Shader.Find("HDRP/Unlit");
+
+        if (material == null)
+        {
+            material = new Material(shader);
+            AssetDatabase.CreateAsset(material, PhysicalDiscMaterialPath);
+        }
+        else
+        {
+            material.shader = shader;
+        }
+
+        if (texture != null && material.HasProperty("_BaseMap"))
+            material.SetTexture("_BaseMap", texture);
+        if (material.HasProperty("_RimColor"))
+            material.SetColor("_RimColor", new Color(0.902f, 0.047f, 0.047f, 1f));
+        if (material.HasProperty("_Brightness"))
+            material.SetFloat("_Brightness", 1.15f);
+        if (material.HasProperty("_EmissiveColor"))
+            material.SetColor("_EmissiveColor", Color.black);
+
+        EditorUtility.SetDirty(material);
+        return material;
+    }
+
     private static Texture2D EnsureDecalTexture()
     {
         const int size = 256;
-        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
-        Color[] pixels = new Color[size * size];
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false, false);
+        texture.alphaIsTransparency = true;
+        var pixels = new Color32[size * size];
+        var red = new Color32(230, 12, 12, 255);
+        var white = new Color32(255, 255, 255, 255);
+        var clear = new Color32(0, 0, 0, 0);
         Vector2 center = new Vector2(0.5f, 0.5f);
         for (int y = 0; y < size; y++)
         {
@@ -497,27 +697,33 @@ public static class BullseyeSurfaceSetup
             {
                 Vector2 uv = new Vector2((x + 0.5f) / size, (y + 0.5f) / size);
                 float n = Vector2.Distance(uv, center) * 2f;
-                Color color = Color.clear;
+                Color32 color = clear;
                 if (n <= 1f)
                 {
                     if (n < 0.18f)
-                        color = new Color(1f, 0.92f, 0.2f, 1f);
-                    else if (n < 0.38f)
-                        color = new Color(1f, 0.08f, 0.05f, 1f);
-                    else if (n < 0.62f)
-                        color = new Color(1f, 1f, 1f, 1f);
+                        color = red;
+                    else if (n < 0.36f)
+                        color = white;
+                    else if (n < 0.52f)
+                        color = red;
+                    else if (n < 0.70f)
+                        color = white;
                     else
-                        color = new Color(1f, 0.05f, 0.04f, 1f);
+                        color = red;
 
-                    color.a *= 1f - Mathf.SmoothStep(0.86f, 1f, n);
+                    if (n > 0.92f)
+                    {
+                        float fade = 1f - Mathf.SmoothStep(0.92f, 1f, n);
+                        color.a = (byte)Mathf.RoundToInt(255f * fade);
+                    }
                 }
 
                 pixels[y * size + x] = color;
             }
         }
 
-        texture.SetPixels(pixels);
-        texture.Apply();
+        texture.SetPixels32(pixels);
+        texture.Apply(false, false);
         System.IO.File.WriteAllBytes(
             DecalTexturePath,
             texture.EncodeToPNG());
@@ -528,7 +734,8 @@ public static class BullseyeSurfaceSetup
         {
             importer.sRGBTexture = true;
             importer.alphaIsTransparency = true;
-            importer.mipmapEnabled = true;
+            importer.mipmapEnabled = false;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.SaveAndReimport();
         }
 

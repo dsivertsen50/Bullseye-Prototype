@@ -421,6 +421,11 @@ public static class ThirdPersonWeaponPoseAuthoringSetup
             library.LongGun,
             true);
         AssignDefinition(
+            "Assets/Scripts/Weapons/SniperRifleDefinition.asset",
+            ThirdPersonWeaponPoseClass.LongGun,
+            library.LongGun,
+            true);
+        AssignDefinition(
             "Assets/Scripts/Weapons/ShotgunDefinition.asset",
             ThirdPersonWeaponPoseClass.LongGun,
             library.LongGun,

@@ -1,0 +1,195 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aaef68a99298539408f734afed3d7b48, type: 3}
+  m_Name: SniperRifleDefinition
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponDefinition
+  weaponId: sniper
+  displayName: Sniper Rifle
+  inventoryRole: 0
+  firstPersonPrefab: {fileID: 1599852111584034361, guid: c7747888506b2f54db03defc5d6eb997, type: 3}
+  worldPrefab: {fileID: 3893364440632711645, guid: ec6dda8e5d7ca1f429298a702a445911, type: 3}
+  pickupPrefab: {fileID: 1599852111584034361, guid: c7747888506b2f54db03defc5d6eb997, type: 3}
+  presentation: {fileID: 11400000, guid: b8d039078ac6d794c914455dc0df77cc, type: 2}
+  magazineSize: 5
+  startingMagazineAmmo: 5
+  startingReserveAmmo: 15
+  maximumReserveAmmo: 15
+  unlimitedReserve: 0
+  fireRate: 1.25
+  automatic: 0
+  reloadTime: 2.6
+  canRicochet: 1
+  damageSettings:
+    hitscanMode: 0
+    pelletCount: 1
+    baseDamage: 8
+    damagePerPellet: 8
+    guaranteeLethalHeadshot: 0
+    falloffStart: 220
+    falloffEnd: 250
+    maximumRange: 250
+    beyondMaxRange: 0
+    falloffCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.65
+        value: 0.85
+        inSlope: -0.4
+        outSlope: -0.4
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: -1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    minimumDamageMultiplier: 1
+    pelletSpread: 0
+    logDamage: 0
+  accuracy:
+    baseSpread: 28
+    maxSpread: 72
+    bloomPerShot: 10
+    bloomRecoveryDelay: 0.12
+    bloomRecoverySpeed: 28
+    sprintSpread: 52
+    sprintSpreadIncreaseSpeed: 90
+    sprintSpreadRecoverySpeed: 50
+    adsSpreadMultiplier: 0
+    reticleSprite: {fileID: 0}
+    reticleElementLength: 14
+    reticleElementThickness: 2
+  impactDecalSettings:
+    enabled: 1
+    decalScale: 1
+    maximumDecalDistance: 100
+    variantSet: {fileID: 11400000, guid: 9c3c2a69750a19844be02cba316aa04b, type: 2}
+    impactPattern: 0
+    maxDecalsPerShot: 1
+  shotAudioOverrides:
+    nearMissEnabled: 1
+    impactClips: []
+    flybyClips: []
+  usesMagnifiedAds: 1
+  adsMagnification: 4
+  adsEnterDuration: 0.22
+  adsExitDuration: 0.16
+  adsSensitivityMultiplier: 0.28
+  adsHidesViewmodel: 1
+  usesVariableAdsMagnification: 1
+  minAdsMagnification: 4
+  maxAdsMagnification: 8
+  defaultAdsMagnification: 4
+  adsZoomAdjustmentSpeed: 2.2
+  adsZoomInputDeadzone: 0.2
+  preserveAdsMagnificationOnExit: 0
+  adsSensitivityScalesWithMagnification: 1
+  locksHorizontalLocomotionWhileAds: 1
+  exitAdsWhenAirborne: 1
+  scopePresentation: {fileID: 11400000, guid: e6dfe0ea7756d4e41be6116611b2228c, type: 2}
+  worldLocalPosition: {x: 0, y: 0.02, z: 0.05}
+  worldLocalEuler: {x: 0, y: 0, z: -8}
+  worldLocalScale: {x: 1, y: 1, z: 1}
+  worldStanceHeightOffset: 0.2
+  weaponPoseClass: 0
+  thirdPersonAnchorPositionOffset: {x: -0.00000014901161, y: -0.00000011920929, z: 0.1364435}
+  thirdPersonAnchorRotationOffset: {x: -0.00000003830255, y: 0.00000030587324, z: 358.7649}
+  useLeftHandGrip: 1
+  optionalHoldProfileOverride: {fileID: 0}
+  thirdPersonPoseProfile: {fileID: 11400000, guid: e6f2760ef7695a64a93ef7e9aac8396d, type: 2}
+  poseClassAssigned: 1
+  thirdPersonPoseCategory: 1
+  supportHandIkEnabled: 1
+  ikBlendDuration: 0.12
+  weaponPoseBlendDuration: 0.14
+  sprintSupportIkWeight: 0.55
+  thirdPersonClass: 1
+  thirdPersonPose:
+    gunEuler: {x: 0, y: 0, z: 0}
+    gunScale: {x: 1.15, y: 1.15, z: 1.15}
+    rightHandPosition: {x: 0.09324837, y: -0.17828798, z: 0.8757846}
+    rightWristEuler: {x: 30, y: 0, z: 20}
+    rightArmReach: 0.7
+    rightElbowYaw: 108
+    aimRightHandPosition: {x: 0.16, y: -0.22, z: 0.44}
+    aimRightWristEuler: {x: 30, y: 0, z: 20}
+    sprintRightHandPosition: {x: 0.26, y: -0.14, z: 0.38}
+    sprintRightWristEuler: {x: 12, y: 16, z: -8}
+    proneRightHandPosition: {x: 0.2, y: -0.08, z: 0.52}
+    proneRightWristEuler: {x: 0, y: 0, z: 0}
+    crouchRightHandPosition: {x: 0, y: 0, z: 0}
+    crouchRightWristEuler: {x: 0, y: 0, z: 0}
+    aimGunPosition: {x: 0, y: 0, z: 0}
+    aimGunEuler: {x: 0, y: 0, z: 0}
+    sprintGunPosition: {x: 0, y: 0, z: 0}
+    sprintGunEuler: {x: 0, y: 0, z: 0}
+    crouchGunPosition: {x: 0, y: 0, z: 0}
+    crouchGunEuler: {x: 0, y: 0, z: 0}
+    proneGunPosition: {x: 0, y: 0, z: 0}
+    proneGunEuler: {x: 0, y: 0, z: 0}
+    leftHandFollowGrip: 0
+    leftHandPosition: {x: 0.22261333, y: -0.26785958, z: 0.48365012}
+    leftWristEuler: {x: 49.999992, y: 45.000008, z: 58.27354}
+    leftArmReach: 0.98
+    leftElbowYaw: -133
+    aimLeftHandPosition: {x: 0.19777155, y: -0.41963845, z: 0.781346}
+    aimLeftWristEuler: {x: 50, y: 45, z: -10}
+    sprintLeftHandPosition: {x: 0, y: 0, z: 0}
+    sprintLeftWristEuler: {x: 0, y: 0, z: 0}
+    proneLeftHandPosition: {x: 0, y: 0, z: 0}
+    proneLeftWristEuler: {x: 0, y: 0, z: 0}
+    crouchLeftHandPosition: {x: 0, y: 0, z: 0}
+    crouchLeftWristEuler: {x: 0, y: 0, z: 0}
+    sprintLeftIkWeight: 0.45
+    defaultWeight: 1
+    sprintWeight: 0.22
+    crouchWeight: 1
+    proneWeight: 0.85
+    diveWeight: 0.12
+    jumpWeight: 0.85
+    maxAimPitch: 50
+    maxAimPitchDown: 50
+    spineAimWeight: 0.62
+    upperChestAimShare: 0.45
+    aimRaisePitch: 0
+    proneBodyPitch: -68
+    recoilPitch: 5
+    recoilRightRoll: 4
+    recoilYaw: 1.5
+    recoilInTime: 0.035
+    recoilOutTime: 0.09
+  pickupLocalPosition: {x: 0, y: 0, z: 0}
+  pickupLocalEuler: {x: 0, y: 35, z: 90}
+  pickupLocalScale: {x: 1, y: 1, z: 1}
+  fitPickupColliderToMesh: 1
+  pickupPhysicsBoxSize: {x: 0, y: 0, z: 0}
+  pickupPhysicsBoxCenter: {x: 0, y: 0, z: 0}
+  pickupColliderMinHeight: 0.05

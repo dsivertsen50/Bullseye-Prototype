@@ -23,6 +23,7 @@ public static class BulletImpactSetup
         "Assets/Scripts/Weapons/Ruger22Definition.asset",
         "Assets/Scripts/Weapons/AKDefinition.asset",
         "Assets/Scripts/Weapons/DMRDefinition.asset",
+        "Assets/Scripts/Weapons/SniperRifleDefinition.asset",
         "Assets/Scripts/Weapons/ShotgunDefinition.asset"
     };
 

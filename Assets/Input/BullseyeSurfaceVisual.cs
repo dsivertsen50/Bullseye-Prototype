@@ -12,13 +12,17 @@ public class BullseyeSurfaceVisual : MonoBehaviour
     private static readonly int RadiusId = Shader.PropertyToID("_BullseyeRadius");
     private static readonly int EnabledId = Shader.PropertyToID("_BullseyeEnabled");
     private static readonly int BrightnessId = Shader.PropertyToID("_Brightness");
+    private static readonly int OpacityId = Shader.PropertyToID("_Opacity");
+    private static readonly int ColorRedId = Shader.PropertyToID("_ColorRed");
+    private static readonly int ColorWhiteId = Shader.PropertyToID("_ColorWhite");
     private static readonly int EmissiveColorId = Shader.PropertyToID("_EmissiveColor");
 
     [SerializeField] private SkinnedMeshRenderer characterRenderer;
     [SerializeField] private Material stampMaterial;
     [SerializeField] private DecalProjector decalProjector;
     [SerializeField] private float stampRadius = 0.14f;
-    [SerializeField] private float stampBrightness = 3.8f;
+    [SerializeField] private float stampBrightness = 1.35f;
+    [SerializeField, Range(0.5f, 1f)] private float stampOpacity = 1f;
     [SerializeField] private float decalDepth = 0.18f;
     [SerializeField] private Color flashColor = new Color(2.5f, 2.5f, 2.5f, 1f);
     [SerializeField] private float flashDuration = 0.12f;
@@ -104,6 +108,9 @@ public class BullseyeSurfaceVisual : MonoBehaviour
             propertyBlock.SetFloat(RadiusId, stampRadius);
             propertyBlock.SetFloat(EnabledId, 1f);
             propertyBlock.SetFloat(BrightnessId, stampBrightness);
+            propertyBlock.SetFloat(OpacityId, stampOpacity);
+            propertyBlock.SetColor(ColorRedId, new Color(1.15f, 0.04f, 0.04f, 1f));
+            propertyBlock.SetColor(ColorWhiteId, new Color(1.2f, 1.2f, 1.2f, 1f));
             characterRenderer.SetPropertyBlock(propertyBlock, stampMaterialIndex);
         }
 
@@ -188,6 +195,7 @@ public class BullseyeSurfaceVisual : MonoBehaviour
     {
         stampRadius = Mathf.Max(0.02f, stampRadius);
         stampBrightness = Mathf.Max(1f, stampBrightness);
+        stampOpacity = Mathf.Clamp(stampOpacity, 0.5f, 1f);
         decalDepth = Mathf.Max(0.03f, decalDepth);
         flashDuration = Mathf.Max(0.02f, flashDuration);
     }

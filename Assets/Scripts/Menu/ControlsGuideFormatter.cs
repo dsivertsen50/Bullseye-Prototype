@@ -25,7 +25,8 @@ public static class ControlsGuideFormatter
         "Melee",
         "SwitchWeapon",
         "WeaponSwitch",
-        "Pause"
+        "Pause",
+        "Scoreboard"
     };
 
     public static void Build(InputActionAsset actions, out string keyboardMouse, out string gamepad)
@@ -106,6 +107,7 @@ public static class ControlsGuideFormatter
             case "Grenade": return "Grenade";
             case "NextGrenade": return "Switch Grenade";
             case "Ping": return "Ping / Warning";
+            case "Scoreboard": return "Scoreboard";
             default: return SplitCamel(actionName);
         }
     }
@@ -205,7 +207,8 @@ public static class ControlsGuideFormatter
             "Reload  —  R\n" +
             "Interact  —  E\n" +
             "Switch Weapon  —  Q / Mouse Scroll\n" +
-            "Pause  —  Escape";
+            "Pause  —  Escape\n" +
+            "Scoreboard  —  Tab";
     }
 
     private static string FallbackGamepad()
@@ -223,6 +226,7 @@ public static class ControlsGuideFormatter
             "Crouch  —  East Button (B)\n" +
             "Reload / Interact  —  West Button (X)\n" +
             "Switch Weapon  —  North Button (Y) / Right Shoulder\n" +
-            "Pause  —  Menu Button";
+            "Pause  —  Menu Button\n" +
+            "Scoreboard  —  View Button";
     }
 }

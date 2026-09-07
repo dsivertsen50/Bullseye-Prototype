@@ -151,7 +151,7 @@ public class SuctionGrenade : Grenade
         if (!IsPlayerEligibleForDetach(health))
             return;
 
-        if (!controller.TryDetachBySuction())
+        if (!controller.TryDetachBySuction(ThrowerClientId))
             return;
 
         IgnoreAttractedBullseye(controller);

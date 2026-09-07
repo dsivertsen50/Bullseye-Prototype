@@ -27,6 +27,7 @@ public static class ThirdPersonWeaponRigSetup
         ConfigureWeaponPoseLayer();
         ConfigureAkDefinition();
         ConfigureDefinitionCategory("Assets/Scripts/Weapons/DMRDefinition.asset", ThirdPersonPoseCategory.LongGun, true);
+        ConfigureDefinitionCategory("Assets/Scripts/Weapons/SniperRifleDefinition.asset", ThirdPersonPoseCategory.LongGun, true);
         ConfigureDefinitionCategory("Assets/Scripts/Weapons/ShotgunDefinition.asset", ThirdPersonPoseCategory.LongGun, true);
         ConfigureDefinitionCategory("Assets/Scripts/Weapons/Ruger22Definition.asset", ThirdPersonPoseCategory.Pistol, false);
         EnsureWeaponHints();

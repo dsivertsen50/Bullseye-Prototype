@@ -2,15 +2,13 @@ using Unity.Netcode;
 using UnityEngine;
 
 /// <summary>
-/// Server-authoritative per-player match statistics.
-/// Kills, deaths, and detached-bullseye kills are the first implemented fields.
-/// Additional Bullseye metrics (hits by region, accuracy, weighted score, etc.)
-/// can be added here later without replacing this component or treating score
-/// as kill count.
+/// Replicated per-player match counters shown on the HUD.
+/// Rich combat detail lives on CombatTelemetryManager; this component only
+/// mirrors the scoreboard fields every client needs.
 /// </summary>
 public class PlayerStats : NetworkBehaviour
 {
-    private readonly NetworkVariable<int> kills = new(
+    private readonly NetworkVariable<int> eliminations = new(
         0,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server);
@@ -20,42 +18,50 @@ public class PlayerStats : NetworkBehaviour
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server);
 
-    private readonly NetworkVariable<int> detachedBullseyeKills = new(
+    private readonly NetworkVariable<int> assists = new(
         0,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server);
 
-    public int Kills => kills.Value;
+    private readonly NetworkVariable<int> detachedBullseyeEliminations = new(
+        0,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server);
+
+    public int Eliminations => eliminations.Value;
     public int Deaths => deaths.Value;
+    public int Assists => assists.Value;
 
     /// <summary>
-    /// Match-session count of kills scored against a knocked-off bullseye.
-    /// Kept for an end-of-game summary; not shown on the in-match HUD.
+    /// Match-session count of eliminations scored against a knocked-off bullseye.
+    /// Kept for summaries; not shown on the in-match HUD.
     /// </summary>
-    public int DetachedBullseyeKills => detachedBullseyeKills.Value;
+    public int DetachedBullseyeEliminations => detachedBullseyeEliminations.Value;
 
     public event System.Action StatsChanged;
 
     public override void OnNetworkSpawn()
     {
-        kills.OnValueChanged += OnStatChanged;
+        eliminations.OnValueChanged += OnStatChanged;
         deaths.OnValueChanged += OnStatChanged;
-        detachedBullseyeKills.OnValueChanged += OnStatChanged;
+        assists.OnValueChanged += OnStatChanged;
+        detachedBullseyeEliminations.OnValueChanged += OnStatChanged;
     }
 
     public override void OnNetworkDespawn()
     {
-        kills.OnValueChanged -= OnStatChanged;
+        eliminations.OnValueChanged -= OnStatChanged;
         deaths.OnValueChanged -= OnStatChanged;
-        detachedBullseyeKills.OnValueChanged -= OnStatChanged;
+        assists.OnValueChanged -= OnStatChanged;
+        detachedBullseyeEliminations.OnValueChanged -= OnStatChanged;
     }
 
-    public void AddKill()
+    public void AddElimination()
     {
         if (!IsServer || !IsSpawned)
             return;
 
-        kills.Value = Mathf.Max(0, kills.Value + 1);
+        eliminations.Value = Mathf.Max(0, eliminations.Value + 1);
     }
 
     public void AddDeath()
@@ -66,12 +72,20 @@ public class PlayerStats : NetworkBehaviour
         deaths.Value = Mathf.Max(0, deaths.Value + 1);
     }
 
-    public void AddDetachedBullseyeKill()
+    public void AddAssist()
     {
         if (!IsServer || !IsSpawned)
             return;
 
-        detachedBullseyeKills.Value = Mathf.Max(0, detachedBullseyeKills.Value + 1);
+        assists.Value = Mathf.Max(0, assists.Value + 1);
+    }
+
+    public void AddDetachedBullseyeElimination()
+    {
+        if (!IsServer || !IsSpawned)
+            return;
+
+        detachedBullseyeEliminations.Value = Mathf.Max(0, detachedBullseyeEliminations.Value + 1);
     }
 
     /// <summary>
@@ -83,9 +97,10 @@ public class PlayerStats : NetworkBehaviour
         if (!IsServer || !IsSpawned)
             return;
 
-        kills.Value = 0;
+        eliminations.Value = 0;
         deaths.Value = 0;
-        detachedBullseyeKills.Value = 0;
+        assists.Value = 0;
+        detachedBullseyeEliminations.Value = 0;
     }
 
     public static PlayerStats FindOwnedByClient(ulong clientId)
