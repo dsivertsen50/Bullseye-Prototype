@@ -636,6 +636,52 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RicochetSurface
   ricochetEnabled: 1
+--- !u!1 &490495824
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 490495826}
+  - component: {fileID: 490495825}
+  m_Layer: 0
+  m_Name: CombatTelemetryManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &490495825
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 490495824}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 569154dd4559c2a4ea3edf76e751ab1b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CombatTelemetryManager
+  showDebugOverlay: 0
+  logEvents: 0
+--- !u!4 &490495826
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 490495824}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &563896787
 GameObject:
   m_ObjectHideFlags: 0
@@ -1700,6 +1746,7 @@ MonoBehaviour:
   shotgun: {fileID: 11400000, guid: 70865145b36d2104ea18fddac012ce10, type: 2}
   ak: {fileID: 11400000, guid: d3be3e4c122c42a4e9ada205a6634f82, type: 2}
   dmr: {fileID: 11400000, guid: 3c7e91a04f2b4d6e8a1c5b0d9e7f2a14, type: 2}
+  sniper: {fileID: 11400000, guid: 7b0f623747257c2448c3e93f1ac67714, type: 2}
   shotgunPositions:
   - {x: 2.4, y: 0.45, z: -2.2}
   - {x: -2.4, y: 0.45, z: -2.2}
@@ -1709,6 +1756,9 @@ MonoBehaviour:
   dmrPositions:
   - {x: 1.6, y: 0.7, z: 2.2}
   - {x: 1.6, y: 0.7, z: -2.2}
+  sniperPositions:
+  - {x: 0.8, y: 0.7, z: 2.2}
+  - {x: 0.8, y: 0.7, z: -2.2}
 --- !u!1 &1614980135
 GameObject:
   m_ObjectHideFlags: 0
@@ -2590,3 +2640,4 @@ SceneRoots:
   - {fileID: 1903665047}
   - {fileID: 51514066}
   - {fileID: 346441913}
+  - {fileID: 490495826}

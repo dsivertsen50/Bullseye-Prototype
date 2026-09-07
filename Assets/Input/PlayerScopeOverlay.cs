@@ -36,6 +36,11 @@ public class PlayerScopeOverlay : NetworkBehaviour
     private Image tintImage;
     private Image reticleImage;
     private Image reticleDotImage;
+    private Text zoomLabel;
+    private RectTransform zoomBarRoot;
+    private Image zoomBarBadge;
+    private Image zoomBarTrack;
+    private Image zoomBarFill;
     private Material peripheralMaterial;
 
     private ScopeDefinition appliedScope;
@@ -103,7 +108,10 @@ public class PlayerScopeOverlay : NetworkBehaviour
         if (!Mathf.Approximately(opacity, overlayOpacity) || scope != appliedScope)
             ApplyVisuals(scope, opacity);
         else if (opacity > 0.001f)
+        {
             RefreshLayout(scope);
+            RefreshZoomReadout(scope);
+        }
     }
 
     private ScopeDefinition ResolveActiveScope()
@@ -152,6 +160,7 @@ public class PlayerScopeOverlay : NetworkBehaviour
         BindSprites(scope);
         RefreshLayout(scope);
         ApplyColors(scope, overlayOpacity);
+        RefreshZoomReadout(scope);
     }
 
     private void BindSprites(ScopeDefinition scope)
@@ -210,6 +219,30 @@ public class PlayerScopeOverlay : NetworkBehaviour
         SetCenteredSquare(reticleDotRect, dotSize);
         if (reticleDotImage != null)
             reticleDotImage.enabled = dotSize > 0.5f;
+
+        if (zoomLabel != null)
+        {
+            RectTransform zoomRect = zoomLabel.rectTransform;
+            Vector2 hud = scope.ZoomHudOffset;
+            float badge = diameter * scope.ZoomBadgeSize;
+            zoomRect.anchoredPosition = new Vector2(diameter * hud.x, diameter * hud.y - badge * 0.58f);
+        }
+
+        if (zoomBarRoot != null)
+        {
+            Vector2 hud = scope.ZoomHudOffset;
+            float badge = diameter * scope.ZoomBadgeSize;
+            float barHeight = diameter * scope.ZoomBarHeight;
+            float barWidth = Mathf.Max(6f, diameter * scope.ZoomBarWidth);
+            zoomBarRoot.anchoredPosition = new Vector2(diameter * hud.x, diameter * hud.y);
+            zoomBarRoot.sizeDelta = new Vector2(badge, badge);
+            if (zoomBarBadge != null)
+                SetCenteredSquare(zoomBarBadge.rectTransform, badge);
+            if (zoomBarTrack != null)
+                zoomBarTrack.rectTransform.sizeDelta = new Vector2(barWidth, barHeight);
+            if (zoomBarFill != null)
+                zoomBarFill.rectTransform.sizeDelta = new Vector2(Mathf.Max(4f, barWidth - 2f), barHeight - 4f);
+        }
     }
 
     private void ApplyColors(ScopeDefinition scope, float opacity)
@@ -236,6 +269,61 @@ public class PlayerScopeOverlay : NetworkBehaviour
         reticle.a *= opacity;
         SetImageColor(reticleImage, reticle);
         SetImageColor(reticleDotImage, reticle);
+    }
+
+    private void RefreshZoomReadout(ScopeDefinition scope)
+    {
+        bool visible = scope != null && overlayOpacity > 0.35f && playerAimZoom != null;
+        bool showLabel = visible && scope.ShowMagnificationReadout;
+        bool showBar = visible && scope.ShowZoomBar;
+
+        if (zoomLabel != null)
+        {
+            zoomLabel.enabled = showLabel;
+            if (showLabel)
+            {
+                zoomLabel.text = playerAimZoom.CurrentMagnification.ToString("0.0") + "x";
+                Color color = scope.ReticleColor;
+                color.a *= overlayOpacity * 0.85f;
+                zoomLabel.color = color;
+            }
+        }
+
+        if (zoomBarRoot != null)
+            zoomBarRoot.gameObject.SetActive(showBar);
+
+        if (!showBar || zoomBarFill == null)
+            return;
+
+        float fill = ResolveZoomFill();
+        zoomBarFill.fillAmount = fill;
+
+        Color badge = scope.PeripheralColor;
+        badge.a = overlayOpacity * 0.88f;
+        SetImageColor(zoomBarBadge, badge);
+
+        Color track = scope.ReticleColor;
+        track.a = overlayOpacity * 0.22f;
+        SetImageColor(zoomBarTrack, track);
+
+        Color fillColor = scope.ReticleColor;
+        fillColor.a *= overlayOpacity * 0.95f;
+        SetImageColor(zoomBarFill, fillColor);
+    }
+
+    private float ResolveZoomFill()
+    {
+        WeaponDefinition definition = inventory != null ? inventory.ActiveDefinition : null;
+        if (definition == null || playerAimZoom == null)
+            return 0f;
+
+        float min = definition.UsesVariableAdsMagnification
+            ? definition.MinAdsMagnification
+            : 1f;
+        float max = definition.UsesVariableAdsMagnification
+            ? definition.MaxAdsMagnification
+            : Mathf.Max(min + 0.01f, definition.AdsMagnification);
+        return Mathf.InverseLerp(min, max, playerAimZoom.CurrentMagnification);
     }
 
     private void EnsureUi()
@@ -301,6 +389,9 @@ public class PlayerScopeOverlay : NetworkBehaviour
         reticleDotRect = reticleDotImage.rectTransform;
         Center(reticleDotRect);
 
+        zoomLabel = CreateZoomLabel(canvasObject.transform);
+        CreateZoomBar(canvasObject.transform);
+
         canvasObject.SetActive(false);
     }
 
@@ -327,6 +418,11 @@ public class PlayerScopeOverlay : NetworkBehaviour
         tintImage = null;
         reticleImage = null;
         reticleDotImage = null;
+        zoomLabel = null;
+        zoomBarRoot = null;
+        zoomBarBadge = null;
+        zoomBarTrack = null;
+        zoomBarFill = null;
 
         if (peripheralMaterial != null)
         {
@@ -347,6 +443,64 @@ public class PlayerScopeOverlay : NetworkBehaviour
         image.raycastTarget = false;
         image.maskable = false;
         return image;
+    }
+
+    private static Text CreateZoomLabel(Transform parent)
+    {
+        GameObject go = new GameObject("ScopeZoomLabel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+        go.transform.SetParent(parent, false);
+        RectTransform rect = go.GetComponent<RectTransform>();
+        Center(rect);
+        rect.anchoredPosition = new Vector2(0f, -84f);
+        rect.sizeDelta = new Vector2(160f, 32f);
+
+        Text text = go.GetComponent<Text>();
+        text.font = ResolveUiFont();
+        text.fontSize = 16;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.raycastTarget = false;
+        text.color = new Color(0.92f, 0.92f, 0.88f, 0.7f);
+        text.text = string.Empty;
+        text.enabled = false;
+        return text;
+    }
+
+    private void CreateZoomBar(Transform parent)
+    {
+        GameObject root = new GameObject("ScopeZoomBar", typeof(RectTransform));
+        root.transform.SetParent(parent, false);
+        zoomBarRoot = root.GetComponent<RectTransform>();
+        Center(zoomBarRoot);
+        zoomBarRoot.sizeDelta = new Vector2(96f, 96f);
+        root.SetActive(false);
+
+        zoomBarBadge = CreateImage(root.transform, "Badge", ScopePlaceholderSprites.Dot);
+        Center(zoomBarBadge.rectTransform);
+        zoomBarBadge.rectTransform.sizeDelta = new Vector2(96f, 96f);
+        zoomBarBadge.preserveAspect = true;
+        zoomBarBadge.color = new Color(0.02f, 0.02f, 0.02f, 0.88f);
+
+        zoomBarTrack = CreateImage(root.transform, "Track", UiWhiteSprite.Get());
+        Center(zoomBarTrack.rectTransform);
+        zoomBarTrack.rectTransform.sizeDelta = new Vector2(8f, 56f);
+        zoomBarTrack.color = new Color(0.92f, 0.93f, 0.88f, 0.22f);
+
+        zoomBarFill = CreateImage(root.transform, "Fill", UiWhiteSprite.Get());
+        Center(zoomBarFill.rectTransform);
+        zoomBarFill.rectTransform.sizeDelta = new Vector2(6f, 52f);
+        zoomBarFill.type = Image.Type.Filled;
+        zoomBarFill.fillMethod = Image.FillMethod.Vertical;
+        zoomBarFill.fillOrigin = (int)Image.OriginVertical.Bottom;
+        zoomBarFill.fillAmount = 0f;
+        zoomBarFill.color = new Color(0.92f, 0.93f, 0.88f, 0.95f);
+    }
+
+    private static Font ResolveUiFont()
+    {
+        Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (font == null)
+            font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        return font;
     }
 
     private static void Stretch(RectTransform rect)

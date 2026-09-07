@@ -12,6 +12,7 @@ public class NetworkStart : MonoBehaviour
         if (networkManager == null || networkManager.IsListening)
             return;
 
+        CombatTelemetryManager.Ensure();
         networkManager.StartHost();
     }
 }

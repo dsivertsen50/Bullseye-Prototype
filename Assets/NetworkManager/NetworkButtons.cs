@@ -17,6 +17,7 @@ public class NetworkButtons : MonoBehaviour
 
         if (GUI.Button(new Rect(10, 10, 120, 40), "Start Host"))
         {
+            CombatTelemetryManager.Ensure();
             networkManager.StartHost();
         }
 

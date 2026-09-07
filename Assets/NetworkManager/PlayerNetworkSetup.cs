@@ -38,6 +38,9 @@ public class PlayerNetworkSetup : NetworkBehaviour
         if (TryGetComponent(out LocalPauseMenu pauseMenu))
             pauseMenu.enabled = false;
 
+        if (TryGetComponent(out MatchScoreboardController scoreboard))
+            scoreboard.enabled = false;
+
         if (TryGetComponent(out BullseyeSprintSpeedEffects sprintEffects))
             sprintEffects.enabled = false;
 

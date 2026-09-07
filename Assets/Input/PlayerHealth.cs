@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using Unity.Netcode;
 using Unity.Netcode.Components;
@@ -59,6 +60,8 @@ public class PlayerHealth : NetworkBehaviour
     private Coroutine respawnRoutine;
     private float regenerationDelayRemaining;
     private float regenerationAccumulator;
+    private readonly HashSet<ulong> assistContributors = new();
+    private readonly List<ulong> assistSnapshot = new(4);
 
     public int CurrentHealth => currentHealth.Value;
     public int MaxHealth => GetMaxHealth();
@@ -183,6 +186,16 @@ public class PlayerHealth : NetworkBehaviour
         if (settings.GuaranteeLethalHeadshot && zone == BullseyeBodyZone.Head)
             totalDamage = Mathf.Max(totalDamage, GetMaxHealth());
 
+        float averageDistance = appliedHits > 0 ? totalDistance / appliedHits : 0f;
+        string weaponId = weapon != null ? weapon.WeaponId : "unknown";
+        CombatTelemetryManager.Ensure().RecordBullseyeHit(
+            attackerId,
+            OwnerClientId,
+            weaponId,
+            averageDistance,
+            CombatTelemetryManager.ResolveBullseyeState(detachController),
+            totalDamage);
+
         if (totalDamage <= 0)
             return;
 
@@ -190,9 +203,9 @@ public class PlayerHealth : NetworkBehaviour
             attackerId,
             OwnerClientId,
             totalDamage,
-            weapon != null ? weapon.WeaponId : "unknown"));
+            weaponId,
+            averageDistance));
 
-        float averageDistance = appliedHits > 0 ? totalDistance / appliedHits : 0f;
         LogResolvedDamage(
             weapon,
             settings,
@@ -220,6 +233,9 @@ public class PlayerHealth : NetworkBehaviour
             return;
 
         SetHealth(currentHealth.Value - amount);
+        if (context.HasAttacker && context.AttackerClientId != OwnerClientId)
+            RegisterAssistContributor(context.AttackerClientId);
+
         InterruptRegeneration();
         PlayDamageRumbleOwnerRpc();
         FlashBullseyeRpc();
@@ -256,7 +272,8 @@ public class PlayerHealth : NetworkBehaviour
         if (isDead.Value)
             return;
 
-        RecordKillAndDeath(context);
+        RecordElimination(context);
+        ClearAssistContributors();
 
         isDead.Value = true;
         ClearRegeneration();
@@ -272,23 +289,34 @@ public class PlayerHealth : NetworkBehaviour
         respawnRoutine = StartCoroutine(RespawnAfterDelay());
     }
 
-    private void RecordKillAndDeath(DamageContext context)
+    private void RecordElimination(DamageContext context)
     {
-        if (TryGetComponent(out PlayerStats victimStats))
-            victimStats.AddDeath();
+        assistSnapshot.Clear();
+        foreach (ulong contributor in assistContributors)
+            assistSnapshot.Add(contributor);
 
-        if (!context.HasAttacker || context.AttackerClientId == OwnerClientId)
+        CombatTelemetryManager.Ensure().RecordElimination(
+            context,
+            OwnerClientId,
+            CombatTelemetryManager.ResolveBullseyeState(detachController),
+            GetBullseyeWorldPosition(),
+            assistSnapshot);
+    }
+
+    public void RegisterAssistContributor(ulong clientId)
+    {
+        if (!IsServer || !IsSpawned)
             return;
 
-        PlayerStats attackerStats = PlayerStats.FindOwnedByClient(context.AttackerClientId);
-        if (attackerStats == null || attackerStats == victimStats)
+        if (clientId == OwnerClientId || clientId == DamageContext.NoAttackerId)
             return;
 
-        attackerStats.AddKill();
+        assistContributors.Add(clientId);
+    }
 
-        bool bullseyeWasKnockedOff = detachController != null && !detachController.IsAttached;
-        if (bullseyeWasKnockedOff)
-            attackerStats.AddDetachedBullseyeKill();
+    public void ClearAssistContributors()
+    {
+        assistContributors.Clear();
     }
 
     private IEnumerator RespawnAfterDelay()
@@ -316,6 +344,7 @@ public class PlayerHealth : NetworkBehaviour
             grenadeThrower.ResetGrenades();
 
         RespawnOwnerRpc();
+        ClearAssistContributors();
         RestoreFullHealth();
 
         if (TryGetComponent(out PlayerWeaponInventory inventory))
@@ -477,6 +506,20 @@ public class PlayerHealth : NetworkBehaviour
         int clamped = Mathf.Clamp(value, 0, GetMaxHealth());
         if (currentHealth.Value != clamped)
             currentHealth.Value = clamped;
+
+        if (clamped >= GetMaxHealth())
+            ClearAssistContributors();
+    }
+
+    private Vector3 GetBullseyeWorldPosition()
+    {
+        if (detachController != null)
+            return detachController.ActiveWorldPosition;
+
+        if (bullseye != null)
+            return bullseye.position;
+
+        return transform.position;
     }
 
     private BullseyeBodyZone ResolveZone()

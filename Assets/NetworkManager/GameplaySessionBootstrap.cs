@@ -37,6 +37,7 @@ public class GameplaySessionBootstrap : MonoBehaviour
         if (networkManager == null)
             networkManager = NetworkManager.Singleton;
 
+        CombatTelemetryManager.Ensure();
         coordinator.ExecutePendingRequest(networkManager);
     }
 

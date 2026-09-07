@@ -162,6 +162,7 @@ public class PlayerMovement : NetworkBehaviour
     private BullseyeMover bullseyeMover;
     private PlayerHealth playerHealth;
     private PlayerWeaponInventory weaponInventory;
+    private PlayerAimZoom playerAimZoom;
     private InputAction resolvedCrouchAction;
 
     private float currentSpeed;
@@ -252,6 +253,21 @@ public class PlayerMovement : NetworkBehaviour
     public float HorizontalSpeed => HorizontalVelocity().magnitude;
     public float VerticalVelocity => rb != null ? rb.linearVelocity.y : 0f;
     public Vector2 MoveInput => ReadMoveInput();
+    public bool LocksHorizontalLocomotion =>
+        playerAimZoom != null && playerAimZoom.LocksHorizontalLocomotion;
+
+    public void CancelSprintForScopedAim()
+    {
+        sprintToggledOn = false;
+        IsSprinting = false;
+        if (!crouched.Value && !prone.Value)
+            currentSpeed = walkSpeed;
+
+        if (rb == null || !grounded || knockbackTimer > 0f)
+            return;
+
+        rb.linearVelocity = new Vector3(0f, rb.linearVelocity.y, 0f);
+    }
 
     public void SetCameraTransform(Transform cameraTransform)
     {
@@ -290,6 +306,7 @@ public class PlayerMovement : NetworkBehaviour
         bullseyeMover = GetComponent<BullseyeMover>();
         playerHealth = GetComponent<PlayerHealth>();
         weaponInventory = GetComponent<PlayerWeaponInventory>();
+        playerAimZoom = GetComponent<PlayerAimZoom>();
 
         if (legacyController != null)
             legacyController.enabled = false;
@@ -631,7 +648,14 @@ public class PlayerMovement : NetworkBehaviour
             return;
         }
 
-        Vector2 input = ReadMoveInput();
+        Vector2 input = LocksHorizontalLocomotion ? Vector2.zero : ReadMoveInput();
+        if (LocksHorizontalLocomotion && grounded && knockbackTimer <= 0f)
+        {
+            Vector3 halted = HorizontalVelocity();
+            if (halted.sqrMagnitude > 0.0001f)
+                rb.linearVelocity = new Vector3(0f, rb.linearVelocity.y, 0f);
+        }
+
         Vector2 relativeVelocity = FindVelRelativeToLook();
         FrictionForce(input.x, input.y, relativeVelocity);
         LimitDiagonalVelocity();
@@ -889,6 +913,8 @@ public class PlayerMovement : NetworkBehaviour
         if (prone.Value || dolphinDiving.Value)
             return false;
         if (crouched.Value)
+            return false;
+        if (LocksHorizontalLocomotion)
             return false;
         if (movingBackward && !canRunBackwards)
             return false;
@@ -1384,6 +1410,8 @@ public class PlayerMovement : NetworkBehaviour
             return;
         if (prone.Value || dolphinDiving.Value)
             return;
+        if (LocksHorizontalLocomotion)
+            return;
 
         Vector3 horizontalVel = HorizontalVelocity();
         if (horizontalVel.magnitude < walkSpeed || currentSpeed <= walkSpeed)
@@ -1403,6 +1431,12 @@ public class PlayerMovement : NetworkBehaviour
     {
         if (!sliding || dolphinDiving.Value)
             return;
+
+        if (LocksHorizontalLocomotion)
+        {
+            EndSlide();
+            return;
+        }
 
         if (!grounded)
             return;
@@ -2027,6 +2061,12 @@ public class PlayerMovement : NetworkBehaviour
         if (grounded)
         {
             blockReason = "Grounded.";
+            return false;
+        }
+
+        if (LocksHorizontalLocomotion)
+        {
+            blockReason = "Scoped locomotion lock.";
             return false;
         }
 

@@ -235,6 +235,15 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Scoreboard"",
+                    ""type"": ""Button"",
+                    ""id"": ""c4e5f607-8192-4b3c-9d4e-5f60718293a4"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": true
                 }
             ],
             ""bindings"": [
@@ -631,6 +640,28 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""groups"": """",
                     ""action"": ""Ping"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""d5f60718-92a3-4c4d-ae5f-60718293a4b5"",
+                    ""path"": ""<Keyboard>/tab"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Scoreboard"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""e6071829-3a4b-4d5e-bf60-718293a4b5c6"",
+                    ""path"": ""<Gamepad>/select"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Scoreboard"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 }
@@ -1030,6 +1061,7 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         m_Player_Grenade = m_Player.FindAction("Grenade", throwIfNotFound: true);
         m_Player_NextGrenade = m_Player.FindAction("NextGrenade", throwIfNotFound: true);
         m_Player_Ping = m_Player.FindAction("Ping", throwIfNotFound: true);
+        m_Player_Scoreboard = m_Player.FindAction("Scoreboard", throwIfNotFound: true);
         // UI
         m_UI = asset.FindActionMap("UI", throwIfNotFound: true);
         m_UI_Navigate = m_UI.FindAction("Navigate", throwIfNotFound: true);
@@ -1139,6 +1171,7 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_Grenade;
     private readonly InputAction m_Player_NextGrenade;
     private readonly InputAction m_Player_Ping;
+    private readonly InputAction m_Player_Scoreboard;
     /// <summary>
     /// Provides access to input actions defined in input action map "Player".
     /// </summary>
@@ -1215,6 +1248,10 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         /// </summary>
         public InputAction @Ping => m_Wrapper.m_Player_Ping;
         /// <summary>
+        /// Provides access to the underlying input action "Player/Scoreboard".
+        /// </summary>
+        public InputAction @Scoreboard => m_Wrapper.m_Player_Scoreboard;
+        /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
         public InputActionMap Get() { return m_Wrapper.m_Player; }
@@ -1288,6 +1325,9 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @Ping.started += instance.OnPing;
             @Ping.performed += instance.OnPing;
             @Ping.canceled += instance.OnPing;
+            @Scoreboard.started += instance.OnScoreboard;
+            @Scoreboard.performed += instance.OnScoreboard;
+            @Scoreboard.canceled += instance.OnScoreboard;
         }
 
         /// <summary>
@@ -1347,6 +1387,9 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
             @Ping.started -= instance.OnPing;
             @Ping.performed -= instance.OnPing;
             @Ping.canceled -= instance.OnPing;
+            @Scoreboard.started -= instance.OnScoreboard;
+            @Scoreboard.performed -= instance.OnScoreboard;
+            @Scoreboard.canceled -= instance.OnScoreboard;
         }
 
         /// <summary>
@@ -1694,6 +1737,13 @@ public partial class @PlayerControls: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnPing(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Scoreboard" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnScoreboard(InputAction.CallbackContext context);
     }
     /// <summary>
     /// Interface to implement callback methods for all input action callbacks associated with input actions defined by "UI" which allows adding and removing callbacks.

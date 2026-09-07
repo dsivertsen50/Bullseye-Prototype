@@ -550,10 +550,12 @@ public static class ThirdPersonWeaponHoldSetup
     {
         AssignClass("Assets/Scripts/Weapons/AKDefinition.asset", ThirdPersonWeaponPoseClass.LongGun, true);
         AssignClass("Assets/Scripts/Weapons/DMRDefinition.asset", ThirdPersonWeaponPoseClass.LongGun, true);
+        AssignClass("Assets/Scripts/Weapons/SniperRifleDefinition.asset", ThirdPersonWeaponPoseClass.LongGun, true);
         AssignClass("Assets/Scripts/Weapons/ShotgunDefinition.asset", ThirdPersonWeaponPoseClass.LongGun, true);
         AssignClass("Assets/Scripts/Weapons/Ruger22Definition.asset", ThirdPersonWeaponPoseClass.ShortGun, false);
         AutoSetupWeapon(AssetDatabase.LoadAssetAtPath<WeaponDefinition>("Assets/Scripts/Weapons/AKDefinition.asset"), false);
         AutoSetupWeapon(AssetDatabase.LoadAssetAtPath<WeaponDefinition>("Assets/Scripts/Weapons/DMRDefinition.asset"), false);
+        AutoSetupWeapon(AssetDatabase.LoadAssetAtPath<WeaponDefinition>("Assets/Scripts/Weapons/SniperRifleDefinition.asset"), false);
         AutoSetupWeapon(AssetDatabase.LoadAssetAtPath<WeaponDefinition>("Assets/Scripts/Weapons/ShotgunDefinition.asset"), false);
         AutoSetupWeapon(AssetDatabase.LoadAssetAtPath<WeaponDefinition>("Assets/Scripts/Weapons/Ruger22Definition.asset"), false);
     }

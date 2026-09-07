@@ -1052,6 +1052,7 @@ GameObject:
   - component: {fileID: 887249220288815710}
   - component: {fileID: 7749199052802076623}
   - component: {fileID: 5292090911559421831}
+  - component: {fileID: 4451154756887156191}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -2504,10 +2505,26 @@ MonoBehaviour:
   stampMaterial: {fileID: 2100000, guid: a863c2ddfc4c25149a81df100bef25ef, type: 2}
   decalProjector: {fileID: 8239123060504510544}
   stampRadius: 0.14
-  stampBrightness: 3.8
+  stampBrightness: 1.35
+  stampOpacity: 1
   decalDepth: 0.16
   flashColor: {r: 2.5, g: 2.5, b: 2.5, a: 1}
   flashDuration: 0.12
+--- !u!114 &4451154756887156191
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6736edee58ef00e4d833e3b12fa7fac2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MatchScoreboardController
+  ShowTopMostFoldoutHeaderGroup: 1
+  menuState: {fileID: 3776806636685468514}
+  scoreboardAction: {fileID: -121809073587106953, guid: d5774e102d654bd409097006f9ceb460, type: 3}
 --- !u!1 &3625492656395199349
 GameObject:
   m_ObjectHideFlags: 0
@@ -3929,7 +3946,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8803447260263276424}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 4300000, guid: 045681aa5383e6c4e8a1323354132979, type: 2}
 --- !u!23 &1552714292931464706
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -3955,7 +3972,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: e326e177a99223f4fb0efa23210be8a4, type: 2}
+  - {fileID: 2100000, guid: 2d62ccb1068997845ba1473a630fa2d7, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -4015,7 +4032,7 @@ MeshCollider:
   serializedVersion: 5
   m_Convex: 1
   m_CookingOptions: 30
-  m_Mesh: {fileID: 4300000, guid: c52259be6fa67cb4b9b0cca82601beef, type: 2}
+  m_Mesh: {fileID: 4300000, guid: 045681aa5383e6c4e8a1323354132979, type: 2}
 --- !u!1001 &8190866394290799434
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -142,6 +142,9 @@ public class LocalPauseMenu : NetworkBehaviour
         if (!ownerMenuEnabled || menuState == null)
             return;
 
+        if (TryGetComponent(out MatchScoreboardController scoreboard))
+            scoreboard.ForceHide();
+
         menuState.SetMenuOpen(true);
         SetGameplayOrMenuInput(true);
         ShowPausePanel(false);

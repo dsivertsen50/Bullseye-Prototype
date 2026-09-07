@@ -13,6 +13,7 @@ public class PrototypeGroundWeaponLayout : MonoBehaviour
     [FormerlySerializedAs("rifle")]
     [SerializeField] private WeaponDefinition ak;
     [SerializeField] private WeaponDefinition dmr;
+    [SerializeField] private WeaponDefinition sniper;
     [SerializeField] private Vector3[] shotgunPositions =
     {
         new(2.4f, 0.45f, -2.2f),
@@ -28,6 +29,11 @@ public class PrototypeGroundWeaponLayout : MonoBehaviour
     {
         new(1.6f, 0.7f, 2.2f),
         new(1.6f, 0.7f, -2.2f)
+    };
+    [SerializeField] private Vector3[] sniperPositions =
+    {
+        new(0.8f, 0.7f, 2.2f),
+        new(0.8f, 0.7f, -2.2f)
     };
 
     private bool spawned;
@@ -71,9 +77,10 @@ public class PrototypeGroundWeaponLayout : MonoBehaviour
         int shotgunCount = SpawnAll(Resolve(shotgun, catalog, "shotgun"), shotgunPositions);
         int akCount = SpawnAll(Resolve(ak, catalog, "ak"), akPositions);
         int dmrCount = SpawnAll(Resolve(dmr, catalog, "dmr"), dmrSpawn);
+        int sniperCount = SpawnAll(Resolve(sniper, catalog, "sniper"), sniperPositions);
         Debug.Log(
             $"Spawned prototype ground weapons. Shotgun={shotgunCount} AK={akCount} DMR={dmrCount} " +
-            $"DMR at {dmrSpawn[0]} and {dmrSpawn[1]}");
+            $"Sniper={sniperCount} DMR at {dmrSpawn[0]} and {dmrSpawn[1]}");
     }
 
     private static WeaponDefinition Resolve(WeaponDefinition assigned, WeaponCatalog catalog, string weaponId)

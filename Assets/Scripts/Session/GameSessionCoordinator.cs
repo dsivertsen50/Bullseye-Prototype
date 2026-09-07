@@ -478,6 +478,7 @@ public class GameSessionCoordinator : MonoBehaviour
         Debug.Log($"Bullseye: starting host on 127.0.0.1:{port}");
 
         startingHost = true;
+        CombatTelemetryManager.Ensure();
         networkManager.StartHost();
         bool hostIsUp = localClientConnected ||
                         (networkManager != null && networkManager.IsServer && networkManager.IsListening);

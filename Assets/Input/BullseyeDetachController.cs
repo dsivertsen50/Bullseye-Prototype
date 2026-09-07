@@ -160,7 +160,8 @@ public class BullseyeDetachController : NetworkBehaviour
         float bullseyeForce,
         float knockbackRadius,
         float detachRadius,
-        float upwardModifier)
+        float upwardModifier,
+        ulong throwerClientId)
     {
         if (!IsServer || !IsSpawned || bullseye == null)
             return;
@@ -182,7 +183,13 @@ public class BullseyeDetachController : NetworkBehaviour
         }
 
         if (distance <= detachRadius)
-            BeginDetach(explosionPosition, bullseyeForce, detachRadius, upwardModifier);
+            BeginDetach(
+                explosionPosition,
+                bullseyeForce,
+                detachRadius,
+                upwardModifier,
+                throwerClientId,
+                BullseyeDetachMethod.CombustionGrenade);
     }
 
     public bool CanAcceptSuctionDetach()
@@ -196,12 +203,12 @@ public class BullseyeDetachController : NetworkBehaviour
         return IsAttached;
     }
 
-    public bool TryDetachBySuction()
+    public bool TryDetachBySuction(ulong throwerClientId)
     {
         if (!CanAcceptSuctionDetach())
             return false;
 
-        BeginDetachWithoutImpulse();
+        BeginDetachWithoutImpulse(throwerClientId, BullseyeDetachMethod.MagnetismGrenade);
         return true;
     }
 
@@ -287,14 +294,21 @@ public class BullseyeDetachController : NetworkBehaviour
             bullseye.gameObject.SetActive(true);
     }
 
-    private void BeginDetach(Vector3 explosionPosition, float force, float radius, float upwardModifier)
+    private void BeginDetach(
+        Vector3 explosionPosition,
+        float force,
+        float radius,
+        float upwardModifier,
+        ulong causerClientId,
+        BullseyeDetachMethod method)
     {
-        BeginDetachWithoutImpulse();
+        BeginDetachWithoutImpulse(causerClientId, method);
         ApplyDetachedExplosionForce(explosionPosition, force, radius, upwardModifier);
     }
 
-    private void BeginDetachWithoutImpulse()
+    private void BeginDetachWithoutImpulse(ulong causerClientId, BullseyeDetachMethod method)
     {
+        bool wasAttached = IsAttached;
         EnsurePhysics();
         GetActiveWorldPose(out Vector3 origin, out Quaternion originRotation);
         if (surfaceMover != null)
@@ -303,6 +317,15 @@ public class BullseyeDetachController : NetworkBehaviour
         WriteDetachedPose(origin, originRotation);
         returnAtServerTime.Value = NetworkManager.ServerTime.Time + Mathf.Max(0.1f, detachedReturnDelay);
         SetState(BullseyeAttachState.Detached);
+
+        if (wasAttached)
+        {
+            CombatTelemetryManager.Ensure().RecordBullseyeDetached(
+                OwnerClientId,
+                causerClientId,
+                method,
+                origin);
+        }
     }
 
     private void ApplyDetachedExplosionForce(Vector3 explosionPosition, float force, float radius, float upwardModifier)

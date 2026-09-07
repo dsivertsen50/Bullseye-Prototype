@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Temporary local-player K/D readout. A later requirement can replace this
+/// Temporary local-player match readout. A later requirement can replace this
 /// with a full scoreboard. Displays this object's owner stats only.
 /// </summary>
 public class PlayerStatsHud : MonoBehaviour
@@ -24,8 +24,17 @@ public class PlayerStatsHud : MonoBehaviour
         if (LocalPlayerMenuState.IsOpen(this))
             return;
 
-        var rect = new Rect(24f, 20f, 280f, 64f);
-        DrawShadowedLabel(rect, $"Kills: {playerStats.Kills}\nDeaths: {playerStats.Deaths}", GetStatsStyle());
+        if (TryGetComponent(out MatchScoreboardController scoreboard) && scoreboard.IsVisible)
+            return;
+
+        var rect = new Rect(24f, 20f, 320f, 88f);
+        DrawShadowedLabel(
+            rect,
+            $"Eliminations: {playerStats.Eliminations}\nAssists: {playerStats.Assists}\nDeaths: {playerStats.Deaths}",
+            GetStatsStyle());
+
+        var hintRect = new Rect(24f, 110f, 320f, 22f);
+        DrawShadowedLabel(hintRect, "F8: Combat Telemetry", GetHintStyle());
     }
 
     private static void DrawShadowedLabel(Rect rect, string text, GUIStyle style)
@@ -36,6 +45,8 @@ public class PlayerStatsHud : MonoBehaviour
         style.normal.textColor = previous;
         GUI.Label(rect, text, style);
     }
+
+    private GUIStyle hintStyle;
 
     private GUIStyle GetStatsStyle()
     {
@@ -50,5 +61,19 @@ public class PlayerStatsHud : MonoBehaviour
         };
         statsStyle.normal.textColor = Color.white;
         return statsStyle;
+    }
+
+    private GUIStyle GetHintStyle()
+    {
+        if (hintStyle != null)
+            return hintStyle;
+
+        hintStyle = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = 12,
+            alignment = TextAnchor.UpperLeft
+        };
+        hintStyle.normal.textColor = new Color(1f, 1f, 1f, 0.55f);
+        return hintStyle;
     }
 }

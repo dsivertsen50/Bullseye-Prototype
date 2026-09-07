@@ -9,6 +9,8 @@ using UnityEngine.InputSystem;
 [DefaultExecutionOrder(50)]
 public class PlayerAimZoom : MonoBehaviour
 {
+    private const float VariableZoomFollowDuration = 0.08f;
+
     [SerializeField] private Camera playerCamera;
     [SerializeField] private InputActionReference aimAction;
 
@@ -21,6 +23,9 @@ public class PlayerAimZoom : MonoBehaviour
     private float currentFov;
     private bool aimToggledOn;
     private bool baseFovCaptured;
+    private bool wasAiming;
+    private float runtimeMagnification = 1f;
+    private WeaponDefinition lastZoomDefinition;
     private PlayerHealth playerHealth;
     private PlayerMovement playerMovement;
     private PlayerWeaponInventory inventory;
@@ -36,7 +41,14 @@ public class PlayerAimZoom : MonoBehaviour
         get
         {
             WeaponDefinition definition = ActiveDefinition;
-            return definition != null ? definition.AdsMagnification : 1f;
+            if (definition == null)
+                return 1f;
+            if (definition.UsesVariableAdsMagnification)
+                return Mathf.Clamp(
+                    runtimeMagnification,
+                    definition.MinAdsMagnification,
+                    definition.MaxAdsMagnification);
+            return definition.AdsMagnification;
         }
     }
 
@@ -45,9 +57,14 @@ public class PlayerAimZoom : MonoBehaviour
         get
         {
             WeaponDefinition definition = ActiveDefinition;
-            return definition != null && definition.UsesMagnifiedAds && definition.AdsMagnification > 1.0001f;
+            if (definition == null || !definition.UsesMagnifiedAds)
+                return false;
+            return CurrentMagnification > 1.0001f || definition.AdsMagnification > 1.0001f;
         }
     }
+
+    public bool LocksHorizontalLocomotion =>
+        IsAiming && ActiveDefinition != null && ActiveDefinition.LocksHorizontalLocomotionWhileAds;
 
     /// <summary>
     /// First-person weapon overlay FOV. Ignores optical ADS magnification so
@@ -84,7 +101,8 @@ public class PlayerAimZoom : MonoBehaviour
     }
 
     /// <summary>
-    /// Final ADS look scale: player ADS setting × weapon ADS multiplier.
+    /// Final ADS look scale: player ADS setting × weapon ADS multiplier,
+    /// optionally reduced further as optical magnification increases.
     /// Applied after mouse / gamepad base sensitivity.
     /// </summary>
     public float CurrentAdsLookScale
@@ -94,7 +112,20 @@ public class PlayerAimZoom : MonoBehaviour
             float globalAds = Mathf.Clamp(PlayerGameSettings.AimSensitivityMultiplier, 0.1f, 1.5f);
             WeaponDefinition definition = ActiveDefinition;
             float weaponAds = definition != null ? definition.AdsSensitivityMultiplier : 0.4f;
-            return globalAds * weaponAds;
+            float scale = globalAds * weaponAds;
+            if (definition != null &&
+                definition.AdsSensitivityScalesWithMagnification &&
+                definition.UsesMagnifiedAds)
+            {
+                float reference = definition.UsesVariableAdsMagnification
+                    ? definition.DefaultAdsMagnification
+                    : Mathf.Max(1f, definition.AdsMagnification);
+                float current = Mathf.Max(1f, CurrentMagnification);
+                if (reference > 0.0001f && current > reference + 0.0001f)
+                    scale *= reference / current;
+            }
+
+            return scale;
         }
     }
 
@@ -129,6 +160,7 @@ public class PlayerAimZoom : MonoBehaviour
 
         CaptureBaseFovIfNeeded();
         currentFov = defaultFov;
+        runtimeMagnification = ResolveDefaultMagnification(ActiveDefinition);
     }
 
     private void OnEnable()
@@ -147,33 +179,138 @@ public class PlayerAimZoom : MonoBehaviour
         if (playerHealth != null && playerHealth.IsDead)
         {
             ClearAimState();
+            ResetRuntimeZoomIfNeeded();
             SnapFov(defaultFov);
+            wasAiming = false;
             return;
         }
 
         if (LocalPlayerMenuState.IsOpen(this))
         {
             ClearAimState();
+            ResetRuntimeZoomIfNeeded();
             ApplyFov(defaultFov, CurrentAdsExitDuration);
+            wasAiming = false;
             return;
         }
 
         bool sprinting = playerMovement != null && playerMovement.IsSprinting;
         bool wallRunning = playerMovement != null && playerMovement.IsWallRunning;
         bool diving = playerMovement != null && playerMovement.IsDolphinDiving;
-        if (sprinting || wallRunning || diving)
+        bool airborne = IsUnsafeAirborneForScopedLock();
+        WeaponDefinition definition = ActiveDefinition;
+        SyncRuntimeZoomDefinition(definition);
+
+        bool wantAim = false;
+        if (wallRunning || diving)
+        {
+            ClearAimState();
+        }
+        else if (airborne &&
+                 definition != null &&
+                 definition.LocksHorizontalLocomotionWhileAds &&
+                 definition.ExitAdsWhenAirborne)
+        {
+            ClearAimState();
+        }
+        else if (sprinting && (definition == null || !definition.LocksHorizontalLocomotionWhileAds))
         {
             ClearAimState();
         }
         else
         {
-            IsAiming = ReadAimInput();
+            wantAim = ReadAimInput();
+            if (wantAim && definition != null && definition.LocksHorizontalLocomotionWhileAds && sprinting)
+                playerMovement.CancelSprintForScopedAim();
+            IsAiming = wantAim;
         }
 
-        float targetFov = ResolveTargetFov(sprinting);
+        bool previouslyAiming = wasAiming;
+        TickVariableZoom(definition);
+
+        float targetFov = ResolveTargetFov(sprinting && !LocksHorizontalLocomotion);
         bool zoomingIn = targetFov < currentFov - 0.01f;
-        float duration = zoomingIn ? CurrentAdsEnterDuration : CurrentAdsExitDuration;
+        float duration = ResolveFovDuration(zoomingIn, previouslyAiming);
         ApplyFov(targetFov, duration);
+        wasAiming = IsAiming;
+    }
+
+    private void SyncRuntimeZoomDefinition(WeaponDefinition definition)
+    {
+        if (definition == lastZoomDefinition)
+            return;
+
+        lastZoomDefinition = definition;
+        runtimeMagnification = ResolveDefaultMagnification(definition);
+        wasAiming = false;
+    }
+
+    private void TickVariableZoom(WeaponDefinition definition)
+    {
+        if (definition == null || !definition.UsesVariableAdsMagnification)
+            return;
+
+        if (IsAiming)
+        {
+            if (!wasAiming)
+                runtimeMagnification = definition.DefaultAdsMagnification;
+            else
+                ApplyZoomInput(definition);
+            return;
+        }
+
+        if (wasAiming && !definition.PreserveAdsMagnificationOnExit)
+            runtimeMagnification = definition.DefaultAdsMagnification;
+    }
+
+    private void ApplyZoomInput(WeaponDefinition definition)
+    {
+        float axis = playerMovement != null ? playerMovement.MoveInput.y : 0f;
+        float deadzone = definition.AdsZoomInputDeadzone;
+        if (Mathf.Abs(axis) <= deadzone)
+            return;
+
+        float magnitude = deadzone >= 0.999f
+            ? 1f
+            : Mathf.InverseLerp(deadzone, 1f, Mathf.Abs(axis));
+        float delta = Mathf.Sign(axis) * magnitude * definition.AdsZoomAdjustmentSpeed * Time.deltaTime;
+        runtimeMagnification = Mathf.Clamp(
+            runtimeMagnification + delta,
+            definition.MinAdsMagnification,
+            definition.MaxAdsMagnification);
+    }
+
+    private void ResetRuntimeZoomIfNeeded()
+    {
+        WeaponDefinition definition = ActiveDefinition;
+        if (definition == null || definition.PreserveAdsMagnificationOnExit)
+            return;
+        runtimeMagnification = definition.DefaultAdsMagnification;
+    }
+
+    private bool IsUnsafeAirborneForScopedLock()
+    {
+        if (playerMovement == null || playerMovement.Grounded)
+            return false;
+        if (playerMovement.IsProne || playerMovement.IsCrouched)
+            return false;
+        return Mathf.Abs(playerMovement.VerticalVelocity) > 0.75f;
+    }
+
+    private static float ResolveDefaultMagnification(WeaponDefinition definition)
+    {
+        if (definition == null)
+            return 1f;
+        if (definition.UsesVariableAdsMagnification)
+            return definition.DefaultAdsMagnification;
+        return definition.AdsMagnification;
+    }
+
+    private float ResolveFovDuration(bool zoomingIn, bool previouslyAiming)
+    {
+        if (IsAiming && previouslyAiming && ActiveDefinition != null && ActiveDefinition.UsesVariableAdsMagnification)
+            return VariableZoomFollowDuration;
+        return zoomingIn ? CurrentAdsEnterDuration : CurrentAdsExitDuration;
     }
 
     private void CaptureBaseFovIfNeeded()

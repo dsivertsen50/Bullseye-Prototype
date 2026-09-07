@@ -287,6 +287,10 @@ public class PlayerWeaponInventory : NetworkBehaviour
         state.Magazine--;
         SetSlotState(ActiveSlotIndex == TemporarySlot ? TemporarySlot : PermanentSlot, state);
         InventoryChanged?.Invoke();
+        WeaponDefinition fired = GetDefinition(state);
+        CombatTelemetryManager.Ensure().RecordShotFired(
+            OwnerClientId,
+            fired != null ? fired.WeaponId : CombatEvent.NoWeaponId);
         CheckTemporaryExhaustion();
         TryAutoReloadEmptyMagazine();
     }

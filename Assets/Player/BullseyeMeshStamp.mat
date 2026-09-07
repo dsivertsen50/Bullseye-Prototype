@@ -25,12 +25,16 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
+    - _Brightness: 1.35
     - _BullseyeEnabled: 0
     - _BullseyeRadius: 0.11
+    - _Opacity: 1
     m_Colors:
     - _BullseyeNormal: {r: 0, g: 0, b: 1, a: 0}
     - _BullseyePosition: {r: 0, g: 1, b: 0, a: 0}
     - _CenterColor: {r: 2.4, g: 2.2, b: 0.35, a: 1}
+    - _ColorRed: {r: 1.15, g: 0.04, b: 0.04, a: 1}
+    - _ColorWhite: {r: 1.2, g: 1.2, b: 1.2, a: 1}
     - _RingInner: {r: 2.2, g: 0.18, b: 0.12, a: 1}
     - _RingMid: {r: 1.6, g: 1.6, b: 1.6, a: 1}
     - _RingOuter: {r: 1.8, g: 0.12, b: 0.1, a: 1}
