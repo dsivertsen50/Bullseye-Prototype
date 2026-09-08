@@ -23,6 +23,8 @@ public class LocalPlayerMenuState : NetworkBehaviour
             return;
 
         IsMenuOpen = open;
+        if (open && TryGetComponent(out PlayerHaptics haptics))
+            haptics.StopHaptics();
     }
 
     public override void OnNetworkDespawn()

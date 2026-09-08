@@ -93,6 +93,8 @@ public class BullseyeMover : NetworkBehaviour
     private float lastSentTurnRate;
     private float turnSampleSendCooldown;
     private float localTurnInfluence;
+    private float pendingTurnTarget;
+    private float turnPendingSince = -1f;
     private Vector3 lastPosition;
     private Vector3 lastNormal = Vector3.forward;
     private Quaternion lastRotation = Quaternion.identity;
@@ -168,6 +170,7 @@ public class BullseyeMover : NetworkBehaviour
         jumpInfluence.Value = 0f;
         lastJumpTime.Value = -100f;
         turnInfluence.Value = 0f;
+        ClearPendingTurnInfluence();
     }
 
     public void RestartIndependentRandomization()
@@ -198,6 +201,7 @@ public class BullseyeMover : NetworkBehaviour
         turnSampleSendCooldown = 0f;
         lastYaw = transform.eulerAngles.y;
         localTurnInfluence = 0f;
+        ClearPendingTurnInfluence();
     }
 
     public bool TryGetSurfacePose(out Vector3 position, out Vector3 normal, out Quaternion rotation)
@@ -249,8 +253,19 @@ public class BullseyeMover : NetworkBehaviour
     [Rpc(SendTo.Server)]
     private void RecordTurnSampleServerRpc(float yawRate)
     {
+        float previousPending = pendingTurnTarget;
         float target = ScaledTurnInfluence(yawRate);
-        turnInfluence.Value = target;
+        pendingTurnTarget = target;
+
+        if (Mathf.Abs(target) < 0.01f)
+        {
+            turnPendingSince = -1f;
+            return;
+        }
+
+        bool reversed = Mathf.Abs(previousPending) >= 0.01f && Mathf.Sign(target) != Mathf.Sign(previousPending);
+        if (turnPendingSince < 0f || reversed)
+            turnPendingSince = ServerNow();
     }
 
     private void Update()
@@ -286,6 +301,7 @@ public class BullseyeMover : NetworkBehaviour
     {
         DecayJumpInfluence(Time.deltaTime);
         DecayTurnInfluence(Time.deltaTime);
+        ApplyPendingTurnInfluence();
 
         if (detachController != null && !detachController.IsSurfaceDriven)
             return;
@@ -350,6 +366,24 @@ public class BullseyeMover : NetworkBehaviour
         float target = 0f;
         float rate = turnInfluenceDecayRate;
         turnInfluence.Value = Mathf.MoveTowards(turnInfluence.Value, target, Mathf.Max(0f, rate) * dt);
+    }
+
+    private void ApplyPendingTurnInfluence()
+    {
+        if (turnPendingSince < 0f)
+            return;
+
+        float delay = Mathf.Max(0f, turnInfluenceDelay);
+        if (ServerNow() - turnPendingSince < delay)
+            return;
+
+        turnInfluence.Value = pendingTurnTarget;
+    }
+
+    private void ClearPendingTurnInfluence()
+    {
+        pendingTurnTarget = 0f;
+        turnPendingSince = -1f;
     }
 
     private int PickNextRegion(int from)
@@ -709,6 +743,7 @@ public class BullseyeMover : NetworkBehaviour
         maximumJumpInfluence = Mathf.Max(jumpInfluenceAmount, maximumJumpInfluence);
         jumpInfluenceDecayRate = Mathf.Max(0f, jumpInfluenceDecayRate);
         crouchInfluenceStrength = Mathf.Max(0f, crouchInfluenceStrength);
+        turnInfluenceDelay = Mathf.Max(0f, turnInfluenceDelay);
         hideFromOwnerCameraDistance = Mathf.Max(0f, hideFromOwnerCameraDistance);
     }
 }

@@ -284,6 +284,9 @@ MonoBehaviour:
   upwardModifier: 0.45
   bullseyeDetachRadius: 6
   bullseyeExplosionForce: 20
+  playExplosionHaptics: 0
+  hapticRadius: 8
+  hapticIntensityMultiplier: 0
   explosionVfx: {fileID: 76819107659794565, guid: 69d38bae331412e4eb808e29372c54cf, type: 3}
   explosionSfx:
   - {fileID: 8300000, guid: 620dad4bb8e4b98429963b3bbe39c191, type: 3}
@@ -307,6 +310,7 @@ MonoBehaviour:
   followStandoff: 0.35
   ownerGracePeriod: 0.4
   overlapInterval: 0.05
+  fieldVfxPrefab: {fileID: 0}
   fieldColor: {r: 0.2, g: 0.85, b: 1, a: 1}
   visualMaterial: {fileID: 2100000, guid: 85a591b07ce64dd46bf511c858dce2d7, type: 2}
   showSuctionDebug: 0

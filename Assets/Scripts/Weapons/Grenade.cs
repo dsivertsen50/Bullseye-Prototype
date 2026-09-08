@@ -19,6 +19,11 @@ public class Grenade : NetworkBehaviour
     [SerializeField] private float bullseyeDetachRadius = 3.25f;
     [SerializeField] private float bullseyeExplosionForce = 9f;
 
+    [Header("Haptics")]
+    [SerializeField] private bool playExplosionHaptics = true;
+    [SerializeField, Min(0.1f)] private float hapticRadius = 16f;
+    [SerializeField, Min(0f)] private float hapticIntensityMultiplier = 1f;
+
     [Header("Feedback")]
     [SerializeField] private GameObject explosionVfx;
     [SerializeField] private AudioClip[] explosionSfx;
@@ -249,6 +254,19 @@ public class Grenade : NetworkBehaviour
 
         if (effect != null)
             Destroy(effect, Mathf.Max(0.25f, vfxLifetime));
+
+        NotifyLocalExplosionHaptics(origin);
+    }
+
+    private void NotifyLocalExplosionHaptics(Vector3 origin)
+    {
+        if (!playExplosionHaptics)
+            return;
+
+        PlayerHaptics.NotifyLocalExplosion(
+            origin,
+            hapticRadius,
+            hapticIntensityMultiplier);
     }
 
     private static GameObject CreatePlaceholderBurst(Vector3 origin)
@@ -318,6 +336,8 @@ public class Grenade : NetworkBehaviour
         maxCollisionSpeed = Mathf.Max(minCollisionSpeed, maxCollisionSpeed);
         collisionSfxCooldown = Mathf.Max(0.02f, collisionSfxCooldown);
         vfxLifetime = Mathf.Max(0.1f, vfxLifetime);
+        hapticRadius = Mathf.Max(0.1f, hapticRadius);
+        hapticIntensityMultiplier = Mathf.Max(0f, hapticIntensityMultiplier);
     }
 
     private static AudioClip PickRandom(AudioClip[] clips)

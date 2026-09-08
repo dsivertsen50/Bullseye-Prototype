@@ -50,6 +50,9 @@ public class PlayerNetworkSetup : NetworkBehaviour
 
     public override void OnNetworkDespawn()
     {
+        if (IsOwner && TryGetComponent(out PlayerHaptics ownerHaptics))
+            ownerHaptics.StopHaptics();
+
         if (IsOwner && LocalOwnedCamera == playerCamera)
             LocalOwnedCamera = null;
     }

@@ -1442,6 +1442,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2706f8aea88cffe44ba13e06183e7ba4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerHaptics
+  masterHapticStrength: 1
+  hapticsEnabled: 1
   fireRumble:
     lowFrequency: 0.5
     highFrequency: 0.75
@@ -1454,6 +1456,119 @@ MonoBehaviour:
     lowFrequency: 0.2
     highFrequency: 0.32
     duration: 0.12
+  sprintStartRumble:
+    lowFrequency: 0.18
+    highFrequency: 0.28
+    duration: 0.12
+  sprintStepRumble:
+    lowFrequency: 0.08
+    highFrequency: 0.12
+    duration: 0.05
+  sprintStepInterval: 0.34
+  alternateSprintStepMotors: 1
+  jumpRumble:
+    lowFrequency: 0.16
+    highFrequency: 0.22
+    duration: 0.1
+  landingMinRumble:
+    lowFrequency: 0.28
+    highFrequency: 0.22
+    duration: 0.12
+  landingMaxRumble:
+    lowFrequency: 0.62
+    highFrequency: 0.38
+    duration: 0.2
+  minimumLandingVelocity: 2.5
+  maximumLandingVelocity: 18
+  minimumAirborneTimeForLanding: 0.1
+  explosionLowMotorStrength: 0.95
+  explosionHighMotorStrength: 0.72
+  explosionDuration: 0.4
+  explosionEnvelope:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.25
+      value: 0.55
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.625
+      value: 0.22
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  explosionDistanceFalloff:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.4
+      value: 0.55
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.75
+      value: 0.18
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  defaultExplosionHapticRadius: 16
 --- !u!114 &1166344386422380738
 MonoBehaviour:
   m_ObjectHideFlags: 0
