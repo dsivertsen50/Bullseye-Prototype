@@ -357,6 +357,32 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &269637629 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -8905972164694181186, guid: 368e03420717d214dbd03924b519b691, type: 3}
+  m_PrefabInstance: {fileID: 1903665047}
+  m_PrefabAsset: {fileID: 0}
+--- !u!65 &269637632
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 269637629}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 171.63646, y: 182.68661, z: 50.32161}
+  m_Center: {x: 210.69601, y: 84.94409, z: 1.3969702}
 --- !u!1 &301265911
 GameObject:
   m_ObjectHideFlags: 0
@@ -1759,6 +1785,32 @@ MonoBehaviour:
   sniperPositions:
   - {x: 0.8, y: 0.7, z: 2.2}
   - {x: 0.8, y: 0.7, z: -2.2}
+--- !u!1 &1357365960 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 368e03420717d214dbd03924b519b691, type: 3}
+  m_PrefabInstance: {fileID: 1903665047}
+  m_PrefabAsset: {fileID: 0}
+--- !u!65 &1357365963
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1357365960}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 0}
+  m_Center: {x: 0, y: 0, z: 0.5}
 --- !u!1 &1614980135
 GameObject:
   m_ObjectHideFlags: 0
@@ -2057,6 +2109,18 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -468624323870126258, guid: 368e03420717d214dbd03924b519b691, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -468624323870126258, guid: 368e03420717d214dbd03924b519b691, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -468624323870126258, guid: 368e03420717d214dbd03924b519b691, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 368e03420717d214dbd03924b519b691, type: 3}
       propertyPath: m_Name
       value: Player Character - Rigged - T-Pose
@@ -2064,7 +2128,13 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 368e03420717d214dbd03924b519b691, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1357365963}
+    - targetCorrespondingSourceObject: {fileID: -8905972164694181186, guid: 368e03420717d214dbd03924b519b691, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 269637632}
   m_SourcePrefab: {fileID: 100100000, guid: 368e03420717d214dbd03924b519b691, type: 3}
 --- !u!1 &1946375480
 GameObject:

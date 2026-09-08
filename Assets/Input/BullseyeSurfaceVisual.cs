@@ -1,88 +1,75 @@
 using UnityEngine;
-using UnityEngine.Rendering.HighDefinition;
 
 /// <summary>
-/// Attached bullseye representation: a world-space stamp on the skinned mesh
-/// plus an HDRP decal projector. Hidden while the physical bullseye is out.
+/// Pushes the authoritative attached bullseye pose into the character HDRP
+/// material so the mark is painted on the animated mesh.
 /// </summary>
 public class BullseyeSurfaceVisual : MonoBehaviour
 {
-    private static readonly int PositionId = Shader.PropertyToID("_BullseyePosition");
-    private static readonly int NormalId = Shader.PropertyToID("_BullseyeNormal");
-    private static readonly int RadiusId = Shader.PropertyToID("_BullseyeRadius");
-    private static readonly int EnabledId = Shader.PropertyToID("_BullseyeEnabled");
-    private static readonly int BrightnessId = Shader.PropertyToID("_Brightness");
-    private static readonly int OpacityId = Shader.PropertyToID("_Opacity");
-    private static readonly int ColorRedId = Shader.PropertyToID("_ColorRed");
-    private static readonly int ColorWhiteId = Shader.PropertyToID("_ColorWhite");
-    private static readonly int EmissiveColorId = Shader.PropertyToID("_EmissiveColor");
+    private static readonly int CenterEnabledId = Shader.PropertyToID("_BullseyeCenterEnabled");
+    private static readonly int NormalRadiusId = Shader.PropertyToID("_BullseyeNormalRadius");
+    private static readonly int TangentId = Shader.PropertyToID("_BullseyeTangentWS");
+    private static readonly int BitangentId = Shader.PropertyToID("_BullseyeBitangentWS");
+    private static readonly int WrapAxisRadiusId = Shader.PropertyToID("_BullseyeWrapAxisRadius");
+    private static readonly int RegionStateId = Shader.PropertyToID("_BullseyeRegionState");
+    private static readonly int WrapFlashId = Shader.PropertyToID("_BullseyeWrapFlash");
+    private static readonly int TextureId = Shader.PropertyToID("_BullseyeTexture");
 
     [SerializeField] private SkinnedMeshRenderer characterRenderer;
-    [SerializeField] private Material stampMaterial;
-    [SerializeField] private DecalProjector decalProjector;
-    [SerializeField] private float stampRadius = 0.14f;
-    [SerializeField] private float stampBrightness = 1.35f;
-    [SerializeField, Range(0.5f, 1f)] private float stampOpacity = 1f;
-    [SerializeField] private float decalDepth = 0.18f;
-    [SerializeField] private Color flashColor = new Color(2.5f, 2.5f, 2.5f, 1f);
+    [SerializeField] private Texture2D bullseyeTexture;
+    [SerializeField] private float stampRadius = 0.13f;
     [SerializeField] private float flashDuration = 0.12f;
+    [SerializeField] private bool debugVisualization;
 
     private MaterialPropertyBlock propertyBlock;
-    private int stampMaterialIndex = -1;
+
     private bool attachedVisible = true;
     private bool ownerSuppressed;
     private float flashUntil;
-    private Color restDecalColor = Color.white;
+    private Vector3 lastPosition;
+    private Vector3 lastNormal = Vector3.forward;
+    private Vector3 lastTangent = Vector3.right;
+    private Vector3 lastBitangent = Vector3.up;
+    private Vector3 lastWrapAxis = Vector3.up;
+    private float lastWrapRadius = 0.12f;
+    private int lastCurrentRegion;
+    private int lastTargetRegion;
+    private float lastProgress;
+    private bool hasPose;
 
     public float StampRadius
     {
         get => stampRadius;
-        set => stampRadius = Mathf.Max(0.02f, value);
+        set => stampRadius = Mathf.Max(0.04f, value);
     }
 
-    public void Configure(
-        SkinnedMeshRenderer renderer,
-        Material stamp,
-        DecalProjector projector,
-        float radius)
+    public void Configure(SkinnedMeshRenderer renderer, Texture2D texture, float radius)
     {
         characterRenderer = renderer;
-        stampMaterial = stamp;
-        decalProjector = projector;
-        stampRadius = Mathf.Max(0.02f, radius);
-        EnsureStampSlot();
-        CacheDecalColor();
+        bullseyeTexture = texture;
+        stampRadius = Mathf.Max(0.04f, radius);
+        ApplyShaderState(false);
     }
 
     private void Awake()
     {
-        propertyBlock = new MaterialPropertyBlock();
-        if (decalProjector != null && decalProjector.material != null)
-            decalProjector.material = new Material(decalProjector.material);
-        EnsureStampSlot();
-        CacheDecalColor();
-        ApplyEnabled(false);
-    }
-
-    private void CacheDecalColor()
-    {
-        if (decalProjector == null || decalProjector.material == null)
-            return;
-
-        if (decalProjector.material.HasProperty(EmissiveColorId))
-            restDecalColor = decalProjector.material.GetColor(EmissiveColorId);
+        if (characterRenderer == null)
+            characterRenderer = FindCharacterRenderer();
+        ApplyShaderState(false);
     }
 
     public void SetAttachedVisible(bool visible)
     {
         attachedVisible = visible;
-        ApplyEnabled(IsShowing());
+        if (!visible)
+            ApplyShaderState(false);
     }
 
     public void SetSuppressedForOwner(bool suppressed)
     {
         ownerSuppressed = suppressed;
-        ApplyEnabled(IsShowing());
+        if (suppressed)
+            ApplyShaderState(false);
     }
 
     public void PlayHitFlash()
@@ -95,53 +82,73 @@ public class BullseyeSurfaceVisual : MonoBehaviour
 
     public void ApplyPose(Vector3 worldPosition, Vector3 worldNormal, Quaternion rotation)
     {
-        bool show = IsShowing();
-        ApplyEnabled(show);
-        if (!show)
-            return;
-
-        if (characterRenderer != null && stampMaterialIndex >= 0)
-        {
-            characterRenderer.GetPropertyBlock(propertyBlock, stampMaterialIndex);
-            propertyBlock.SetVector(PositionId, worldPosition);
-            propertyBlock.SetVector(NormalId, worldNormal);
-            propertyBlock.SetFloat(RadiusId, stampRadius);
-            propertyBlock.SetFloat(EnabledId, 1f);
-            propertyBlock.SetFloat(BrightnessId, stampBrightness);
-            propertyBlock.SetFloat(OpacityId, stampOpacity);
-            propertyBlock.SetColor(ColorRedId, new Color(1.15f, 0.04f, 0.04f, 1f));
-            propertyBlock.SetColor(ColorWhiteId, new Color(1.2f, 1.2f, 1.2f, 1f));
-            characterRenderer.SetPropertyBlock(propertyBlock, stampMaterialIndex);
-        }
-
-        if (decalProjector != null)
-        {
-            float size = stampRadius * 2.15f;
-            decalProjector.size = new Vector3(size, size, Mathf.Max(0.04f, decalDepth));
-            decalProjector.transform.SetPositionAndRotation(
-                worldPosition + worldNormal * (decalDepth * 0.35f),
-                rotation);
-            decalProjector.fadeFactor = 1f;
-            ApplyDecalFlash();
-        }
+        ApplyPose(worldPosition, worldNormal, rotation, Vector3.up, 0.13f, 0, 0, 1f);
     }
 
-    private void LateUpdate()
+    public void ApplyPose(
+        Vector3 worldPosition,
+        Vector3 worldNormal,
+        Quaternion rotation,
+        Vector3 wrapAxis,
+        float wrapRadius)
     {
-        ApplyDecalFlash();
+        ApplyPose(worldPosition, worldNormal, rotation, wrapAxis, wrapRadius, 0, 0, 1f);
     }
 
-    private void ApplyDecalFlash()
+    public void ApplyPose(
+        Vector3 worldPosition,
+        Vector3 worldNormal,
+        Quaternion rotation,
+        Vector3 wrapAxis,
+        float wrapRadius,
+        int currentRegion,
+        int targetRegion,
+        float travelProgress)
     {
-        if (decalProjector == null || decalProjector.material == null)
-            return;
+        if (worldNormal.sqrMagnitude < 0.0001f)
+            worldNormal = Vector3.forward;
+        worldNormal.Normalize();
+        if (wrapAxis.sqrMagnitude < 0.0001f)
+            wrapAxis = Vector3.up;
+        wrapAxis.Normalize();
 
-        float amount = 0f;
-        if (Time.time < flashUntil)
-            amount = 1f - Mathf.Clamp01((flashUntil - Time.time) / Mathf.Max(0.02f, flashDuration));
+        float sphereBlend = 0f;
+        if (BullseyeSurfaceFamilies.UsesSphericalWrap((BullseyeSurfaceRegionId)currentRegion))
+            sphereBlend += 1f - Mathf.Clamp01(travelProgress);
+        if (BullseyeSurfaceFamilies.UsesSphericalWrap((BullseyeSurfaceRegionId)targetRegion))
+            sphereBlend += Mathf.Clamp01(travelProgress);
+        bool spherical = sphereBlend >= 0.45f;
+        if (!spherical && Mathf.Abs(Vector3.Dot(wrapAxis, worldNormal)) > 0.94f)
+        {
+            wrapAxis = Vector3.Cross(worldNormal, Vector3.up);
+            if (wrapAxis.sqrMagnitude < 0.0001f)
+                wrapAxis = Vector3.Cross(worldNormal, Vector3.right);
+            wrapAxis.Normalize();
+        }
 
-        if (decalProjector.material.HasProperty(EmissiveColorId))
-            decalProjector.material.SetColor(EmissiveColorId, Color.Lerp(restDecalColor, flashColor, 1f - amount));
+        Vector3 tangent = spherical
+            ? Vector3.Cross(worldNormal, Vector3.up)
+            : Vector3.Cross(wrapAxis, worldNormal);
+        if (tangent.sqrMagnitude < 0.0001f)
+            tangent = rotation * Vector3.right;
+        tangent.Normalize();
+        if (hasPose && Vector3.Dot(tangent, lastTangent) < 0f)
+            tangent = -tangent;
+        Vector3 bitangent = Vector3.Cross(worldNormal, tangent).normalized;
+
+        lastPosition = worldPosition;
+        lastNormal = worldNormal;
+        lastTangent = tangent;
+        lastBitangent = bitangent;
+        lastWrapAxis = wrapAxis;
+        lastWrapRadius = Mathf.Max(0.02f, wrapRadius);
+        lastCurrentRegion = currentRegion;
+        lastTargetRegion = targetRegion;
+        lastProgress = Mathf.Clamp01(travelProgress);
+        hasPose = true;
+
+        ApplyShaderState(IsShowing());
+        DisableLegacyAttachedVisuals();
     }
 
     private bool IsShowing()
@@ -149,54 +156,155 @@ public class BullseyeSurfaceVisual : MonoBehaviour
         return attachedVisible && !ownerSuppressed;
     }
 
-    private void ApplyEnabled(bool enabled)
+    private void ApplyShaderState(bool show)
     {
-        if (characterRenderer != null && stampMaterialIndex >= 0)
+        if (characterRenderer == null)
+            characterRenderer = FindCharacterRenderer();
+        if (characterRenderer == null)
+            return;
+
+        if (propertyBlock == null)
+            propertyBlock = new MaterialPropertyBlock();
+
+        characterRenderer.GetPropertyBlock(propertyBlock);
+        float enabled = show && hasPose ? 1f : 0f;
+        float radius = Mathf.Max(0.04f, stampRadius);
+        float flash = 0f;
+        if (show && Time.time < flashUntil)
+            flash = 1f - Mathf.Clamp01((flashUntil - Time.time) / Mathf.Max(0.02f, flashDuration));
+
+        var currentId = (BullseyeSurfaceRegionId)lastCurrentRegion;
+        var targetId = (BullseyeSurfaceRegionId)lastTargetRegion;
+        float currentFamily = BullseyeSurfaceFamilies.FromRegion(currentId);
+        float targetFamily = BullseyeSurfaceFamilies.FromRegion(targetId);
+        float facing = BullseyeSurfaceFamilies.FacingValue(CurrentFacing());
+        if (Mathf.Abs(currentFamily - BullseyeSurfaceFamilies.Torso) < 0.01f &&
+            Mathf.Abs(targetFamily - BullseyeSurfaceFamilies.Torso) < 0.01f &&
+            CurrentFacing() != TargetFacing())
         {
-            characterRenderer.GetPropertyBlock(propertyBlock, stampMaterialIndex);
-            propertyBlock.SetFloat(EnabledId, enabled ? 1f : 0f);
-            characterRenderer.SetPropertyBlock(propertyBlock, stampMaterialIndex);
+            facing = 0f;
         }
 
-        if (decalProjector != null)
+        float sphereBlend = 0f;
+        if (BullseyeSurfaceFamilies.UsesSphericalWrap(currentId))
+            sphereBlend += 1f - lastProgress;
+        if (BullseyeSurfaceFamilies.UsesSphericalWrap(targetId))
+            sphereBlend += lastProgress;
+
+        propertyBlock.SetVector(CenterEnabledId, new Vector4(lastPosition.x, lastPosition.y, lastPosition.z, enabled));
+        propertyBlock.SetVector(NormalRadiusId, new Vector4(lastNormal.x, lastNormal.y, lastNormal.z, radius));
+        propertyBlock.SetVector(TangentId, lastTangent);
+        propertyBlock.SetVector(BitangentId, lastBitangent);
+        propertyBlock.SetVector(WrapAxisRadiusId, new Vector4(lastWrapAxis.x, lastWrapAxis.y, lastWrapAxis.z, lastWrapRadius));
+        propertyBlock.SetVector(RegionStateId, new Vector4(currentFamily, targetFamily, lastProgress, facing));
+        propertyBlock.SetVector(WrapFlashId, new Vector4(sphereBlend, flash, 0f, 0f));
+        if (bullseyeTexture != null)
+            propertyBlock.SetTexture(TextureId, bullseyeTexture);
+
+        characterRenderer.SetPropertyBlock(propertyBlock);
+        ClearStampFromOtherRenderers();
+    }
+
+    private BullseyeFacing CurrentFacing()
+    {
+        if (TryGetComponent(out BullseyeSurfaceMap map))
+            return map.GetFacing(lastCurrentRegion);
+        return BullseyeFacing.Front;
+    }
+
+    private BullseyeFacing TargetFacing()
+    {
+        if (TryGetComponent(out BullseyeSurfaceMap map))
+            return map.GetFacing(lastTargetRegion);
+        return BullseyeFacing.Front;
+    }
+
+    private void DisableLegacyAttachedVisuals()
+    {
+        Transform system = transform.Find("BullseyeSystem");
+        if (system == null)
+            return;
+
+        Transform visual = system.Find("AttachedVisual");
+        if (visual != null)
+            visual.gameObject.SetActive(false);
+
+        Transform sticker = system.Find("AttachedSticker");
+        if (sticker != null)
+            sticker.gameObject.SetActive(false);
+
+        Transform overlay = system.Find("StampOverlay");
+        if (overlay != null)
         {
-            decalProjector.enabled = enabled;
-            decalProjector.fadeFactor = enabled ? 1f : 0f;
+            overlay.gameObject.SetActive(false);
+            var overlayRenderer = overlay.GetComponent<Renderer>();
+            if (overlayRenderer != null)
+            {
+                overlayRenderer.enabled = false;
+                overlayRenderer.forceRenderingOff = true;
+            }
         }
     }
 
-    private void EnsureStampSlot()
+    private SkinnedMeshRenderer FindCharacterRenderer()
     {
-        if (characterRenderer == null || stampMaterial == null)
+        SkinnedMeshRenderer[] renderers = GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
         {
-            stampMaterialIndex = -1;
+            if (renderers[i] == null)
+                continue;
+            string name = renderers[i].gameObject.name;
+            if (name.IndexOf("StickMan", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                return renderers[i];
+        }
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null && renderers[i].gameObject.name != "StampOverlay")
+                return renderers[i];
+        }
+
+        return null;
+    }
+
+    private void ClearStampFromOtherRenderers()
+    {
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer == null || renderer == characterRenderer)
+                continue;
+            if (renderer is SkinnedMeshRenderer && renderer.gameObject.name.IndexOf("StickMan", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                continue;
+
+            renderer.SetPropertyBlock(null);
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        bool showDebug = debugVisualization;
+        if (!showDebug && TryGetComponent(out BullseyeMover mover))
+            showDebug = mover.DebugVisualization;
+        if (!showDebug || !hasPose)
             return;
-        }
 
-        Material[] materials = characterRenderer.sharedMaterials;
-        for (int i = 0; i < materials.Length; i++)
-        {
-            if (materials[i] == stampMaterial)
-            {
-                stampMaterialIndex = i;
-                return;
-            }
-        }
-
-        var next = new Material[materials.Length + 1];
-        for (int i = 0; i < materials.Length; i++)
-            next[i] = materials[i];
-        next[materials.Length] = stampMaterial;
-        characterRenderer.sharedMaterials = next;
-        stampMaterialIndex = materials.Length;
+        Gizmos.color = Color.red;
+        Gizmos.DrawSphere(lastPosition, 0.02f);
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawLine(lastPosition, lastPosition + lastNormal * 0.22f);
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawLine(lastPosition, lastPosition + lastTangent * 0.16f);
+        Gizmos.color = Color.green;
+        Gizmos.DrawLine(lastPosition, lastPosition + lastWrapAxis * 0.2f);
+        Gizmos.color = new Color(1f, 0.5f, 0f, 0.35f);
+        Gizmos.DrawWireSphere(lastPosition, lastWrapRadius);
     }
 
     private void OnValidate()
     {
-        stampRadius = Mathf.Max(0.02f, stampRadius);
-        stampBrightness = Mathf.Max(1f, stampBrightness);
-        stampOpacity = Mathf.Clamp(stampOpacity, 0.5f, 1f);
-        decalDepth = Mathf.Max(0.03f, decalDepth);
+        stampRadius = Mathf.Max(0.04f, stampRadius);
         flashDuration = Mathf.Max(0.02f, flashDuration);
     }
 }

@@ -55,14 +55,37 @@ public class BullseyeSurfaceMap : MonoBehaviour
         out Vector3 worldPosition,
         out Vector3 worldNormal)
     {
+        return TryEvaluateInterpolated(
+            fromIndex,
+            toIndex,
+            progress,
+            out worldPosition,
+            out worldNormal,
+            out _,
+            out _);
+    }
+
+    public bool TryEvaluateInterpolated(
+        int fromIndex,
+        int toIndex,
+        float progress,
+        out Vector3 worldPosition,
+        out Vector3 worldNormal,
+        out Vector3 wrapAxis,
+        out float wrapRadius)
+    {
         progress = Mathf.Clamp01(progress);
         bool hasFrom = TryEvaluate(fromIndex, out Vector3 fromPos, out Vector3 fromNormal);
         bool hasTo = TryEvaluate(toIndex, out Vector3 toPos, out Vector3 toNormal);
+        float fromRadius = GetWrapRadius(fromIndex);
+        float toRadius = GetWrapRadius(toIndex);
 
         if (!hasFrom && !hasTo)
         {
             worldPosition = BodyRoot.position + Vector3.up;
             worldNormal = BodyRoot.forward;
+            wrapAxis = BodyRoot.up;
+            wrapRadius = 0.12f;
             return false;
         }
 
@@ -70,6 +93,8 @@ public class BullseyeSurfaceMap : MonoBehaviour
         {
             worldPosition = toPos;
             worldNormal = toNormal;
+            wrapAxis = GetWrapAxis(toIndex, toNormal);
+            wrapRadius = toRadius;
             return true;
         }
 
@@ -77,12 +102,195 @@ public class BullseyeSurfaceMap : MonoBehaviour
         {
             worldPosition = fromPos;
             worldNormal = fromNormal;
+            wrapAxis = GetWrapAxis(fromIndex, fromNormal);
+            wrapRadius = fromRadius;
             return true;
         }
 
-        worldPosition = Vector3.Lerp(fromPos, toPos, progress);
-        worldNormal = Vector3.Slerp(fromNormal, toNormal, progress).normalized;
+        wrapRadius = Mathf.Lerp(fromRadius, toRadius, progress);
+        wrapAxis = Vector3.Slerp(
+            GetStableWrapAxis(fromIndex, fromNormal),
+            GetStableWrapAxis(toIndex, toNormal),
+            progress);
+        if (wrapAxis.sqrMagnitude < 0.0001f)
+            wrapAxis = BodyRoot.up;
+        wrapAxis.Normalize();
+        EvaluateCylinderSurface(
+            fromPos,
+            fromNormal,
+            GetBonePosition(fromIndex),
+            fromRadius,
+            toPos,
+            toNormal,
+            GetBonePosition(toIndex),
+            toRadius,
+            wrapAxis,
+            progress,
+            out worldPosition,
+            out worldNormal);
         return true;
+    }
+
+    public float EstimateSurfaceDistance(int fromIndex, int toIndex)
+    {
+        if (!TryEvaluate(fromIndex, out Vector3 fromPos, out Vector3 fromNormal) ||
+            !TryEvaluate(toIndex, out Vector3 toPos, out Vector3 toNormal))
+            return 0.28f;
+
+        Vector3 axis = Vector3.Slerp(
+            GetStableWrapAxis(fromIndex, fromNormal),
+            GetStableWrapAxis(toIndex, toNormal),
+            0.5f);
+        if (axis.sqrMagnitude < 0.0001f)
+            axis = BodyRoot.up;
+        axis.Normalize();
+
+        Vector3 fromBone = GetBonePosition(fromIndex);
+        Vector3 toBone = GetBonePosition(toIndex);
+        Vector3 fromRadial = Vector3.ProjectOnPlane(fromPos - fromBone, axis);
+        Vector3 toRadial = Vector3.ProjectOnPlane(toPos - toBone, axis);
+        float radius = Mathf.Max(
+            GetWrapRadius(fromIndex),
+            GetWrapRadius(toIndex),
+            (fromRadial.magnitude + toRadial.magnitude) * 0.5f);
+        float angle = 0f;
+        if (fromRadial.sqrMagnitude > 0.0001f && toRadial.sqrMagnitude > 0.0001f)
+            angle = Mathf.Abs(SignedOrbitAngle(fromRadial, toRadial, axis)) * Mathf.Deg2Rad;
+        float along = Mathf.Abs(Vector3.Dot((toBone - fromBone) + (toPos - toBone) - (fromPos - fromBone), axis));
+        return Mathf.Max(0.12f, angle * radius + along);
+    }
+
+    private void EvaluateCylinderSurface(
+        Vector3 fromPos,
+        Vector3 fromNormal,
+        Vector3 fromBone,
+        float fromWrap,
+        Vector3 toPos,
+        Vector3 toNormal,
+        Vector3 toBone,
+        float toWrap,
+        Vector3 wrapAxis,
+        float progress,
+        out Vector3 worldPosition,
+        out Vector3 worldNormal)
+    {
+        Vector3 axis = wrapAxis.sqrMagnitude > 0.0001f ? wrapAxis.normalized : BodyRoot.up;
+        Vector3 fromRadial = Vector3.ProjectOnPlane(fromPos - fromBone, axis);
+        Vector3 toRadial = Vector3.ProjectOnPlane(toPos - toBone, axis);
+
+        if (fromRadial.sqrMagnitude < 0.0004f)
+            fromRadial = Vector3.ProjectOnPlane(fromNormal, axis);
+        if (toRadial.sqrMagnitude < 0.0004f)
+            toRadial = Vector3.ProjectOnPlane(toNormal, axis);
+        if (fromRadial.sqrMagnitude < 0.0004f)
+            fromRadial = BodyRoot.forward;
+        if (toRadial.sqrMagnitude < 0.0004f)
+            toRadial = fromRadial;
+
+        float fromR = Mathf.Max(fromWrap, fromRadial.magnitude);
+        float toR = Mathf.Max(toWrap, toRadial.magnitude);
+        float radius = Mathf.Lerp(fromR, toR, progress);
+        Vector3 fromOnAxis = fromBone + axis * Vector3.Dot(fromPos - fromBone, axis);
+        Vector3 toOnAxis = toBone + axis * Vector3.Dot(toPos - toBone, axis);
+        Vector3 onAxis = Vector3.Lerp(fromOnAxis, toOnAxis, progress);
+        float angle = SignedOrbitAngle(fromRadial, toRadial, axis);
+        Vector3 radial = Quaternion.AngleAxis(angle * progress, axis) * fromRadial.normalized * radius;
+        worldPosition = onAxis + radial;
+        worldNormal = radial.sqrMagnitude > 0.0001f ? radial.normalized : fromNormal.normalized;
+    }
+
+    private float SignedOrbitAngle(Vector3 fromRadial, Vector3 toRadial, Vector3 axis)
+    {
+        float angle = Vector3.SignedAngle(fromRadial, toRadial, axis);
+        if (Mathf.Abs(angle) <= 165f)
+            return angle;
+
+        Vector3 hint = Vector3.ProjectOnPlane(BodyRoot.right, axis);
+        if (hint.sqrMagnitude < 0.0001f)
+            hint = Vector3.right;
+        float side = Mathf.Sign(Vector3.Dot(Vector3.Cross(fromRadial, hint), axis));
+        if (Mathf.Approximately(side, 0f))
+            side = 1f;
+        return 180f * side;
+    }
+
+    private Vector3 GetBonePosition(int index)
+    {
+        if (TryGetRegion(index, out BullseyeSurfaceRegion region) && region.bone != null)
+            return region.bone.position;
+        return BodyRoot.position;
+    }
+
+    private Vector3 GetStableWrapAxis(int index, Vector3 worldNormal)
+    {
+        if (UsesBodyOrbit(index))
+        {
+            Vector3 axis = BodyRoot.up;
+            if (TryGetRegion(index, out BullseyeSurfaceRegion region) && region.bone != null)
+            {
+                Vector3 boneUp = region.bone.up;
+                if (Vector3.Dot(boneUp, axis) < 0f)
+                    boneUp = -boneUp;
+                if (Mathf.Abs(Vector3.Dot(boneUp, axis)) > 0.35f)
+                    axis = Vector3.Slerp(axis, boneUp, 0.4f);
+            }
+
+            return axis.normalized;
+        }
+
+        return GetWrapAxis(index, worldNormal);
+    }
+
+    private static bool UsesBodyOrbit(int index)
+    {
+        switch ((BullseyeSurfaceRegionId)index)
+        {
+            case BullseyeSurfaceRegionId.Head:
+            case BullseyeSurfaceRegionId.Neck:
+            case BullseyeSurfaceRegionId.UpperChest:
+            case BullseyeSurfaceRegionId.LowerChest:
+            case BullseyeSurfaceRegionId.UpperBack:
+            case BullseyeSurfaceRegionId.LowerBack:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public float GetWrapRadius(int index)
+    {
+        return TryGetRegion(index, out BullseyeSurfaceRegion region)
+            ? region.ResolvedWrapRadius
+            : 0.12f;
+    }
+
+    public Vector3 GetWrapAxis(int index, Vector3 worldNormal)
+    {
+        if (TryGetRegion(index, out BullseyeSurfaceRegion region))
+            return region.ResolvedWrapAxis(worldNormal);
+        return BodyRoot.up;
+    }
+
+    private static Vector3 OrbitNormal(Vector3 fromNormal, Vector3 toNormal, Vector3 wrapAxis, float progress)
+    {
+        fromNormal.Normalize();
+        toNormal.Normalize();
+        Vector3 pivot = Vector3.Cross(fromNormal, toNormal);
+        if (pivot.sqrMagnitude < 0.0005f)
+        {
+            if (Vector3.Dot(fromNormal, toNormal) > 0f)
+                return fromNormal;
+
+            Vector3 orbit = wrapAxis.sqrMagnitude > 0.0001f ? wrapAxis.normalized : Vector3.up;
+            if (Mathf.Abs(Vector3.Dot(orbit, fromNormal)) > 0.9f)
+                orbit = Vector3.Cross(fromNormal, Vector3.right).sqrMagnitude > 0.01f
+                    ? Vector3.Cross(fromNormal, Vector3.right)
+                    : Vector3.Cross(fromNormal, Vector3.up);
+            return (Quaternion.AngleAxis(180f * progress, orbit.normalized) * fromNormal).normalized;
+        }
+
+        float angle = Vector3.Angle(fromNormal, toNormal);
+        return (Quaternion.AngleAxis(angle * progress, pivot.normalized) * fromNormal).normalized;
     }
 
     public Quaternion RotationFromNormal(Vector3 worldNormal)
@@ -247,6 +455,7 @@ public class BullseyeSurfaceMap : MonoBehaviour
             facing = facing,
             zone = zone,
             selectionWeight = weight,
+            wrapRadius = BullseyeSurfaceRegion.DefaultWrapRadius(id),
             neighbors = neighbors,
             localNormal = facing == BullseyeFacing.Back ? Vector3.back : Vector3.forward
         };

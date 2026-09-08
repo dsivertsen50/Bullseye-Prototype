@@ -43,6 +43,20 @@ public static class BullseyeSurfaceSetup
                " decal=" + (decalMaterial != null ? decalMaterial.shader.name : "null");
     }
 
+    public static string ApplyVisibleMark()
+    {
+        return BullseyeCharacterShaderSetup.Apply();
+    }
+
+    private static void WireVisibleMark(GameObject root, Mesh discMesh, Material discMaterial, Material decalMaterial)
+    {
+        Texture2D texture = LoadExistingDecalTexture();
+        BullseyeCharacterShaderSetup.EnsureShaderGraph();
+        Material characterMaterial = BullseyeCharacterShaderSetup.EnsureCharacterMaterial(texture);
+        Mesh regionMesh = BullseyeCharacterShaderSetup.EnsureRegionMesh();
+        BullseyeCharacterShaderSetup.WirePlayer(root, characterMaterial, texture, regionMesh);
+    }
+
     public static string ApplyPhysicalDisc()
     {
         Texture2D decalTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(DecalTexturePath);
@@ -95,7 +109,7 @@ public static class BullseyeSurfaceSetup
             BullseyeSurfaceVisual visual = EnsureComponent<BullseyeSurfaceVisual>(root);
             BullseyeMover mover = root.GetComponent<BullseyeMover>();
             BullseyeDetachController detach = root.GetComponent<BullseyeDetachController>();
-            SkinnedMeshRenderer skinned = root.GetComponentInChildren<SkinnedMeshRenderer>(true);
+            SkinnedMeshRenderer skinned = FindCharacterRenderer(root);
             Transform physical = root.transform.Find("Bullseye");
 
             BullseyeSurfaceRegion[] regions = BullseyeSurfaceMap.CreateDefaultRegions();
@@ -104,24 +118,10 @@ public static class BullseyeSurfaceSetup
             map.Assign(visualRoot, regions);
 
             Transform hitTarget = EnsureAttachedHitTarget(system, root.GetComponent<PlayerHealth>());
-            DecalProjector projector = EnsureDecalProjector(system, decalMaterial);
 
-            if (skinned != null)
-            {
-                AssignStampMaterial(skinned, stampMaterial);
-                EnableReceiveDecals(skinned.sharedMaterial);
-            }
-
-            visual.Configure(skinned, stampMaterial, projector, 0.14f);
-            SerializedObject visualSo = new SerializedObject(visual);
-            visualSo.FindProperty("stampRadius").floatValue = 0.14f;
-            SerializedProperty brightness = visualSo.FindProperty("stampBrightness");
-            if (brightness != null)
-                brightness.floatValue = 1.35f;
-            SerializedProperty opacity = visualSo.FindProperty("stampOpacity");
-            if (opacity != null)
-                opacity.floatValue = 1f;
-            visualSo.ApplyModifiedPropertiesWithoutUndo();
+            Mesh discMesh = EnsurePhysicalDiscMesh();
+            Material discMaterial = EnsurePhysicalDiscMaterial(decalTexture);
+            WireVisibleMark(root, discMesh, discMaterial, decalMaterial);
             HidePhysicalWhileAuthoring(physical);
             ApplyPhysicalDiscTo(physical, EnsurePhysicalDiscMesh(), EnsurePhysicalDiscMaterial(decalTexture));
 
@@ -134,7 +134,7 @@ public static class BullseyeSurfaceSetup
                 so.FindProperty("surfaceVisual").objectReferenceValue = visual;
                 so.FindProperty("attachedHitTarget").objectReferenceValue = hitTarget;
                 so.FindProperty("physicalBullseye").objectReferenceValue = physical;
-                so.FindProperty("bullseyeSize").floatValue = 0.28f;
+                so.FindProperty("bullseyeSize").floatValue = 0.26f;
                 so.FindProperty("baseMovementSpeed").floatValue = 0.2f;
                 so.FindProperty("pauseChance").floatValue = 0f;
                 so.FindProperty("minPauseDuration").floatValue = 0f;
@@ -161,6 +161,18 @@ public static class BullseyeSurfaceSetup
         {
             PrefabUtility.UnloadPrefabContents(root);
         }
+    }
+
+    private static SkinnedMeshRenderer FindCharacterRenderer(GameObject root)
+    {
+        SkinnedMeshRenderer[] renderers = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null && renderers[i].gameObject.name != "StampOverlay")
+                return renderers[i];
+        }
+
+        return null;
     }
 
     private static void HideLegacyCapsule(GameObject root)
@@ -681,8 +693,17 @@ public static class BullseyeSurfaceSetup
         return material;
     }
 
+    private static Texture2D LoadExistingDecalTexture()
+    {
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(DecalTexturePath);
+    }
+
     private static Texture2D EnsureDecalTexture()
     {
+        Texture2D existing = LoadExistingDecalTexture();
+        if (existing != null)
+            return existing;
+
         const int size = 256;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false, false);
         texture.alphaIsTransparency = true;
