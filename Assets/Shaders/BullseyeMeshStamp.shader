@@ -4,7 +4,12 @@ Shader "Bullseye/MeshSurfaceStamp"
     {
         _BullseyePosition ("Bullseye Position", Vector) = (0, 1, 0, 0)
         _BullseyeNormal ("Bullseye Normal", Vector) = (0, 0, 1, 0)
+        _BullseyeAxis ("Wrap Axis", Vector) = (0, 1, 0, 0)
         _BullseyeRadius ("Bullseye Radius", Float) = 0.14
+        _WrapRadius ("Wrap Radius", Float) = 0.12
+        _ShellThickness ("Shell Thickness", Float) = 0.04
+        _MaxWrapAngle ("Max Wrap Angle", Float) = 2.6
+        _SurfaceOffset ("Surface Offset", Float) = 0.012
         _BullseyeEnabled ("Enabled", Float) = 0
         _Brightness ("Brightness", Float) = 1.35
         _Opacity ("Opacity", Float) = 1
@@ -30,7 +35,7 @@ Shader "Bullseye/MeshSurfaceStamp"
             Blend SrcAlpha OneMinusSrcAlpha
             ZWrite Off
             ZTest LEqual
-            Cull Off
+            Cull Back
 
             HLSLPROGRAM
             #pragma vertex Vert
@@ -63,9 +68,10 @@ Shader "Bullseye/MeshSurfaceStamp"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz) + normalize(normalWS) * max(0.0, _SurfaceOffset);
                 output.positionWS = positionWS;
-                output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+                output.normalWS = normalWS;
                 output.positionCS = TransformWorldToHClip(positionWS);
                 return output;
             }
@@ -88,7 +94,7 @@ Shader "Bullseye/MeshSurfaceStamp"
             Blend SrcAlpha OneMinusSrcAlpha
             ZWrite Off
             ZTest LEqual
-            Cull Off
+            Cull Back
 
             HLSLPROGRAM
             #pragma vertex Vert
@@ -115,9 +121,10 @@ Shader "Bullseye/MeshSurfaceStamp"
             Varyings Vert(Attributes input)
             {
                 Varyings output;
-                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz) + normalize(normalWS) * max(0.0, _SurfaceOffset);
                 output.positionWS = positionWS;
-                output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+                output.normalWS = normalWS;
                 output.positionCS = TransformWorldToHClip(positionWS);
                 return output;
             }

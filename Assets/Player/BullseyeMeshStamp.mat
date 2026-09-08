@@ -28,8 +28,12 @@ Material:
     - _Brightness: 1.35
     - _BullseyeEnabled: 0
     - _BullseyeRadius: 0.11
+    - _MaxWrapAngle: 2.6
     - _Opacity: 1
+    - _ShellThickness: 0.04
+    - _WrapRadius: 0.12
     m_Colors:
+    - _BullseyeAxis: {r: 0, g: 1, b: 0, a: 0}
     - _BullseyeNormal: {r: 0, g: 0, b: 1, a: 0}
     - _BullseyePosition: {r: 0, g: 1, b: 0, a: 0}
     - _CenterColor: {r: 2.4, g: 2.2, b: 0.35, a: 1}

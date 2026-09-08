@@ -24,7 +24,7 @@ public class PlayerGrenadeThrower : NetworkBehaviour
     [SerializeField] private float maxReportedOriginDistance = 3.5f;
 
     [Header("Feedback")]
-    [SerializeField] private AudioClip grenadeThrowSfx;
+    [SerializeField] private AudioClip[] grenadeThrowSfx;
     [SerializeField] private float throwSfxVolume = 0.7f;
 
     [Header("Input")]
@@ -289,7 +289,8 @@ public class PlayerGrenadeThrower : NetworkBehaviour
 
     private void PlayThrowFeedback()
     {
-        if (grenadeThrowSfx == null)
+        AudioClip clip = PickRandom(grenadeThrowSfx);
+        if (clip == null)
             return;
 
         if (audioSource == null)
@@ -303,7 +304,37 @@ public class PlayerGrenadeThrower : NetworkBehaviour
             PlayerGameSettings.RouteToSfx(audioSource);
         }
 
-        audioSource.PlayOneShot(grenadeThrowSfx, Mathf.Clamp01(throwSfxVolume));
+        audioSource.PlayOneShot(clip, Mathf.Clamp01(throwSfxVolume));
+    }
+
+    private static AudioClip PickRandom(AudioClip[] clips)
+    {
+        if (clips == null || clips.Length == 0)
+            return null;
+
+        int assigned = 0;
+        for (int i = 0; i < clips.Length; i++)
+        {
+            if (clips[i] != null)
+                assigned++;
+        }
+
+        if (assigned <= 0)
+            return null;
+
+        int pick = Random.Range(0, assigned);
+        for (int i = 0; i < clips.Length; i++)
+        {
+            if (clips[i] == null)
+                continue;
+
+            if (pick == 0)
+                return clips[i];
+
+            pick--;
+        }
+
+        return null;
     }
 
     private void OnValidate()

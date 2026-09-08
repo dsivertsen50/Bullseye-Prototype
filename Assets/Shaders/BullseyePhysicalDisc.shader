@@ -6,6 +6,9 @@ Shader "Bullseye/PhysicalDisc"
         _RimColor ("Rim Color", Color) = (0.902, 0.047, 0.047, 1)
         _Brightness ("Brightness", Float) = 1.15
         [HDR] _EmissiveColor ("Emissive Color", Color) = (0, 0, 0, 1)
+        _WrapMode ("Wrap Mode", Float) = 0
+        _WrapRadius ("Wrap Radius", Float) = 0.12
+        _StampRadius ("Stamp Radius", Float) = 0.13
     }
 
     SubShader

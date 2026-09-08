@@ -22,6 +22,7 @@ public class SuctionGrenade : Grenade
     [SerializeField] private float overlapInterval = 0.05f;
 
     [Header("Field Visual")]
+    [SerializeField] private GameObject fieldVfxPrefab;
     [SerializeField] private Color fieldColor = new Color(0.2f, 0.85f, 1f, 1f);
     [SerializeField] private Material visualMaterial;
 
@@ -32,7 +33,8 @@ public class SuctionGrenade : Grenade
     private readonly List<PlayerHealth> detectedPlayers = new();
     private Collider[] grenadeColliders;
     private Coroutine suctionRoutine;
-    private ParticleSystem fieldParticles;
+    private GameObject fieldVisual;
+    private ParticleSystem[] fieldParticleSystems;
     private float activatedAt = -1f;
     private bool fieldActive;
 
@@ -282,33 +284,41 @@ public class SuctionGrenade : Grenade
 
     private void ConfigureVisualIdentity()
     {
+        if (visualMaterial == null)
+            return;
+
         MeshRenderer renderer = GetComponentInChildren<MeshRenderer>();
         if (renderer == null)
             return;
 
-        if (visualMaterial != null)
-        {
-            renderer.sharedMaterial = visualMaterial;
-            return;
-        }
-
-        renderer.material.color = fieldColor;
+        renderer.sharedMaterial = visualMaterial;
     }
 
     private void EnsureFieldVisual()
     {
-        if (fieldParticles != null)
+        if (fieldVisual != null)
             return;
 
-        Transform existing = transform.Find("SuctionFieldVisual");
-        GameObject visual = existing != null ? existing.gameObject : new GameObject("SuctionFieldVisual");
-        visual.transform.SetParent(transform, false);
-        visual.transform.localPosition = Vector3.zero;
-        visual.transform.localRotation = Quaternion.identity;
+        if (fieldVfxPrefab != null)
+        {
+            fieldVisual = Instantiate(fieldVfxPrefab, transform);
+            fieldVisual.name = "SuctionFieldVisual";
+            fieldVisual.transform.localPosition = Vector3.zero;
+            fieldVisual.transform.localRotation = Quaternion.identity;
+            fieldVisual.transform.localScale = Vector3.one;
+            CacheFieldParticleSystems();
+            return;
+        }
 
-        fieldParticles = visual.GetComponent<ParticleSystem>();
+        Transform existing = transform.Find("SuctionFieldVisual");
+        fieldVisual = existing != null ? existing.gameObject : new GameObject("SuctionFieldVisual");
+        fieldVisual.transform.SetParent(transform, false);
+        fieldVisual.transform.localPosition = Vector3.zero;
+        fieldVisual.transform.localRotation = Quaternion.identity;
+
+        ParticleSystem fieldParticles = fieldVisual.GetComponent<ParticleSystem>();
         if (fieldParticles == null)
-            fieldParticles = visual.AddComponent<ParticleSystem>();
+            fieldParticles = fieldVisual.AddComponent<ParticleSystem>();
 
         fieldParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         ParticleSystem.MainModule main = fieldParticles.main;
@@ -345,17 +355,32 @@ public class SuctionGrenade : Grenade
                 new GradientAlphaKey(0.05f, 1f)
             });
         colorOverLifetime.color = gradient;
+        CacheFieldParticleSystems();
+    }
+
+    private void CacheFieldParticleSystems()
+    {
+        fieldParticleSystems = fieldVisual != null
+            ? fieldVisual.GetComponentsInChildren<ParticleSystem>(true)
+            : System.Array.Empty<ParticleSystem>();
     }
 
     private void SetFieldVisualActive(bool active)
     {
-        if (fieldParticles == null)
+        if (fieldParticleSystems == null)
             return;
 
-        if (active)
-            fieldParticles.Play(true);
-        else
-            fieldParticles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+        for (int i = 0; i < fieldParticleSystems.Length; i++)
+        {
+            ParticleSystem particles = fieldParticleSystems[i];
+            if (particles == null)
+                continue;
+
+            if (active)
+                particles.Play(true);
+            else
+                particles.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+        }
     }
 
     private void OnValidate()

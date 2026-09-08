@@ -12,7 +12,7 @@ public class BullseyeMover : NetworkBehaviour
     [SerializeField] private BullseyeSurfaceVisual surfaceVisual;
     [SerializeField] private Transform attachedHitTarget;
     [SerializeField] private Transform physicalBullseye;
-    [SerializeField] private float bullseyeSize = 0.28f;
+    [SerializeField] private float bullseyeSize = 0.26f;
     [SerializeField] private float hitTargetThickness = 0.05f;
 
     [Header("Movement")]
@@ -38,7 +38,7 @@ public class BullseyeMover : NetworkBehaviour
     [SerializeField] private float turnRateForFullInfluence = 180f;
     [SerializeField] private float turnInfluenceSmoothing = 4f;
     [SerializeField] private float turnInfluenceDecayRate = 2.5f;
-    [SerializeField] private float hideFromOwnerCameraDistance = 0.6f;
+    [SerializeField] private float hideFromOwnerCameraDistance = 0f;
 
     [Header("Debug")]
     [SerializeField] private bool debugVisualization;
@@ -329,13 +329,9 @@ public class BullseyeMover : NetworkBehaviour
 
     private float EstimateTravelDuration(int from, int to)
     {
-        float distance = 0.28f;
-        if (surfaceMap != null &&
-            surfaceMap.TryEvaluate(from, out Vector3 start, out _) &&
-            surfaceMap.TryEvaluate(to, out Vector3 end, out _))
-        {
-            distance = Mathf.Max(0.16f, Vector3.Distance(start, end));
-        }
+        float distance = surfaceMap != null
+            ? surfaceMap.EstimateSurfaceDistance(from, to)
+            : 0.28f;
 
         return distance / Mathf.Max(0.05f, baseMovementSpeed);
     }
@@ -469,7 +465,9 @@ public class BullseyeMover : NetworkBehaviour
                 targetRegion.Value,
                 progress,
                 out Vector3 position,
-                out Vector3 normal))
+                out Vector3 normal,
+                out Vector3 wrapAxis,
+                out float wrapRadius))
         {
             return;
         }
@@ -496,7 +494,15 @@ public class BullseyeMover : NetworkBehaviour
         {
             surfaceVisual.StampRadius = bullseyeSize * 0.5f;
             surfaceVisual.SetAttachedVisible(true);
-            surfaceVisual.ApplyPose(position, normal, rotation);
+            surfaceVisual.ApplyPose(
+                position,
+                normal,
+                rotation,
+                wrapAxis,
+                wrapRadius,
+                currentRegion.Value,
+                targetRegion.Value,
+                progress);
         }
 
         ApplyOwnerVisibility(position);
@@ -649,7 +655,9 @@ public class BullseyeMover : NetworkBehaviour
         string text =
             $"Bullseye {state}\n" +
             $"{DebugRegionName(CurrentRegionIndex)} -> {DebugRegionName(TargetRegionIndex)}\n" +
-            $"Progress {MovementProgress:0.00}  Jump {JumpInfluence:0.00}  Turn {TurnInfluence:0.00}";
+            $"Progress {MovementProgress:0.00}  Jump {JumpInfluence:0.00}  Turn {TurnInfluence:0.00}\n" +
+            $"Family {BullseyeSurfaceFamilies.FromRegion((BullseyeSurfaceRegionId)CurrentRegionIndex):0} " +
+            $"-> {BullseyeSurfaceFamilies.FromRegion((BullseyeSurfaceRegionId)TargetRegionIndex):0}";
 
         GUI.color = Color.black;
         GUI.Label(new Rect(12f, 12f, 420f, 70f), text);

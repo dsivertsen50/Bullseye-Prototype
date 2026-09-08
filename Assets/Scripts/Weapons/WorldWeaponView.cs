@@ -204,6 +204,7 @@ public class WorldWeaponView : NetworkBehaviour
             fit.ForceFit();
         ApplyLayerRecursively(instance, WorldWeaponLayerName);
         DisableGameplayCollision(instance);
+        DisableReceiveDecals(instance);
         currentVisual = instance.GetComponent<ThirdPersonWeaponVisual>();
         if (currentVisual != null)
             currentVisual.ResolveFallbacks();
@@ -582,6 +583,32 @@ public class WorldWeaponView : NetworkBehaviour
         Transform[] transforms = root.GetComponentsInChildren<Transform>(true);
         for (int i = 0; i < transforms.Length; i++)
             transforms[i].gameObject.layer = layer;
+    }
+
+    private static void DisableReceiveDecals(GameObject root)
+    {
+        if (root == null)
+            return;
+
+        Renderer[] renderers = root.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer == null)
+                continue;
+
+            Material[] materials = renderer.materials;
+            for (int m = 0; m < materials.Length; m++)
+            {
+                Material material = materials[m];
+                if (material == null)
+                    continue;
+                if (material.HasProperty("_SupportDecals"))
+                    material.SetFloat("_SupportDecals", 0f);
+                if (material.HasProperty("_EnableDecals"))
+                    material.SetFloat("_EnableDecals", 0f);
+            }
+        }
     }
 
     private static void DisableGameplayCollision(GameObject root)
