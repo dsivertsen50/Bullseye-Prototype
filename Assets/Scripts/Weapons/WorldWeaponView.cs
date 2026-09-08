@@ -22,8 +22,6 @@ public class WorldWeaponView : NetworkBehaviour
     [SerializeField] private AudioSource audioSource;
     [SerializeField] private PlayerHealth playerHealth;
     [SerializeField] private PlayerMovement playerMovement;
-    [SerializeField] private float aimPitchSmoothTime = 0.08f;
-    [SerializeField] private float aimPitchSnapDegrees = 25f;
     [SerializeField] private ThirdPersonWeaponRig thirdPersonRig;
 
     private readonly List<GameObject> activeMuzzleEffects = new();

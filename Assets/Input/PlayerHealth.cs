@@ -412,6 +412,9 @@ public class PlayerHealth : NetworkBehaviour
 
         if (shatterController != null)
             shatterController.HandleDeadChanged(dead);
+
+        if (dead && playerHaptics != null)
+            playerHaptics.StopHaptics();
     }
 
     private void PerformRespawn()
@@ -451,6 +454,9 @@ public class PlayerHealth : NetworkBehaviour
 
         if (TryGetComponent(out BullseyeMover mover))
             mover.ResetTurnTracking();
+
+        if (playerHaptics != null)
+            playerHaptics.StopHaptics();
 
         Debug.Log("You were hit! Respawning.");
     }

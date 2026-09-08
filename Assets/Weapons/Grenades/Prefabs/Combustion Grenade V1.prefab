@@ -194,6 +194,9 @@ MonoBehaviour:
   upwardModifier: 0.45
   bullseyeDetachRadius: 6
   bullseyeExplosionForce: 20
+  playExplosionHaptics: 1
+  hapticRadius: 16
+  hapticIntensityMultiplier: 1
   explosionVfx: {fileID: 76819107659794565, guid: be8193c23c455844ba1ff18f0e9fd0a8, type: 3}
   explosionSfx:
   - {fileID: 8300000, guid: 620dad4bb8e4b98429963b3bbe39c191, type: 3}

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -24,6 +25,7 @@ public class ThirdPersonWeaponPoseBinder : MonoBehaviour
     private AnimatorOverrideController overrideController;
     private RuntimeAnimatorController sourceController;
     private readonly AnimationClip[] lastApplied = new AnimationClip[5];
+    private readonly List<KeyValuePair<AnimationClip, AnimationClip>> overridePairs = new();
     private int cachedLayer = int.MinValue;
 
     public int PoseLayerIndex => ResolveLayerIndex();
@@ -137,10 +139,11 @@ public class ThirdPersonWeaponPoseBinder : MonoBehaviour
         if (overrideController == null)
             return;
 
-        AnimationClipPair[] pairs = overrideController.clips;
-        for (int i = 0; i < pairs.Length; i++)
+        overridePairs.Clear();
+        overrideController.GetOverrides(overridePairs);
+        for (int i = 0; i < overridePairs.Count; i++)
         {
-            AnimationClip original = pairs[i].originalClip;
+            AnimationClip original = overridePairs[i].Key;
             if (original == null)
                 continue;
 
