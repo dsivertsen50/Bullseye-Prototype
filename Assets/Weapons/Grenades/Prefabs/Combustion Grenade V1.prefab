@@ -199,16 +199,21 @@ MonoBehaviour:
   hapticIntensityMultiplier: 1
   explosionVfx: {fileID: 76819107659794565, guid: be8193c23c455844ba1ff18f0e9fd0a8, type: 3}
   explosionSfx:
-  - {fileID: 8300000, guid: 620dad4bb8e4b98429963b3bbe39c191, type: 3}
-  - {fileID: 8300000, guid: 3350a9ee3819b7b4a9448517209bcae7, type: 3}
-  - {fileID: 8300000, guid: 8327bacc90a16a441903a18e8fe175b1, type: 3}
-  - {fileID: 8300000, guid: 3443057aff9fa4a49b2e0b7b147f6704, type: 3}
+  - {fileID: 8300000, guid: 7914215f0970f4f40b1294b5e3abdeec, type: 3}
+  - {fileID: 8300000, guid: c785e04a2aa4af9418916d282cb91920, type: 3}
+  - {fileID: 8300000, guid: ee5811563d07e634db17caf0c82694f6, type: 3}
+  - {fileID: 8300000, guid: 7e992c43f70dff7498702d2859537a7d, type: 3}
+  - {fileID: 8300000, guid: 3edcc31c993506c4d98035be5bd69f3f, type: 3}
   explosionSfxVolume: 0.9
+  explosionSfxMinDistance: 8
+  explosionSfxMaxDistance: 60
   collisionSfx:
   - {fileID: 8300000, guid: 7159759be8bab914bbe48609de62f01c, type: 3}
   - {fileID: 8300000, guid: 738e3bff6c9edfe409dcb5b68d82d66a, type: 3}
   - {fileID: 8300000, guid: ea59d39fa74faef4691d27695d8fd0bb, type: 3}
   collisionSfxVolume: 0.65
+  collisionSfxMinDistance: 1.5
+  collisionSfxMaxDistance: 25
   minCollisionSpeed: 1.2
   maxCollisionSpeed: 10
   collisionSfxCooldown: 0.12

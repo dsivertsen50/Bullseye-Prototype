@@ -13,11 +13,17 @@ MonoBehaviour:
   m_Name: SniperRiflePresentation
   m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationConfig
   weaponName: Sniper Rifle
-  fireSfx: {fileID: 8300000, guid: 14e5c184b373f684a855502954d4b743, type: 3}
+  fireSfx:
+  - {fileID: 8300000, guid: cf3ba3cc772f29c43b2b5cc105f7bb72, type: 3}
+  - {fileID: 8300000, guid: d81875379bd272943ae0b54320076275, type: 3}
+  - {fileID: 8300000, guid: 2f5c98a36251a8145956c91d821c0592, type: 3}
+  - {fileID: 8300000, guid: cf3ba3cc772f29c43b2b5cc105f7bb72, type: 3}
+  - {fileID: 8300000, guid: 3fd7409816d0d45488a52d26e6d78ad7, type: 3}
+  - {fileID: 8300000, guid: eaeaed82794acc24cba4605bbb775a62, type: 3}
   reloadSfx: {fileID: 8300000, guid: 2500adc48795c134dbbaa01b6fc02b59, type: 3}
   holsterSfx: {fileID: 8300000, guid: 6a6bf3bfedd8c184db7f1ebe0c4cc980, type: 3}
   unholsterSfx: {fileID: 8300000, guid: 69d54ae21446b744f8e795c130ea6671, type: 3}
-  fireSfxVolume: 0.9
+  fireSfxVolume: 1
   muzzleVfxPrefab: {fileID: 1336949550903370, guid: 1516ae0797a26504d9176ebb54d1e466, type: 3}
   muzzleVfxLocalScale: {x: 0.35, y: 0.35, z: 0.35}
   muzzleVfxLifetime: 0.6

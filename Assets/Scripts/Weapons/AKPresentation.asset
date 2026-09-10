@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: AKPresentation
   m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationConfig
   weaponName: AK
-  fireSfx: {fileID: 8300000, guid: 14e5c184b373f684a855502954d4b743, type: 3}
+  fireSfx:
+  - {fileID: 8300000, guid: 14e5c184b373f684a855502954d4b743, type: 3}
   reloadSfx: {fileID: 8300000, guid: 2500adc48795c134dbbaa01b6fc02b59, type: 3}
   holsterSfx: {fileID: 8300000, guid: 6a6bf3bfedd8c184db7f1ebe0c4cc980, type: 3}
   unholsterSfx: {fileID: 8300000, guid: 69d54ae21446b744f8e795c130ea6671, type: 3}

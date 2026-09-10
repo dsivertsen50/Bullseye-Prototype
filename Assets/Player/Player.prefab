@@ -1095,7 +1095,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 1326795168
+  GlobalObjectIdHash: 2635609592
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -1842,8 +1842,6 @@ MonoBehaviour:
   audioSource: {fileID: 2195081079409198252}
   playerHealth: {fileID: 3086871669323907386}
   playerMovement: {fileID: 3032247509169584174}
-  aimPitchSmoothTime: 0.08
-  aimPitchSnapDegrees: 25
   thirdPersonRig: {fileID: 8776071615408029184}
 --- !u!114 &5642174431376560924
 MonoBehaviour:
@@ -2028,16 +2026,11 @@ MonoBehaviour:
   throwOriginDown: 0.18
   maxReportedOriginDistance: 3.5
   grenadeThrowSfx:
-  - {fileID: 8300000, guid: 7b38b1b758f207b48a4a78cd0b7b94fa, type: 3}
-  - {fileID: 8300000, guid: 705d9285ed4fbf44bb8de3b4f75ff969, type: 3}
-  - {fileID: 8300000, guid: da94ae3b663d65d479e5cc2233043cb4, type: 3}
-  - {fileID: 8300000, guid: ada4319dc7b507547bfefbeda133745b, type: 3}
-  - {fileID: 8300000, guid: 2dfa86b34e1ee444587f27ba295aa46b, type: 3}
-  - {fileID: 8300000, guid: 8ad8e1b7041dd394aa92aad52c8636e5, type: 3}
-  - {fileID: 8300000, guid: 79f48574cbf0be842b5c7133147f3f9f, type: 3}
-  - {fileID: 8300000, guid: 425b173908d24124facd5a0b17af5f52, type: 3}
-  - {fileID: 8300000, guid: 63b52e0320e1cd54788f1e7495d101c1, type: 3}
-  - {fileID: 8300000, guid: ac1cb04ab9cfeb74c8de45aa81c06351, type: 3}
+  - {fileID: 8300000, guid: 5f875109910ccc9498a8ef5f9b867572, type: 3}
+  - {fileID: 8300000, guid: 189f7defd9242324ab7b11d3ad9174ca, type: 3}
+  - {fileID: 8300000, guid: 54adc38d58ceb7e46a63fc4ff357c34e, type: 3}
+  - {fileID: 8300000, guid: 6ae00d9e3d53b5b41918657780c2955e, type: 3}
+  - {fileID: 8300000, guid: 6ae00d9e3d53b5b41918657780c2955e, type: 3}
   throwSfxVolume: 0.7
   grenadeAction: {fileID: 0}
   nextGrenadeAction: {fileID: 0}

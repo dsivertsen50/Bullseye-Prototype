@@ -13,11 +13,22 @@ MonoBehaviour:
   m_Name: DMRPresentation
   m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationConfig
   weaponName: DMR
-  fireSfx: {fileID: 8300000, guid: 14e5c184b373f684a855502954d4b743, type: 3}
+  fireSfx:
+  - {fileID: 8300000, guid: 08be7ac5509cc3b4699b6e7a43a32842, type: 3}
+  - {fileID: 8300000, guid: 8083721e148e07844ac7b5c4b124b370, type: 3}
+  - {fileID: 8300000, guid: b4e4e27ffb56a544b988691dd13e89e5, type: 3}
+  - {fileID: 8300000, guid: 1478bd24165958249b36268586949f36, type: 3}
+  - {fileID: 8300000, guid: e335a76c867e09e45a8b8a304b795caa, type: 3}
+  - {fileID: 8300000, guid: 4ef70181bf7f3e3439e313b0e4bdbbb3, type: 3}
+  - {fileID: 8300000, guid: 69daf409f8a64c54ab96641b90a5fffd, type: 3}
+  - {fileID: 8300000, guid: 5f2ff54bbb887f04b9fb9e5875a69aed, type: 3}
+  - {fileID: 8300000, guid: 08be7ac5509cc3b4699b6e7a43a32842, type: 3}
+  - {fileID: 8300000, guid: 627df0da3fe199944a6c7c906c894d6f, type: 3}
+  - {fileID: 8300000, guid: 7a535d8dda6784448ac2cc639059e410, type: 3}
   reloadSfx: {fileID: 8300000, guid: 2500adc48795c134dbbaa01b6fc02b59, type: 3}
   holsterSfx: {fileID: 8300000, guid: 6a6bf3bfedd8c184db7f1ebe0c4cc980, type: 3}
   unholsterSfx: {fileID: 8300000, guid: 69d54ae21446b744f8e795c130ea6671, type: 3}
-  fireSfxVolume: 0.7
+  fireSfxVolume: 0.8
   muzzleVfxPrefab: {fileID: 1336949550903370, guid: 1516ae0797a26504d9176ebb54d1e466, type: 3}
   muzzleVfxLocalScale: {x: 0.35, y: 0.35, z: 0.35}
   muzzleVfxLifetime: 0.6

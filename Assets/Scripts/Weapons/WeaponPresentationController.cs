@@ -189,7 +189,7 @@ public class WeaponPresentationController : NetworkBehaviour
             return;
 
         PlayAnimationState(config != null ? config.FireAnimationState : "Fire", config != null ? config.FireAnimationSpeed : 1f);
-        PlayClip(config != null ? config.FireSfx : null, config != null ? config.FireSfxVolume : 1f);
+        PlayClip(config != null ? config.PickFireSfx() : null, config != null ? config.FireSfxVolume : 1f);
         SpawnMuzzleEffect();
         PlayProceduralFireKick();
         RaiseRecoilRequest();

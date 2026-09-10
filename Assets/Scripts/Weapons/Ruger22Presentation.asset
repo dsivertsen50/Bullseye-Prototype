@@ -13,11 +13,20 @@ MonoBehaviour:
   m_Name: Ruger22Presentation
   m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationConfig
   weaponName: Pistol
-  fireSfx: {fileID: 8300000, guid: 9cccbc0c49ea02e44ac68422bc2714e8, type: 3}
+  fireSfx:
+  - {fileID: 8300000, guid: b000f1dd9f2c47147a0984231e5358ee, type: 3}
+  - {fileID: 8300000, guid: 46f1c43d07d38bf4bb791ac7a5c27b5b, type: 3}
+  - {fileID: 8300000, guid: 311c201558bf9684c9da0c55f48bae60, type: 3}
+  - {fileID: 8300000, guid: d7d691243978a6046abbb8780f0c9ead, type: 3}
+  - {fileID: 8300000, guid: a55d2aaeb3b798e4fbb25971fa773a14, type: 3}
+  - {fileID: 8300000, guid: 6fa76945a1b66e042a82f6a52e570f5d, type: 3}
+  - {fileID: 8300000, guid: 52effcffe2e22f642b4c17769b1d891a, type: 3}
+  - {fileID: 8300000, guid: 139f8a93edc77404cad18e1b146da39b, type: 3}
+  - {fileID: 8300000, guid: 9658eaa56315a9444b29cb7c2be32968, type: 3}
   reloadSfx: {fileID: 8300000, guid: 379ac0d7119ad4842b7cd122cfd11307, type: 3}
   holsterSfx: {fileID: 8300000, guid: 6a6bf3bfedd8c184db7f1ebe0c4cc980, type: 3}
   unholsterSfx: {fileID: 8300000, guid: d4a4b9d733759fd4e9447d7ad55f0ed7, type: 3}
-  fireSfxVolume: 0.7
+  fireSfxVolume: 0.8
   muzzleVfxPrefab: {fileID: 1336949550903370, guid: 1516ae0797a26504d9176ebb54d1e466, type: 3}
   muzzleVfxLocalScale: {x: 0.35, y: 0.35, z: 0.35}
   muzzleVfxLifetime: 0.6

@@ -146,7 +146,7 @@ public class WorldWeaponView : NetworkBehaviour
             return;
 
         WeaponPresentationConfig config = Config;
-        PlayClip(config != null ? config.FireSfx : null, config != null ? config.WorldFireSfxVolume : 1f);
+        PlayClip(config != null ? config.PickFireSfx() : null, config != null ? config.WorldFireSfxVolume : 1f);
         SpawnMuzzleEffect();
         // REQ-049: do not kick the world weapon. Grip_R / Grip_L live on that
         // transform, so a kick yanks both arms outward through IK.
