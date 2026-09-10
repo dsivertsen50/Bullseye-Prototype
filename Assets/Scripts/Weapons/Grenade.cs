@@ -28,8 +28,12 @@ public class Grenade : NetworkBehaviour
     [SerializeField] private GameObject explosionVfx;
     [SerializeField] private AudioClip[] explosionSfx;
     [SerializeField] private float explosionSfxVolume = 0.9f;
+    [SerializeField, Min(0.05f)] private float explosionSfxMinDistance = 8f;
+    [SerializeField, Min(0.1f)] private float explosionSfxMaxDistance = 60f;
     [SerializeField] private AudioClip[] collisionSfx;
     [SerializeField] private float collisionSfxVolume = 0.65f;
+    [SerializeField, Min(0.05f)] private float collisionSfxMinDistance = 1.5f;
+    [SerializeField, Min(0.1f)] private float collisionSfxMaxDistance = 25f;
     [SerializeField] private float minCollisionSpeed = 1.2f;
     [SerializeField] private float maxCollisionSpeed = 10f;
     [SerializeField] private float collisionSfxCooldown = 0.12f;
@@ -227,7 +231,12 @@ public class Grenade : NetworkBehaviour
         if (clip == null)
             return;
 
-        AudioSource.PlayClipAtPoint(clip, point, volume);
+        PlaySpatialClip(
+            clip,
+            point,
+            volume,
+            collisionSfxMinDistance,
+            collisionSfxMaxDistance);
     }
 
     private bool TryGetImpactVolume(float speed, out float volume)
@@ -246,7 +255,14 @@ public class Grenade : NetworkBehaviour
     {
         AudioClip blast = PickRandom(explosionSfx);
         if (blast != null)
-            AudioSource.PlayClipAtPoint(blast, origin, Mathf.Clamp01(explosionSfxVolume));
+        {
+            PlaySpatialClip(
+                blast,
+                origin,
+                Mathf.Clamp01(explosionSfxVolume),
+                explosionSfxMinDistance,
+                explosionSfxMaxDistance);
+        }
 
         GameObject effect = explosionVfx != null
             ? Instantiate(explosionVfx, origin, Quaternion.identity)
@@ -256,6 +272,35 @@ public class Grenade : NetworkBehaviour
             Destroy(effect, Mathf.Max(0.25f, vfxLifetime));
 
         NotifyLocalExplosionHaptics(origin);
+    }
+
+    private static void PlaySpatialClip(
+        AudioClip clip,
+        Vector3 position,
+        float volume,
+        float minDistance,
+        float maxDistance)
+    {
+        if (clip == null)
+            return;
+
+        var go = new GameObject("GrenadeSfx");
+        go.transform.position = position;
+        AudioSource source = go.AddComponent<AudioSource>();
+        source.clip = clip;
+        source.volume = Mathf.Clamp01(volume);
+        source.playOnAwake = false;
+        source.loop = false;
+        source.spatialBlend = 1f;
+        source.rolloffMode = AudioRolloffMode.Logarithmic;
+        source.dopplerLevel = 0f;
+        source.minDistance = Mathf.Max(0.05f, minDistance);
+        source.maxDistance = Mathf.Max(source.minDistance + 0.1f, maxDistance);
+        PlayerGameSettings.RouteToSfx(source);
+        source.Play();
+
+        float lifetime = clip.length / Mathf.Max(0.01f, source.pitch) + 0.1f;
+        Object.Destroy(go, lifetime);
     }
 
     private void NotifyLocalExplosionHaptics(Vector3 origin)
@@ -332,6 +377,10 @@ public class Grenade : NetworkBehaviour
         bullseyeExplosionForce = Mathf.Max(0f, bullseyeExplosionForce);
         explosionSfxVolume = Mathf.Clamp01(explosionSfxVolume);
         collisionSfxVolume = Mathf.Clamp01(collisionSfxVolume);
+        explosionSfxMinDistance = Mathf.Max(0.05f, explosionSfxMinDistance);
+        explosionSfxMaxDistance = Mathf.Max(explosionSfxMinDistance + 0.1f, explosionSfxMaxDistance);
+        collisionSfxMinDistance = Mathf.Max(0.05f, collisionSfxMinDistance);
+        collisionSfxMaxDistance = Mathf.Max(collisionSfxMinDistance + 0.1f, collisionSfxMaxDistance);
         minCollisionSpeed = Mathf.Max(0.05f, minCollisionSpeed);
         maxCollisionSpeed = Mathf.Max(minCollisionSpeed, maxCollisionSpeed);
         collisionSfxCooldown = Mathf.Max(0.02f, collisionSfxCooldown);

@@ -11,7 +11,7 @@ public class WeaponPresentationConfig : ScriptableObject
     [SerializeField] private string weaponName = "Ruger 22";
 
     [Header("Audio")]
-    [SerializeField] private AudioClip fireSfx;
+    [SerializeField] private AudioClip[] fireSfx;
     [SerializeField] private AudioClip reloadSfx;
     [SerializeField] private AudioClip holsterSfx;
     [SerializeField] private AudioClip unholsterSfx;
@@ -130,7 +130,7 @@ public class WeaponPresentationConfig : ScriptableObject
     [SerializeField] private float worldAudioMaxDistance = 45f;
 
     public string WeaponName => weaponName;
-    public AudioClip FireSfx => fireSfx;
+    public AudioClip[] FireSfx => fireSfx;
     public AudioClip ReloadSfx => reloadSfx;
     public AudioClip HolsterSfx => holsterSfx;
     public AudioClip UnholsterSfx => unholsterSfx;
@@ -210,6 +210,34 @@ public class WeaponPresentationConfig : ScriptableObject
     public float WorldFireSfxVolume => worldFireSfxVolume;
     public float WorldAudioMinDistance => worldAudioMinDistance;
     public float WorldAudioMaxDistance => worldAudioMaxDistance;
+
+    public AudioClip PickFireSfx()
+    {
+        if (fireSfx == null || fireSfx.Length == 0)
+            return null;
+
+        int assigned = 0;
+        for (int i = 0; i < fireSfx.Length; i++)
+        {
+            if (fireSfx[i] != null)
+                assigned++;
+        }
+
+        if (assigned <= 0)
+            return null;
+
+        int pick = Random.Range(0, assigned);
+        for (int i = 0; i < fireSfx.Length; i++)
+        {
+            if (fireSfx[i] == null)
+                continue;
+            if (pick == 0)
+                return fireSfx[i];
+            pick--;
+        }
+
+        return null;
+    }
 
     public void SampleFireKick(out Vector3 position, out Vector3 euler)
     {

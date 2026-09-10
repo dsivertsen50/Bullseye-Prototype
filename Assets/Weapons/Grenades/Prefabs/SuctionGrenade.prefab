@@ -294,11 +294,15 @@ MonoBehaviour:
   - {fileID: 8300000, guid: 8327bacc90a16a441903a18e8fe175b1, type: 3}
   - {fileID: 8300000, guid: 3443057aff9fa4a49b2e0b7b147f6704, type: 3}
   explosionSfxVolume: 0.9
+  explosionSfxMinDistance: 8
+  explosionSfxMaxDistance: 60
   collisionSfx:
   - {fileID: 8300000, guid: 7159759be8bab914bbe48609de62f01c, type: 3}
   - {fileID: 8300000, guid: 738e3bff6c9edfe409dcb5b68d82d66a, type: 3}
   - {fileID: 8300000, guid: ea59d39fa74faef4691d27695d8fd0bb, type: 3}
   collisionSfxVolume: 0.65
+  collisionSfxMinDistance: 1.5
+  collisionSfxMaxDistance: 25
   minCollisionSpeed: 1.2
   maxCollisionSpeed: 10
   collisionSfxCooldown: 0.12

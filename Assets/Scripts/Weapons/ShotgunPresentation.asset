@@ -13,11 +13,21 @@ MonoBehaviour:
   m_Name: ShotgunPresentation
   m_EditorClassIdentifier: Assembly-CSharp::WeaponPresentationConfig
   weaponName: Shotgun
-  fireSfx: {fileID: 8300000, guid: 2c02e9ff0974fb546b3092da2ec76015, type: 3}
+  fireSfx:
+  - {fileID: 8300000, guid: d92ebdd998b8b84408a525301d2160ed, type: 3}
+  - {fileID: 8300000, guid: 2c461ad3e7942864ca63398c8faeeece, type: 3}
+  - {fileID: 8300000, guid: b52debb14d353d74aa4df4539e7cc993, type: 3}
+  - {fileID: 8300000, guid: b5fa137daa07a5e45b22e9400673d683, type: 3}
+  - {fileID: 8300000, guid: b774ef5bcc59a75409da7a04ff1ad1f8, type: 3}
+  - {fileID: 8300000, guid: be7e6299048c28949bf8b49a0b47f66f, type: 3}
+  - {fileID: 8300000, guid: a89adc4065f2b4546ace4c59ed3f780b, type: 3}
+  - {fileID: 8300000, guid: 03332e8c38f94a9409153158894c16b3, type: 3}
+  - {fileID: 8300000, guid: 05c72d261ff45c244a85b61cb13b3b1b, type: 3}
+  - {fileID: 8300000, guid: d92ebdd998b8b84408a525301d2160ed, type: 3}
   reloadSfx: {fileID: 8300000, guid: 5daa71d1c139a59429d245f3b92606a7, type: 3}
   holsterSfx: {fileID: 8300000, guid: 1a8b603975f0be64cb7b8fe4b164e69a, type: 3}
   unholsterSfx: {fileID: 8300000, guid: d4a4b9d733759fd4e9447d7ad55f0ed7, type: 3}
-  fireSfxVolume: 0.7
+  fireSfxVolume: 0.75
   muzzleVfxPrefab: {fileID: 1336949550903370, guid: 1516ae0797a26504d9176ebb54d1e466, type: 3}
   muzzleVfxLocalScale: {x: 0.35, y: 0.35, z: 0.35}
   muzzleVfxLifetime: 0.6
