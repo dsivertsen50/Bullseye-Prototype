@@ -33,6 +33,7 @@ public class PlayerShoot : NetworkBehaviour
     private PlayerWeaponController weaponController;
     private PlayerWeaponInteractor interactor;
     private WeaponAccuracyController accuracy;
+    private PlayerProjectileLauncher projectileLauncher;
     private InputAction reloadAction;
     private float nextFireTime;
 
@@ -47,6 +48,7 @@ public class PlayerShoot : NetworkBehaviour
         weaponController = GetComponent<PlayerWeaponController>();
         interactor = GetComponent<PlayerWeaponInteractor>();
         accuracy = GetComponent<WeaponAccuracyController>();
+        projectileLauncher = GetComponent<PlayerProjectileLauncher>();
     }
 
     private void OnEnable()
@@ -101,7 +103,33 @@ public class PlayerShoot : NetworkBehaviour
 
         WeaponDefinition definition = inventory != null ? inventory.ActiveDefinition : null;
         nextFireTime = Time.time + (definition != null ? definition.FireRate : 0.12f);
-        Shoot();
+        if (definition != null && definition.IsProjectileWeapon)
+            FireProjectile(definition);
+        else
+            Shoot();
+    }
+
+    private void FireProjectile(WeaponDefinition definition)
+    {
+        if (projectileLauncher == null)
+            projectileLauncher = GetComponent<PlayerProjectileLauncher>();
+
+        if (projectileLauncher == null || !projectileLauncher.TryFire(definition))
+            return;
+
+        if (inventory != null)
+            inventory.NotifyShotFired();
+
+        if (playerHaptics != null)
+            playerHaptics.PlayFireRumble();
+
+        if (weaponPresentationCoordinator != null)
+            weaponPresentationCoordinator.NotifyFire();
+        else if (weaponPresentation != null)
+            weaponPresentation.PlayFirePresentation();
+
+        if (accuracy != null)
+            accuracy.NotifyShotFired();
     }
 
     private void Shoot()

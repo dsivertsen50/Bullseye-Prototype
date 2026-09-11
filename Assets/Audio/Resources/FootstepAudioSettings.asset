@@ -1,0 +1,161 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f2f24208b3012e46bc49ca00b37c864, type: 3}
+  m_Name: FootstepAudioSettings
+  m_EditorClassIdentifier: Assembly-CSharp::FootstepAudioSettings
+  defaultSurface:
+    surface: 0
+    walkClips: []
+    sprintClips: []
+  grass:
+    surface: 1
+    walkClips:
+    - {fileID: 8300000, guid: 4256b93bebd4c7f4a9027f44b719fdef, type: 3}
+    - {fileID: 8300000, guid: 5e31c5671ebf6cf428f1e92a451b943a, type: 3}
+    - {fileID: 8300000, guid: 3405f13a239bfeb4db42e99c77adde2f, type: 3}
+    - {fileID: 8300000, guid: e8d3d5b37a06a6a44affbc5ce6886eeb, type: 3}
+    - {fileID: 8300000, guid: 06c167f08bc9579479c3dee3c2dc8c82, type: 3}
+    - {fileID: 8300000, guid: af6d4404f176610488f7348229a6fa2d, type: 3}
+    - {fileID: 8300000, guid: 7ab8c1c607fa04d4fb5cdd0b0ff86ad7, type: 3}
+    - {fileID: 8300000, guid: 67d1943b24799b843bd213ce6226ca9d, type: 3}
+    - {fileID: 8300000, guid: 5f4f4ae78aab007428cc34ee5bd7c7b2, type: 3}
+    - {fileID: 8300000, guid: 8ee579110bed85a4fbf624a05e7b6a74, type: 3}
+    - {fileID: 0}
+    sprintClips:
+    - {fileID: 8300000, guid: 057c26428ba159549a7e056ee172d163, type: 3}
+    - {fileID: 8300000, guid: 4256b93bebd4c7f4a9027f44b719fdef, type: 3}
+    - {fileID: 8300000, guid: 5e31c5671ebf6cf428f1e92a451b943a, type: 3}
+    - {fileID: 8300000, guid: 3405f13a239bfeb4db42e99c77adde2f, type: 3}
+    - {fileID: 8300000, guid: e8d3d5b37a06a6a44affbc5ce6886eeb, type: 3}
+    - {fileID: 8300000, guid: e8d3d5b37a06a6a44affbc5ce6886eeb, type: 3}
+    - {fileID: 8300000, guid: 06c167f08bc9579479c3dee3c2dc8c82, type: 3}
+    - {fileID: 8300000, guid: af6d4404f176610488f7348229a6fa2d, type: 3}
+    - {fileID: 8300000, guid: 7ab8c1c607fa04d4fb5cdd0b0ff86ad7, type: 3}
+    - {fileID: 8300000, guid: 5f4f4ae78aab007428cc34ee5bd7c7b2, type: 3}
+    - {fileID: 8300000, guid: 8ee579110bed85a4fbf624a05e7b6a74, type: 3}
+  dirt:
+    surface: 2
+    walkClips:
+    - {fileID: 8300000, guid: 1eb5bb17c4eb2624eae0f4bfab2b5bf1, type: 3}
+    - {fileID: 8300000, guid: 3492ce7e4e8d55643b29ccb4dad09ba7, type: 3}
+    - {fileID: 8300000, guid: 15e1249420898554e80127e82fcd03f0, type: 3}
+    - {fileID: 8300000, guid: 073358b9d157756449c60da1aad6fec9, type: 3}
+    - {fileID: 8300000, guid: 902a1cebe041a7d41879a9e3d457282f, type: 3}
+    - {fileID: 8300000, guid: 58c5019a4c081cd4691d1cb96484de7c, type: 3}
+    - {fileID: 8300000, guid: 6f25114266879ea46a4ac0e4e98b1166, type: 3}
+    - {fileID: 8300000, guid: 741ede597ab537d40ab4a50d6b0b06c9, type: 3}
+    - {fileID: 8300000, guid: 47bf47f0b9eaff64393b384462268c04, type: 3}
+    - {fileID: 8300000, guid: 17aa57f8787178642ae6515aee16e5aa, type: 3}
+    - {fileID: 8300000, guid: e2b426f2022ac314b81ba505625ed869, type: 3}
+    - {fileID: 8300000, guid: b03d9d2ff4b35c44eb640e760f606340, type: 3}
+    sprintClips:
+    - {fileID: 8300000, guid: 1eb5bb17c4eb2624eae0f4bfab2b5bf1, type: 3}
+    - {fileID: 8300000, guid: 3492ce7e4e8d55643b29ccb4dad09ba7, type: 3}
+    - {fileID: 8300000, guid: 15e1249420898554e80127e82fcd03f0, type: 3}
+    - {fileID: 8300000, guid: 073358b9d157756449c60da1aad6fec9, type: 3}
+    - {fileID: 8300000, guid: 902a1cebe041a7d41879a9e3d457282f, type: 3}
+    - {fileID: 8300000, guid: 58c5019a4c081cd4691d1cb96484de7c, type: 3}
+    - {fileID: 8300000, guid: 6f25114266879ea46a4ac0e4e98b1166, type: 3}
+    - {fileID: 8300000, guid: 741ede597ab537d40ab4a50d6b0b06c9, type: 3}
+    - {fileID: 8300000, guid: 47bf47f0b9eaff64393b384462268c04, type: 3}
+    - {fileID: 8300000, guid: 17aa57f8787178642ae6515aee16e5aa, type: 3}
+    - {fileID: 8300000, guid: e2b426f2022ac314b81ba505625ed869, type: 3}
+    - {fileID: 8300000, guid: b03d9d2ff4b35c44eb640e760f606340, type: 3}
+  concrete:
+    surface: 3
+    walkClips:
+    - {fileID: 8300000, guid: c12edcf89230dbf4594453b225822c6d, type: 3}
+    - {fileID: 8300000, guid: d15d1c86e52825e458b76c1cc1973a70, type: 3}
+    - {fileID: 8300000, guid: 7eded361228828146b7cf304b72b6019, type: 3}
+    - {fileID: 8300000, guid: 9f1ecd4ddbaa2c1408b42a15fcfbcb57, type: 3}
+    - {fileID: 8300000, guid: 1a4d55d3266fa1f4e97b8e0a552bcf73, type: 3}
+    - {fileID: 8300000, guid: 46c59f34004cd704197812d93418d576, type: 3}
+    - {fileID: 8300000, guid: cddf7bec54fb55f41a7ff5b21039ec08, type: 3}
+    - {fileID: 8300000, guid: 7ca9a9c8b92f8994d9716243459b430b, type: 3}
+    - {fileID: 8300000, guid: 6e4d30a1c03864647b79c54eb2a54faa, type: 3}
+    - {fileID: 8300000, guid: 77fa91860682df84f973b1dc2139283a, type: 3}
+    - {fileID: 8300000, guid: 3233f9b755cf26a4fa6a67365df0e090, type: 3}
+    - {fileID: 8300000, guid: f2a0c169f49ea1d47bd59e56b848753e, type: 3}
+    sprintClips:
+    - {fileID: 8300000, guid: c12edcf89230dbf4594453b225822c6d, type: 3}
+    - {fileID: 8300000, guid: d15d1c86e52825e458b76c1cc1973a70, type: 3}
+    - {fileID: 8300000, guid: 7eded361228828146b7cf304b72b6019, type: 3}
+    - {fileID: 8300000, guid: 9f1ecd4ddbaa2c1408b42a15fcfbcb57, type: 3}
+    - {fileID: 8300000, guid: 1a4d55d3266fa1f4e97b8e0a552bcf73, type: 3}
+    - {fileID: 8300000, guid: 46c59f34004cd704197812d93418d576, type: 3}
+    - {fileID: 8300000, guid: cddf7bec54fb55f41a7ff5b21039ec08, type: 3}
+    - {fileID: 8300000, guid: 7ca9a9c8b92f8994d9716243459b430b, type: 3}
+    - {fileID: 8300000, guid: 6e4d30a1c03864647b79c54eb2a54faa, type: 3}
+    - {fileID: 8300000, guid: 77fa91860682df84f973b1dc2139283a, type: 3}
+    - {fileID: 8300000, guid: 3233f9b755cf26a4fa6a67365df0e090, type: 3}
+    - {fileID: 8300000, guid: f2a0c169f49ea1d47bd59e56b848753e, type: 3}
+  metal:
+    surface: 4
+    walkClips:
+    - {fileID: 8300000, guid: 896dc2098d73f0448a4a4215a8f14973, type: 3}
+    - {fileID: 8300000, guid: 7da281171d4483c46af9e3a7606d087e, type: 3}
+    - {fileID: 8300000, guid: cfb9c2f221f3d1f478c98dfe14df4cd7, type: 3}
+    - {fileID: 8300000, guid: ab6bb0b70cf610e45bd8d7ee700bf058, type: 3}
+    - {fileID: 8300000, guid: fa23488f2876d32448d906a938144b93, type: 3}
+    - {fileID: 8300000, guid: 805bc6ea0e390914a8a1a0479e43943e, type: 3}
+    - {fileID: 8300000, guid: ea7daaf4cf12d244e9b7a441101760de, type: 3}
+    - {fileID: 8300000, guid: dde245e2bfc85844e9988fdd01c05b25, type: 3}
+    - {fileID: 8300000, guid: 38aa6bfa6136af343973b1c0571b6e2b, type: 3}
+    - {fileID: 8300000, guid: 18f3830e86feaa543a4d52d8e4730771, type: 3}
+    - {fileID: 8300000, guid: 9d51112f1023c14469fc2d98aa7023b7, type: 3}
+    - {fileID: 8300000, guid: bbbfafee073ce3b4785d9262e9ed847e, type: 3}
+    sprintClips:
+    - {fileID: 8300000, guid: 896dc2098d73f0448a4a4215a8f14973, type: 3}
+    - {fileID: 8300000, guid: 7da281171d4483c46af9e3a7606d087e, type: 3}
+    - {fileID: 8300000, guid: cfb9c2f221f3d1f478c98dfe14df4cd7, type: 3}
+    - {fileID: 8300000, guid: ab6bb0b70cf610e45bd8d7ee700bf058, type: 3}
+    - {fileID: 8300000, guid: fa23488f2876d32448d906a938144b93, type: 3}
+    - {fileID: 8300000, guid: 805bc6ea0e390914a8a1a0479e43943e, type: 3}
+    - {fileID: 8300000, guid: ea7daaf4cf12d244e9b7a441101760de, type: 3}
+    - {fileID: 8300000, guid: dde245e2bfc85844e9988fdd01c05b25, type: 3}
+    - {fileID: 8300000, guid: 38aa6bfa6136af343973b1c0571b6e2b, type: 3}
+    - {fileID: 8300000, guid: 18f3830e86feaa543a4d52d8e4730771, type: 3}
+    - {fileID: 8300000, guid: 9d51112f1023c14469fc2d98aa7023b7, type: 3}
+    - {fileID: 8300000, guid: bbbfafee073ce3b4785d9262e9ed847e, type: 3}
+  rock:
+    surface: 5
+    walkClips: []
+    sprintClips: []
+  stone:
+    surface: 6
+    walkClips: []
+    sprintClips: []
+  wood:
+    surface: 7
+    walkClips: []
+    sprintClips: []
+  sand:
+    surface: 8
+    walkClips: []
+    sprintClips: []
+  water:
+    surface: 9
+    walkClips: []
+    sprintClips: []
+  walkInterval: 0.58
+  sprintInterval: 0.28
+  crouchInterval: 0.75
+  minimumMoveSpeed: 0.85
+  walkVolume: 0.38
+  sprintVolume: 0.8
+  crouchVolume: 0.21
+  volumeVariation: 0.12
+  walkPitch: 1.04
+  sprintPitch: 0.96
+  pitchVariation: 0.12
+  minDistance: 1.2
+  maxDistance: 22

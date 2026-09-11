@@ -81,6 +81,7 @@ public class WeaponPresentationController : NetworkBehaviour
     public Transform WeaponEffectsRoot => weaponEffectsRoot;
     public Transform WeaponMount => weaponMount;
     public Transform AimRoot => aimRoot;
+    public Transform MuzzlePoint => muzzlePoint;
     public bool IsAiming => aiming;
     public float AimBlend => aimBlend;
     public float CurrentSwayMultiplier => Mathf.Lerp(1f, config != null ? config.AdsSwayMultiplier : 1f, aimBlend);

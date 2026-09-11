@@ -1053,6 +1053,8 @@ GameObject:
   - component: {fileID: 7749199052802076623}
   - component: {fileID: 5292090911559421831}
   - component: {fileID: 4451154756887156191}
+  - component: {fileID: 3453876076560794487}
+  - component: {fileID: 1349647467781100847}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -2655,6 +2657,44 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   menuState: {fileID: 3776806636685468514}
   scoreboardAction: {fileID: -121809073587106953, guid: d5774e102d654bd409097006f9ceb460, type: 3}
+--- !u!114 &3453876076560794487
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0e9b9c892798752459e1910daab80283, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerProjectileLauncher
+  ShowTopMostFoldoutHeaderGroup: 1
+  playerCamera: {fileID: 6286195477711956745}
+  firstPersonWeapon: {fileID: 451532193065686183}
+  worldWeapon: {fileID: 77922413974407629}
+  inventory: {fileID: 468255037840781085}
+  playerHealth: {fileID: 3086871669323907386}
+  maxReportedMuzzleDistance: 3.5
+--- !u!114 &1349647467781100847
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: de91524b9225c0d49858e6a6838be651, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerFootstepAudio
+  settings: {fileID: 11400000, guid: e6e9e57bdcb23af4c8684c63e4f9975e, type: 2}
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  probeHeight: 0.45
+  probeDistance: 1.6
+  ownerSpatialBlend: 0.22
 --- !u!1 &3625492656395199349
 GameObject:
   m_ObjectHideFlags: 0
