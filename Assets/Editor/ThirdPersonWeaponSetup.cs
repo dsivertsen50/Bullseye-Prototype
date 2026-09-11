@@ -16,6 +16,7 @@ public static class ThirdPersonWeaponSetup
     public const string DmrPath = PrefabFolder + "/ThirdPerson_DMR.prefab";
     public const string SniperPath = PrefabFolder + "/ThirdPerson_Sniper.prefab";
     public const string ShotgunPath = PrefabFolder + "/ThirdPerson_Shotgun.prefab";
+    public const string BazookaPath = PrefabFolder + "/ThirdPerson_Bazooka.prefab";
 
     [MenuItem("Bullseye/Weapons/Apply REQ-047 Weapon Rig (Deprecated)")]
     public static void ApplyReq047FromMenu()

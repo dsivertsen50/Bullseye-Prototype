@@ -172,6 +172,28 @@ public class CombatTelemetryManager : MonoBehaviour
         });
     }
 
+    public void RecordWeaponDamage(
+        ulong attackerClientId,
+        ulong victimClientId,
+        string weaponId,
+        float distance,
+        int damageAmount)
+    {
+        if (!BeginRecord() || damageAmount <= 0)
+            return;
+
+        AddEvent(new CombatEvent
+        {
+            Type = CombatEventType.BullseyeDamaged,
+            ActorClientId = attackerClientId,
+            TargetClientId = victimClientId,
+            SourceType = EliminationSourceType.Firearm,
+            WeaponId = NormalizeWeaponId(weaponId),
+            Distance = Mathf.Max(0f, distance),
+            Amount = damageAmount
+        });
+    }
+
     public void RecordBullseyeHit(
         ulong attackerClientId,
         ulong victimClientId,

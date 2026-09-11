@@ -161,7 +161,8 @@ public class BullseyeDetachController : NetworkBehaviour
         float knockbackRadius,
         float detachRadius,
         float upwardModifier,
-        ulong throwerClientId)
+        ulong throwerClientId,
+        BullseyeDetachMethod method = BullseyeDetachMethod.CombustionGrenade)
     {
         if (!IsServer || !IsSpawned || bullseye == null)
             return;
@@ -189,7 +190,7 @@ public class BullseyeDetachController : NetworkBehaviour
                 detachRadius,
                 upwardModifier,
                 throwerClientId,
-                BullseyeDetachMethod.CombustionGrenade);
+                method);
     }
 
     public bool CanAcceptSuctionDetach()

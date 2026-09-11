@@ -1,0 +1,266 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aaef68a99298539408f734afed3d7b48, type: 3}
+  m_Name: BazookaDefinition
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponDefinition
+  weaponId: bazooka
+  displayName: Bazooka
+  inventoryRole: 0
+  firstPersonPrefab: {fileID: 1925853981667943568, guid: 54878fe40846ddf4e84b20fd42428fab, type: 3}
+  worldPrefab: {fileID: 4251441782086574949, guid: 7003716a4df165742a462e42209571dd, type: 3}
+  pickupPrefab: {fileID: 6001882187622802635, guid: d15c757e92b7ec348baff1252d345991, type: 3}
+  presentation: {fileID: 11400000, guid: feeba737f26468a4a9a7d6a43bb37096, type: 2}
+  magazineSize: 1
+  startingMagazineAmmo: 1
+  startingReserveAmmo: 4
+  maximumReserveAmmo: 8
+  unlimitedReserve: 0
+  fireType: 1
+  fireRate: 1.4
+  automatic: 0
+  reloadTime: 2.8
+  canRicochet: 0
+  projectileSettings:
+    projectilePrefab: {fileID: 183399929055712069, guid: d1a9ca4fc9e14ef48a81198db7ac48b7, type: 3}
+    guidanceMode: 0
+    projectileSpeed: 35
+    projectileLifetime: 3.5
+    aimDistance: 500
+    spawnForwardOffset: 0.4
+    gravity: 0
+    collisionRadius: 0.12
+    canRicochet: 1
+    maxRicochets: 1
+    directHitDamage: 0
+    explosionRadius: 4.5
+    maximumExplosionDamage: 4
+    minimumExplosionDamage: 4
+    explosionFalloff:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: -1
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    explosionForce: 14
+    explosionUpwardModifier: 0.35
+    dealHalfMaxHealthExplosionDamage: 1
+    detachesBullseyes: 1
+    explosionVfx: {fileID: 76819107659794565, guid: be8193c23c455844ba1ff18f0e9fd0a8, type: 3}
+    fireSfx:
+    - {fileID: 8300000, guid: 2c461ad3e7942864ca63398c8faeeece, type: 3}
+    - {fileID: 8300000, guid: b52debb14d353d74aa4df4539e7cc993, type: 3}
+    - {fileID: 8300000, guid: b5fa137daa07a5e45b22e9400673d683, type: 3}
+    - {fileID: 8300000, guid: b774ef5bcc59a75409da7a04ff1ad1f8, type: 3}
+    - {fileID: 8300000, guid: be7e6299048c28949bf8b49a0b47f66f, type: 3}
+    - {fileID: 8300000, guid: a89adc4065f2b4546ace4c59ed3f780b, type: 3}
+    - {fileID: 8300000, guid: 03332e8c38f94a9409153158894c16b3, type: 3}
+    - {fileID: 8300000, guid: 05c72d261ff45c244a85b61cb13b3b1b, type: 3}
+    flightSfx:
+    - {fileID: 8300000, guid: 5f875109910ccc9498a8ef5f9b867572, type: 3}
+    - {fileID: 8300000, guid: 189f7defd9242324ab7b11d3ad9174ca, type: 3}
+    explosionSfx:
+    - {fileID: 8300000, guid: 7914215f0970f4f40b1294b5e3abdeec, type: 3}
+    - {fileID: 8300000, guid: c785e04a2aa4af9418916d282cb91920, type: 3}
+    - {fileID: 8300000, guid: ee5811563d07e634db17caf0c82694f6, type: 3}
+    - {fileID: 8300000, guid: 7e992c43f70dff7498702d2859537a7d, type: 3}
+    - {fileID: 8300000, guid: 3edcc31c993506c4d98035be5bd69f3f, type: 3}
+    - {fileID: 8300000, guid: 419336aa8912ae0468e104596863a0a1, type: 3}
+    projectileTrail: {fileID: 0}
+    flightSfxVolume: 0.5
+    explosionSfxVolume: 0.95
+    explosionVfxLifetime: 2.5
+    debugProjectileTrajectory: 0
+    debugExplosionRadius: 0
+    debugAimTarget: 0
+  damageSettings:
+    hitscanMode: 1
+    pelletCount: 8
+    baseDamage: 0.375
+    damagePerPellet: 0.375
+    guaranteeLethalHeadshot: 0
+    falloffStart: 10
+    falloffEnd: 24
+    maximumRange: 40
+    beyondMaxRange: 0
+    falloffCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 0.5
+        value: 0.7
+        inSlope: -0.7
+        outSlope: -0.7
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 0
+        inSlope: -0.8
+        outSlope: -0.8
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    minimumDamageMultiplier: 0.35
+    pelletSpread: 0
+    logDamage: 0
+  accuracy:
+    baseSpread: 44
+    maxSpread: 88
+    bloomPerShot: 10
+    bloomRecoveryDelay: 0.18
+    bloomRecoverySpeed: 28
+    sprintSpread: 64
+    sprintSpreadIncreaseSpeed: 70
+    sprintSpreadRecoverySpeed: 50
+    adsSpreadMultiplier: 1
+    reticleSprite: {fileID: 0}
+    reticleElementLength: 16
+    reticleElementThickness: 3
+  impactDecalSettings:
+    enabled: 1
+    decalScale: 0.7
+    maximumDecalDistance: 25
+    variantSet: {fileID: 11400000, guid: 9c3c2a69750a19844be02cba316aa04b, type: 2}
+    impactPattern: 1
+    maxDecalsPerShot: 8
+  shotAudioOverrides:
+    nearMissEnabled: 0
+    impactClips: []
+    flybyClips: []
+  usesMagnifiedAds: 1
+  adsMagnification: 1.4
+  adsEnterDuration: 0.16
+  adsExitDuration: 0.18
+  adsSensitivityMultiplier: 0.4
+  adsHidesViewmodel: 0
+  usesVariableAdsMagnification: 0
+  minAdsMagnification: 2
+  maxAdsMagnification: 6
+  defaultAdsMagnification: 2
+  adsZoomAdjustmentSpeed: 2.2
+  adsZoomInputDeadzone: 0.2
+  preserveAdsMagnificationOnExit: 0
+  adsSensitivityScalesWithMagnification: 0
+  locksHorizontalLocomotionWhileAds: 0
+  exitAdsWhenAirborne: 1
+  scopePresentation: {fileID: 0}
+  worldLocalPosition: {x: 0, y: 0.02, z: 0.05}
+  worldLocalEuler: {x: 0, y: 0, z: -6}
+  worldLocalScale: {x: 1, y: 1, z: 1}
+  worldStanceHeightOffset: 0.2
+  weaponPoseClass: 2
+  thirdPersonAnchorPositionOffset: {x: 0, y: 0, z: 0}
+  thirdPersonAnchorRotationOffset: {x: 0, y: 0, z: 0}
+  useLeftHandGrip: 1
+  optionalHoldProfileOverride: {fileID: 0}
+  thirdPersonPoseProfile: {fileID: 11400000, guid: a5284a8c8986db44cbe530e4ec49be4b, type: 2}
+  poseClassAssigned: 1
+  thirdPersonPoseCategory: 1
+  supportHandIkEnabled: 1
+  ikBlendDuration: 0.12
+  weaponPoseBlendDuration: 0.14
+  sprintSupportIkWeight: 0.55
+  thirdPersonClass: 2
+  thirdPersonPose:
+    gunEuler: {x: 0, y: 0, z: 0}
+    gunScale: {x: 1.15, y: 1.15, z: 1.15}
+    rightHandPosition: {x: 0.1, y: -0.1, z: 0.4}
+    rightWristEuler: {x: 50, y: 0, z: 10}
+    rightArmReach: 0.675
+    rightElbowYaw: 129
+    aimRightHandPosition: {x: 0.06, y: -0.02, z: 0.34}
+    aimRightWristEuler: {x: 50, y: 0, z: 10}
+    sprintRightHandPosition: {x: 0.27, y: -0.14, z: 0.36}
+    sprintRightWristEuler: {x: 14, y: 16, z: -8}
+    proneRightHandPosition: {x: 0.21, y: -0.08, z: 0.5}
+    proneRightWristEuler: {x: 0, y: 0, z: 0}
+    crouchRightHandPosition: {x: 0, y: 0, z: 0}
+    crouchRightWristEuler: {x: 0, y: 0, z: 0}
+    aimGunPosition: {x: 0, y: 0, z: 0}
+    aimGunEuler: {x: 0, y: 0, z: 0}
+    sprintGunPosition: {x: 0, y: 0, z: 0}
+    sprintGunEuler: {x: 0, y: 0, z: 0}
+    crouchGunPosition: {x: 0, y: 0, z: 0}
+    crouchGunEuler: {x: 0, y: 0, z: 0}
+    proneGunPosition: {x: 0, y: 0, z: 0}
+    proneGunEuler: {x: 0, y: 0, z: 0}
+    leftHandFollowGrip: 0
+    leftHandPosition: {x: 0, y: 0, z: 0}
+    leftWristEuler: {x: 50, y: 50, z: 0}
+    leftArmReach: 0.98
+    leftElbowYaw: -162
+    aimLeftHandPosition: {x: 0.10023379, y: -0.17969453, z: 0.4155473}
+    aimLeftWristEuler: {x: 50, y: 50, z: 0}
+    sprintLeftHandPosition: {x: 0, y: 0, z: 0}
+    sprintLeftWristEuler: {x: 0, y: 0, z: 0}
+    proneLeftHandPosition: {x: 0, y: 0, z: 0}
+    proneLeftWristEuler: {x: 0, y: 0, z: 0}
+    crouchLeftHandPosition: {x: 0, y: 0, z: 0}
+    crouchLeftWristEuler: {x: 0, y: 0, z: 0}
+    sprintLeftIkWeight: 0.45
+    defaultWeight: 1
+    sprintWeight: 0.22
+    crouchWeight: 1
+    proneWeight: 0.85
+    diveWeight: 0.12
+    jumpWeight: 0.85
+    maxAimPitch: 50
+    maxAimPitchDown: 50
+    spineAimWeight: 0.62
+    upperChestAimShare: 0.45
+    aimRaisePitch: 0
+    proneBodyPitch: -68
+    recoilPitch: 12
+    recoilRightRoll: 8
+    recoilYaw: 3
+    recoilInTime: 0.04
+    recoilOutTime: 0.18
+  pickupLocalPosition: {x: 0, y: 0, z: 0}
+  pickupLocalEuler: {x: 0, y: 35, z: 90}
+  pickupLocalScale: {x: 3.5, y: 3.5, z: 3.5}
+  fitPickupColliderToMesh: 1
+  pickupPhysicsBoxSize: {x: 0, y: 0, z: 0}
+  pickupPhysicsBoxCenter: {x: 0, y: 0, z: 0}
+  pickupColliderMinHeight: 0.05

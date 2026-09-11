@@ -27,11 +27,15 @@ public class WeaponDefinition : ScriptableObject
     [SerializeField] private bool unlimitedReserve;
 
     [Header("Fire")]
+    [SerializeField] private WeaponFireType fireType = WeaponFireType.Hitscan;
     [SerializeField] private float fireRate = 0.15f;
     [SerializeField] private bool automatic;
     [SerializeField] private float reloadTime = 1.4f;
     [SerializeField, Tooltip("When enabled, hitscan bullets can reflect from RicochetSurface colliders.")]
     private bool canRicochet = true;
+
+    [Header("Projectile")]
+    [SerializeField] private WeaponProjectileSettings projectileSettings = new();
 
     [Header("Damage")]
     [SerializeField] private WeaponDamageSettings damageSettings = new();
@@ -147,6 +151,9 @@ public class WeaponDefinition : ScriptableObject
     public int StartingMagazineAmmo => Mathf.Clamp(startingMagazineAmmo, 0, MagazineSize);
     public int StartingReserveAmmo => Mathf.Clamp(startingReserveAmmo, 0, MaximumReserveAmmo);
     public int MaximumReserveAmmo => Mathf.Max(0, maximumReserveAmmo);
+    public WeaponFireType FireType => fireType;
+    public bool IsProjectileWeapon => fireType == WeaponFireType.Projectile;
+    public WeaponProjectileSettings ProjectileSettings => projectileSettings ??= new WeaponProjectileSettings();
     public float FireRate => Mathf.Max(0.01f, fireRate);
     public bool Automatic => automatic;
     public float ReloadTime => Mathf.Max(0.05f, reloadTime);
@@ -245,6 +252,8 @@ public class WeaponDefinition : ScriptableObject
         reloadTime = Mathf.Max(0.05f, reloadTime);
         damageSettings ??= new WeaponDamageSettings();
         damageSettings.Validate();
+        projectileSettings ??= new WeaponProjectileSettings();
+        projectileSettings.Validate();
         accuracy ??= new WeaponAccuracySettings();
         accuracy.Validate();
         impactDecalSettings ??= new WeaponImpactDecalSettings();

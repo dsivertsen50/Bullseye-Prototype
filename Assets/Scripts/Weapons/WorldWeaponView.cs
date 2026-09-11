@@ -36,6 +36,7 @@ public class WorldWeaponView : NetworkBehaviour
     public Transform WorldWeaponRoot => worldWeaponRoot;
     public Transform WeaponSocket => weaponSocket;
     public Transform WeaponHandAnchor => weaponHandAnchor;
+    public Transform MuzzlePoint => muzzlePoint;
     public WeaponDefinition Definition => definition;
     public bool IsRemotePresentationActive => remotePresentationEnabled;
     public ThirdPersonWeaponVisual CurrentVisual => currentVisual;
