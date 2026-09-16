@@ -9,6 +9,8 @@ public class GameSessionInfo
 {
     public string JoinCode;
     public GameVisibility Visibility;
+    public MultiplayerConnectionMode ConnectionMode;
+    public string SessionId;
     public string Address;
     public ushort Port;
     public string ListenAddress;

@@ -189,6 +189,8 @@ public static class MenuUiFactory
         input.caretColor = Color.white;
         input.selectionColor = new Color(0.25f, 0.55f, 0.32f, 0.65f);
         input.colors = MenuColors(new Color(0.12f, 0.12f, 0.14f, 1f));
+        input.shouldActivateOnSelect = false;
+        input.gameObject.AddComponent<MenuInputFieldNavigation>();
         WirePointerFocus(input);
         return input;
     }

@@ -24,7 +24,7 @@ RenderSettings:
   m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
   m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
   m_AmbientIntensity: 1
-  m_AmbientMode: 4
+  m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
   m_SkyboxMaterial: {fileID: 0}
   m_HaloStrength: 0.5
@@ -1469,6 +1469,7 @@ MonoBehaviour:
   playerActions: {fileID: -944628639613478452, guid: d5774e102d654bd409097006f9ceb460, type: 3}
   creditsConfig: {fileID: 11400000, guid: a5e2122c19cdcde4cb99ed94b279dbe3, type: 2}
   menuAudio: {fileID: 1849161035}
+  weaponCatalog: {fileID: 11400000, guid: d8275886b6f4677488a9455cb3df12ed, type: 2}
   gameplaySceneName: ArenaPrototype
   leftColumnPadding: 72
   backgroundImage: {fileID: 0}

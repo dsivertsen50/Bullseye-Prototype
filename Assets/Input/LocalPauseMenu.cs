@@ -30,6 +30,7 @@ public class LocalPauseMenu : NetworkBehaviour
     private Selectable resumeButton;
     private Selectable settingsButton;
     private Selectable controlsButton;
+    private Selectable leaveButton;
     private Selectable exitButton;
     private Selectable settingsBackButton;
     private Selectable controlsBackButton;
@@ -146,6 +147,8 @@ public class LocalPauseMenu : NetworkBehaviour
             scoreboard.ForceHide();
 
         menuState.SetMenuOpen(true);
+        if (GameSessionCoordinator.Instance != null)
+            GameSessionCoordinator.Instance.HideStatus();
         SetGameplayOrMenuInput(true);
         ShowPausePanel(false);
         SetMenuVisible(true, true);
@@ -164,6 +167,7 @@ public class LocalPauseMenu : NetworkBehaviour
 
     public void QuitGame()
     {
+        PlayerProfileMatchBridge.TryFinalizeLocalMatch();
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;
 #else
@@ -362,10 +366,8 @@ public class LocalPauseMenu : NetworkBehaviour
         if (selected != null && selected.activeInHierarchy)
             return;
 
-        bool wantsSelection = HasAssignedGamepad();
-        if (!wantsSelection && navigateAction != null)
-            wantsSelection = navigateAction.ReadValue<Vector2>().sqrMagnitude > 0.25f;
-
+        bool wantsSelection = navigateAction != null &&
+                              navigateAction.ReadValue<Vector2>().sqrMagnitude > 0.25f;
         if (!wantsSelection)
             return;
 
@@ -442,7 +444,7 @@ public class LocalPauseMenu : NetworkBehaviour
         canvasObject.transform.SetParent(transform, false);
         canvas = canvasObject.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 100;
+        canvas.sortingOrder = 250;
 
         CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -451,12 +453,15 @@ public class LocalPauseMenu : NetworkBehaviour
         Image dim = CreateImage(canvasObject.transform, "Dimmer", new Color(0.02f, 0.02f, 0.04f, 0.72f));
         Stretch(dim.rectTransform);
 
-        pausePanel = CreatePanel(canvasObject.transform, "PausePanel", new Vector2(640f, 520f));
-        CreateLabel(pausePanel.transform, "Title", "PAUSED", 48, new Vector2(0f, 170f), new Vector2(520f, 64f));
-        resumeButton = CreateButton(pausePanel.transform, "Resume", "Resume", new Vector2(0f, 80f), OpenFromResume);
-        settingsButton = CreateButton(pausePanel.transform, "Settings", "Settings", new Vector2(0f, 10f), ShowSettingsPanel);
-        controlsButton = CreateButton(pausePanel.transform, "Controls", "Controls", new Vector2(0f, -60f), ShowControlsPanel);
-        exitButton = CreateButton(pausePanel.transform, "Exit", "Exit Game", new Vector2(0f, -130f), QuitFromMenu);
+        pausePanel = CreatePanel(canvasObject.transform, "PausePanel", new Vector2(640f, 600f));
+        CreateLabel(pausePanel.transform, "Title", "PAUSED", 48, new Vector2(0f, 210f), new Vector2(520f, 64f));
+        resumeButton = CreateButton(pausePanel.transform, "Resume", "Resume", new Vector2(0f, 120f), OpenFromResume);
+        settingsButton = CreateButton(pausePanel.transform, "Settings", "Settings", new Vector2(0f, 50f), ShowSettingsPanel);
+        controlsButton = CreateButton(pausePanel.transform, "Controls", "Controls", new Vector2(0f, -20f), ShowControlsPanel);
+        leaveButton = CreateButton(pausePanel.transform, "Leave", LeaveButtonLabel(), new Vector2(0f, -90f), LeaveFromMenu);
+        if (GameSessionCoordinator.Instance == null)
+            leaveButton.gameObject.SetActive(false);
+        exitButton = CreateButton(pausePanel.transform, "Exit", "Exit Game", new Vector2(0f, -160f), QuitFromMenu);
 
         settingsPanel = CreatePanel(canvasObject.transform, "SettingsPanel", new Vector2(640f, 560f));
         settingsPanel.SetActive(false);
@@ -551,8 +556,9 @@ public class LocalPauseMenu : NetworkBehaviour
     {
         SetVerticalNav(resumeButton, exitButton, settingsButton);
         SetVerticalNav(settingsButton, resumeButton, controlsButton);
-        SetVerticalNav(controlsButton, settingsButton, exitButton);
-        SetVerticalNav(exitButton, controlsButton, resumeButton);
+        SetVerticalNav(controlsButton, settingsButton, leaveButton);
+        SetVerticalNav(leaveButton, controlsButton, exitButton);
+        SetVerticalNav(exitButton, leaveButton, resumeButton);
 
         SetVerticalNav(masterVolumeSlider, settingsBackButton, sfxVolumeSlider);
         SetVerticalNav(sfxVolumeSlider, masterVolumeSlider, musicVolumeSlider);
@@ -588,6 +594,30 @@ public class LocalPauseMenu : NetworkBehaviour
         if (menuAudio != null)
             menuAudio.PlaySelect();
         CloseMenu();
+    }
+
+    private void LeaveFromMenu()
+    {
+        if (menuAudio != null)
+            menuAudio.PlaySelect();
+
+        if (GameSessionCoordinator.Instance != null)
+        {
+            CloseMenu();
+            string message = NetworkManager != null && NetworkManager.IsHost ? null : "Left match.";
+            GameSessionCoordinator.Instance.LeaveToMenu(message);
+            return;
+        }
+
+        QuitGame();
+    }
+
+    private static string LeaveButtonLabel()
+    {
+        NetworkManager networkManager = NetworkManager.Singleton;
+        if (networkManager != null && networkManager.IsHost)
+            return "End Session";
+        return "Leave Match";
     }
 
     private void QuitFromMenu()
@@ -759,11 +789,6 @@ public class LocalPauseMenu : NetworkBehaviour
             return Font.CreateDynamicFontFromOSFont(names[0], 16);
 
         return null;
-    }
-
-    private bool HasAssignedGamepad()
-    {
-        return inputBinding != null && inputBinding.AssignedGamepad != null;
     }
 
     private void ConfigureEventSystem()

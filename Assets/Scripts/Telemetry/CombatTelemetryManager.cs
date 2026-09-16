@@ -131,6 +131,9 @@ public class CombatTelemetryManager : MonoBehaviour
 
     public void ResetMatch()
     {
+        if (events.Count > 0 || statsByClient.Count > 0)
+            PlayerProfileMatchBridge.TryFinalizeLocalMatch(requireRecordedActivity: true);
+
         events.Clear();
         statsByClient.Clear();
         matchClockStarted = true;
@@ -154,6 +157,12 @@ public class CombatTelemetryManager : MonoBehaviour
 
         if (logEvents)
             Debug.Log("Combat telemetry match reset.");
+
+        if (ResearchTelemetryManager.Instance != null)
+            ResearchTelemetryManager.Instance.NotifyMatchReset();
+
+        if (PlayerProfileMatchBridge.Instance != null)
+            PlayerProfileMatchBridge.Instance.MarkMatchStarted();
     }
 
     public void RecordShotFired(ulong shooterClientId, string weaponId)

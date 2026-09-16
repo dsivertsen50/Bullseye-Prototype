@@ -143,7 +143,7 @@ public class BullseyeMover : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         if (IsServer)
-            RestartIndependentRandomization();
+            RestartIndependentRandomization(ResearchBullseyeAssignmentReason.Spawn);
 
         ResetTurnTracking();
         ApplySurfacePose();
@@ -175,6 +175,11 @@ public class BullseyeMover : NetworkBehaviour
 
     public void RestartIndependentRandomization()
     {
+        RestartIndependentRandomization(ResearchBullseyeAssignmentReason.Spawn);
+    }
+
+    public void RestartIndependentRandomization(ResearchBullseyeAssignmentReason reason)
+    {
         if (!IsServer || !IsSpawned)
             return;
 
@@ -192,6 +197,7 @@ public class BullseyeMover : NetworkBehaviour
         moveStartTime.Value = now - (maxSpawnPhaseOffset > 0f ? Random.Range(0f, maxSpawnPhaseOffset) : 0f);
         travelDuration.Value = EstimateTravelDuration(start, next);
         pauseUntilTime.Value = 0f;
+        RecordResearchAssignment(start, reason);
     }
 
     public void ResetTurnTracking()
@@ -228,9 +234,34 @@ public class BullseyeMover : NetworkBehaviour
             moveStartTime.Value = ServerNow();
             travelDuration.Value = 0.01f;
             pauseUntilTime.Value = ServerNow() + RandomPause();
+            RecordResearchAssignment(region, ResearchBullseyeAssignmentReason.ReturnedAfterDetach);
         }
 
         return region;
+    }
+
+    private void RecordResearchAssignment(int regionIndex, ResearchBullseyeAssignmentReason reason)
+    {
+        if (ResearchTelemetryManager.Instance == null)
+            return;
+
+        ResearchBodyRegion bodyRegion = ResearchTelemetrySnapshot.MapSurfaceRegion((BullseyeSurfaceRegionId)regionIndex);
+        Vector3 assignedLocal = Vector3.zero;
+        Vector3 actualLocal = Vector3.zero;
+        if (surfaceMap != null && surfaceMap.TryGetRegion(regionIndex, out BullseyeSurfaceRegion region) && region != null)
+        {
+            assignedLocal = region.localPosition;
+            if (region.TryEvaluate(out Vector3 world, out _))
+                actualLocal = transform.InverseTransformPoint(world);
+        }
+
+        ulong ownerId = NetworkObject != null ? OwnerClientId : 0;
+        ResearchTelemetryManager.Instance.RecordBullseyeAssignment(
+            ownerId,
+            bodyRegion,
+            assignedLocal,
+            actualLocal,
+            reason);
     }
 
     public void RememberAttachedRegion()

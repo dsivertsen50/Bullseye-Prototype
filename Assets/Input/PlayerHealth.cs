@@ -301,6 +301,22 @@ public class PlayerHealth : NetworkBehaviour
             CombatTelemetryManager.ResolveBullseyeState(detachController),
             GetBullseyeWorldPosition(),
             assistSnapshot);
+
+        if (ResearchTelemetryManager.Instance != null)
+        {
+            ResearchTelemetryManager.Instance.WriteElimination(new ResearchEliminationRecord
+            {
+                EngagementId = "",
+                ShotId = "",
+                AttackerPlayerId = context.HasAttacker ? context.AttackerClientId : DamageContext.NoAttackerId,
+                TargetPlayerId = OwnerClientId,
+                WeaponId = context.SourceId ?? "",
+                SourceType = context.SourceType.ToString(),
+                BullseyeState = CombatTelemetryManager.ResolveBullseyeState(detachController).ToString(),
+                Distance = Mathf.Max(0f, context.Distance),
+                BullseyeWorldPosition = ResearchVec3.From(GetBullseyeWorldPosition())
+            });
+        }
     }
 
     public void RegisterAssistContributor(ulong clientId)
@@ -335,7 +351,7 @@ public class PlayerHealth : NetworkBehaviour
     private void CompleteRespawn()
     {
         if (TryGetComponent(out BullseyeMover mover))
-            mover.RestartIndependentRandomization();
+            mover.RestartIndependentRandomization(ResearchBullseyeAssignmentReason.Respawn);
 
         if (detachController != null)
             detachController.HandleOwnerRespawned();

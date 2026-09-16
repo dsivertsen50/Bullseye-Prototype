@@ -28,7 +28,7 @@ public class PlayerProjectileLauncher : NetworkBehaviour
             playerHealth = GetComponent<PlayerHealth>();
     }
 
-    public bool TryFire(WeaponDefinition definition)
+    public bool TryFire(WeaponDefinition definition, string researchShotId = null)
     {
         if (!IsOwner || !IsSpawned || definition == null)
             return false;
@@ -41,7 +41,7 @@ public class PlayerProjectileLauncher : NetworkBehaviour
             return false;
 
         ResolveLaunch(definition, out Vector3 muzzle, out Vector3 aimPoint, out Vector3 direction);
-        FireProjectileServerRpc(muzzle, aimPoint, direction);
+        FireProjectileServerRpc(muzzle, aimPoint, direction, researchShotId ?? "");
         return true;
     }
 
@@ -50,6 +50,7 @@ public class PlayerProjectileLauncher : NetworkBehaviour
         Vector3 reportedMuzzle,
         Vector3 reportedAimPoint,
         Vector3 reportedDirection,
+        string researchShotId,
         RpcParams rpcParams = default)
     {
         if (rpcParams.Receive.SenderClientId != OwnerClientId)
@@ -88,7 +89,7 @@ public class PlayerProjectileLauncher : NetworkBehaviour
             return;
         }
 
-        rocket.Initialize(OwnerClientId, definition, settings, direction, aimPoint);
+        rocket.Initialize(OwnerClientId, definition, settings, direction, aimPoint, researchShotId);
 
         NetworkObject networkObject = instance.GetComponent<NetworkObject>();
         if (networkObject == null)
@@ -174,6 +175,113 @@ public class PlayerProjectileLauncher : NetworkBehaviour
             return muzzle.position;
 
         return cameraTransform.position + aimDirection * 0.45f;
+    }
+
+    public void NotifyResearchImpact(
+        string shotId,
+        Vector3 impactPoint,
+        ulong hitClientId,
+        bool hitBullseye,
+        bool hitBody,
+        bool hitEnvironment,
+        bool missedCompletely,
+        int hitRegion,
+        float damageDealt,
+        bool wasLethal)
+    {
+        if (!IsOwner)
+        {
+            ResearchProjectileImpactOwnerRpc(
+                shotId ?? "",
+                impactPoint,
+                hitClientId,
+                hitBullseye,
+                hitBody,
+                hitEnvironment,
+                missedCompletely,
+                hitRegion,
+                damageDealt,
+                wasLethal);
+            return;
+        }
+
+        ApplyResearchImpact(
+            shotId,
+            impactPoint,
+            hitClientId,
+            hitBullseye,
+            hitBody,
+            hitEnvironment,
+            missedCompletely,
+            hitRegion,
+            damageDealt,
+            wasLethal);
+    }
+
+    [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
+    private void ResearchProjectileImpactOwnerRpc(
+        string shotId,
+        Vector3 impactPoint,
+        ulong hitClientId,
+        bool hitBullseye,
+        bool hitBody,
+        bool hitEnvironment,
+        bool missedCompletely,
+        int hitRegion,
+        float damageDealt,
+        bool wasLethal)
+    {
+        ApplyResearchImpact(
+            shotId,
+            impactPoint,
+            hitClientId,
+            hitBullseye,
+            hitBody,
+            hitEnvironment,
+            missedCompletely,
+            hitRegion,
+            damageDealt,
+            wasLethal);
+    }
+
+    private void ApplyResearchImpact(
+        string shotId,
+        Vector3 impactPoint,
+        ulong hitClientId,
+        bool hitBullseye,
+        bool hitBody,
+        bool hitEnvironment,
+        bool missedCompletely,
+        int hitRegion,
+        float damageDealt,
+        bool wasLethal)
+    {
+        ResearchEngagementTracker tracker = GetComponent<ResearchEngagementTracker>();
+        if (tracker == null)
+            return;
+
+        PlayerHealth hitHealth = null;
+        if (hitClientId != ulong.MaxValue &&
+            NetworkManager != null &&
+            NetworkManager.SpawnManager != null)
+        {
+            NetworkObject hitObject = NetworkManager.SpawnManager.GetPlayerNetworkObject(hitClientId);
+            if (hitObject != null)
+                hitHealth = hitObject.GetComponent<PlayerHealth>();
+        }
+
+        ResearchBodyRegion region = hitHealth != null
+            ? (ResearchBodyRegion)hitRegion
+            : ResearchBodyRegion.Other;
+        tracker.NotifyProjectileImpact(
+            shotId,
+            impactPoint,
+            hitHealth,
+            hitBullseye,
+            region,
+            hitEnvironment || missedCompletely && !hitBullseye && !hitBody,
+            damageDealt,
+            wasLethal);
     }
 
     private void OnValidate()
