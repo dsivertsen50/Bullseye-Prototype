@@ -18,11 +18,13 @@ public class NetworkButtons : MonoBehaviour
         if (GUI.Button(new Rect(10, 10, 120, 40), "Start Host"))
         {
             CombatTelemetryManager.Ensure();
+            ResearchTelemetryManager.Ensure();
             networkManager.StartHost();
         }
 
         if (GUI.Button(new Rect(10, 60, 120, 40), "Start Client"))
         {
+            ResearchTelemetryManager.Ensure();
             networkManager.StartClient();
         }
     }

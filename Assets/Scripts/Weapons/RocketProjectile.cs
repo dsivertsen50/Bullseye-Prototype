@@ -28,6 +28,7 @@ public class RocketProjectile : NetworkBehaviour
     private int bounceCount;
     private Collider lastRicochetCollider;
     private float ignoreRicochetUntil;
+    private string researchShotId = "";
 
     public ulong ShooterClientId => shooterClientId;
     public WeaponDefinition Weapon => weapon;
@@ -49,13 +50,15 @@ public class RocketProjectile : NetworkBehaviour
         WeaponDefinition definition,
         WeaponProjectileSettings projectileSettings,
         Vector3 direction,
-        Vector3 targetPoint)
+        Vector3 targetPoint,
+        string shotId = null)
     {
         shooterClientId = ownerClientId;
         weapon = definition;
         settings = projectileSettings ?? WeaponProjectileSettings.Fallback;
         travelDirection = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.forward;
         aimTarget = targetPoint;
+        researchShotId = shotId ?? "";
     }
 
     public override void OnNetworkSpawn()
@@ -262,9 +265,86 @@ public class RocketProjectile : NetworkBehaviour
 
         exploded = true;
         PlayerHealth directVictim = ResolveDirectVictim(hitCollider);
+        bool hitBullseye = hitCollider != null && HitscanRicochet.TryGetBullseyeTarget(hitCollider, out _);
+        bool hitBody = directVictim != null && !hitBullseye;
+        bool hitEnvironment = directVictim == null && hitCollider != null;
+        bool missed = hitCollider == null;
+        ResearchBodyRegion region = ResearchBodyRegion.Other;
+        if (directVictim != null)
+        {
+            if (hitCollider != null)
+            {
+                PlayerCombatHitbox hitbox = hitCollider.GetComponentInParent<PlayerCombatHitbox>();
+                region = hitbox != null
+                    ? ResearchTelemetrySnapshot.MapCombatHitbox(hitbox)
+                    : ResearchTelemetrySnapshot.MapDamageZone(BullseyeBodyZone.Torso);
+            }
+
+            if (hitBullseye)
+            {
+                ResearchTelemetrySnapshot.TryGetBullseyePose(
+                    directVictim,
+                    out _,
+                    out _,
+                    out _,
+                    out region,
+                    out _,
+                    out _);
+            }
+        }
+
+        float damage = 0f;
+        if (directVictim != null && settings != null)
+        {
+            float distance = Vector3.Distance(origin, directVictim.transform.position + Vector3.up);
+            damage = settings.ResolveExplosionDamage(directVictim, distance, true);
+        }
+
         ExplosionDamage.Apply(origin, settings, weapon, shooterClientId, directVictim);
+        bool lethal = directVictim != null && directVictim.IsDead;
+        NotifyResearchImpact(
+            origin,
+            directVictim,
+            hitBullseye,
+            hitBody,
+            hitEnvironment,
+            missed,
+            region,
+            damage,
+            lethal);
         PlayExplosionFxRpc(origin);
         DespawnIfSpawned();
+    }
+
+    private void NotifyResearchImpact(
+        Vector3 origin,
+        PlayerHealth victim,
+        bool hitBullseye,
+        bool hitBody,
+        bool hitEnvironment,
+        bool missed,
+        ResearchBodyRegion region,
+        float damage,
+        bool lethal)
+    {
+        if (NetworkManager == null || NetworkManager.SpawnManager == null)
+            return;
+
+        NetworkObject shooter = NetworkManager.SpawnManager.GetPlayerNetworkObject(shooterClientId);
+        if (shooter == null || !shooter.TryGetComponent(out PlayerProjectileLauncher launcher))
+            return;
+
+        launcher.NotifyResearchImpact(
+            researchShotId,
+            origin,
+            victim != null ? victim.OwnerClientId : ulong.MaxValue,
+            hitBullseye,
+            hitBody,
+            hitEnvironment,
+            missed,
+            (int)region,
+            damage,
+            lethal);
     }
 
     private void DespawnIfSpawned()

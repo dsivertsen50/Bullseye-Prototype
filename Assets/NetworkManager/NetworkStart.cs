@@ -13,6 +13,7 @@ public class NetworkStart : MonoBehaviour
             return;
 
         CombatTelemetryManager.Ensure();
+        ResearchTelemetryManager.Ensure();
         networkManager.StartHost();
     }
 }

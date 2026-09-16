@@ -43,9 +43,18 @@ public static class CurrentMatchStatistics
 {
     private static readonly List<PlayerStats> ScratchPlayers = new(16);
 
-    public static string GetDisplayName(ulong clientId)
+    public static string FallbackDisplayName(ulong clientId)
     {
         return "Player " + (clientId + 1);
+    }
+
+    public static string GetDisplayName(ulong clientId)
+    {
+        PlayerStats stats = PlayerStats.FindOwnedByClient(clientId);
+        if (stats != null)
+            return stats.DisplayName;
+
+        return FallbackDisplayName(clientId);
     }
 
     public static void CollectSortedRows(List<MatchScoreboardRow> destination, ulong localClientId)
@@ -74,7 +83,7 @@ public static class CurrentMatchStatistics
             ulong clientId = stats.OwnerClientId;
             destination.Add(new MatchScoreboardRow(
                 clientId,
-                GetDisplayName(clientId),
+                stats.DisplayName,
                 i + 1,
                 stats.Eliminations,
                 stats.Assists,

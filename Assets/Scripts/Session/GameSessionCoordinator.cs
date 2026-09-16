@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading.Tasks;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
@@ -33,8 +34,12 @@ public class GameSessionCoordinator : MonoBehaviour
     private bool localClientConnected;
     private bool shuttingDown;
     private bool startingHost;
+    private bool returningToMenu;
     private Coroutine sessionStartRoutine;
+    private Coroutine returnToMenuRoutine;
     private int hostAttemptCount;
+    private MultiplayerSessionManager sessionManager;
+    private Text statusBackLabel;
 
     public static GameSessionCoordinator Instance { get; private set; }
 
@@ -43,6 +48,7 @@ public class GameSessionCoordinator : MonoBehaviour
     public string StatusMessage { get; private set; }
     public string LastError { get; private set; }
     public PendingSessionKind LastErrorKind { get; private set; }
+    public MultiplayerConnectionMode LastErrorMode { get; private set; }
     public GameSessionInfo ActiveSession { get; private set; }
     public string GameplaySceneName => string.IsNullOrEmpty(gameplaySceneName) ? DefaultGameplaySceneName : gameplaySceneName;
     public PendingSessionRequest PendingRequest => pendingRequest;
@@ -65,6 +71,7 @@ public class GameSessionCoordinator : MonoBehaviour
     {
         public PendingSessionKind Kind;
         public GameVisibility Visibility;
+        public MultiplayerConnectionMode ConnectionMode = MultiplayerConnectionMode.Local;
         public GameSessionInfo Session;
     }
 
@@ -78,6 +85,8 @@ public class GameSessionCoordinator : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
+        sessionManager = MultiplayerSessionManager.Ensure();
+        sessionManager.HostDisconnected += HandleRelayHostDisconnected;
         EnsureStatusUi();
     }
 
@@ -85,6 +94,8 @@ public class GameSessionCoordinator : MonoBehaviour
     {
         if (Instance == this)
         {
+            if (sessionManager != null)
+                sessionManager.HostDisconnected -= HandleRelayHostDisconnected;
             UnbindNetworkCallbacks();
             LocalSessionRegistry.UnregisterCurrentProcess();
             Instance = null;
@@ -93,6 +104,7 @@ public class GameSessionCoordinator : MonoBehaviour
 
     private void OnApplicationQuit()
     {
+        PlayerProfileMatchBridge.TryFinalizeLocalMatch();
         LocalSessionRegistry.UnregisterCurrentProcess();
         ShutdownNetwork();
     }
@@ -111,11 +123,13 @@ public class GameSessionCoordinator : MonoBehaviour
         {
             Kind = PendingSessionKind.Host,
             Visibility = visibility,
-            Session = session
+            Session = session,
+            ConnectionMode = MultiplayerConnectionMode.Local
         };
         StartedFromMenu = true;
         hostAttemptCount = 0;
-        SetStatus(visibility == GameVisibility.Public ? "Creating Game..." : "Creating Game...");
+        MultiplayerSessionManager.Ensure().SetLocalMode();
+        SetStatus("Creating Game...");
         BeginBusy();
 
         if (enterMatchImmediately)
@@ -174,10 +188,107 @@ public class GameSessionCoordinator : MonoBehaviour
         {
             Kind = PendingSessionKind.Join,
             Visibility = session.Visibility,
+            Session = session,
+            ConnectionMode = session.ConnectionMode
+        };
+        StartedFromMenu = true;
+        if (session.ConnectionMode == MultiplayerConnectionMode.Local)
+            MultiplayerSessionManager.Ensure().SetLocalMode();
+        SetStatus("Joining Game...");
+        BeginBusy();
+        EnterMatch();
+        return true;
+    }
+
+    public bool TryHostOnline(GameVisibility visibility, out string error)
+    {
+        error = null;
+        if (IsBusy)
+        {
+            error = "Already connecting.";
+            return false;
+        }
+
+        pendingRequest = new PendingSessionRequest
+        {
+            Kind = PendingSessionKind.Host,
+            Visibility = visibility,
+            ConnectionMode = MultiplayerConnectionMode.Relay,
+            Session = new GameSessionInfo
+            {
+                Visibility = visibility,
+                ConnectionMode = MultiplayerConnectionMode.Relay,
+                CreatedUtcTicks = DateTime.UtcNow.Ticks
+            }
+        };
+        StartedFromMenu = true;
+        hostAttemptCount = 0;
+        SetStatus("Initializing online services...");
+        BeginBusy();
+        EnterMatch();
+        return true;
+    }
+
+    public bool TryJoinOnline(string joinCode, out string error)
+    {
+        error = null;
+        if (IsBusy)
+        {
+            error = "Already connecting.";
+            return false;
+        }
+
+        string normalized = LocalSessionRegistry.NormalizeCode(joinCode);
+        if (string.IsNullOrEmpty(normalized))
+        {
+            error = "Enter a join code.";
+            return false;
+        }
+
+        pendingRequest = new PendingSessionRequest
+        {
+            Kind = PendingSessionKind.Join,
+            Visibility = GameVisibility.Private,
+            ConnectionMode = MultiplayerConnectionMode.Relay,
+            Session = new GameSessionInfo
+            {
+                JoinCode = normalized,
+                Visibility = GameVisibility.Private,
+                ConnectionMode = MultiplayerConnectionMode.Relay,
+                CreatedUtcTicks = DateTime.UtcNow.Ticks
+            }
+        };
+        StartedFromMenu = true;
+        SetStatus("Initializing online services...");
+        BeginBusy();
+        EnterMatch();
+        return true;
+    }
+
+    public bool TryJoinOnlineSession(GameSessionInfo session, out string error)
+    {
+        error = null;
+        if (IsBusy)
+        {
+            error = "Already connecting.";
+            return false;
+        }
+
+        if (session == null || string.IsNullOrEmpty(session.SessionId))
+        {
+            error = "Game could not be found.";
+            return false;
+        }
+
+        pendingRequest = new PendingSessionRequest
+        {
+            Kind = PendingSessionKind.Join,
+            Visibility = GameVisibility.Public,
+            ConnectionMode = MultiplayerConnectionMode.Relay,
             Session = session
         };
         StartedFromMenu = true;
-        SetStatus("Joining Game...");
+        SetStatus("Initializing online services...");
         BeginBusy();
         EnterMatch();
         return true;
@@ -211,13 +322,21 @@ public class GameSessionCoordinator : MonoBehaviour
         if (!IsBusy && pendingRequest == null)
             return;
 
-        FailAndReturnToMenu(null, silent: true);
+        if (sessionManager != null)
+            sessionManager.CancelInFlight();
+        LeaveToMenu(null);
+    }
+
+    public void LeaveToMenu(string message)
+    {
+        StartReturnToMenu(message, silent: string.IsNullOrEmpty(message), allowWhileConnected: true);
     }
 
     public void ClearLastError()
     {
         LastError = null;
         LastErrorKind = PendingSessionKind.None;
+        LastErrorMode = MultiplayerConnectionMode.Local;
     }
 
     public void HideStatus()
@@ -324,6 +443,32 @@ public class GameSessionCoordinator : MonoBehaviour
 
         localClientConnected = true;
         IsBusy = false;
+        if (sessionManager != null)
+        {
+            if ((pendingRequest != null && pendingRequest.ConnectionMode == MultiplayerConnectionMode.Relay) ||
+                sessionManager.ConnectionMode == MultiplayerConnectionMode.Relay)
+            {
+                sessionManager.MarkConnected();
+                if (ActiveSession == null)
+                {
+                    ActiveSession = pendingRequest != null ? pendingRequest.Session : new GameSessionInfo();
+                    ActiveSession.JoinCode = sessionManager.JoinCode;
+                    ActiveSession.SessionId = sessionManager.SessionId;
+                    ActiveSession.ConnectionMode = MultiplayerConnectionMode.Relay;
+                    ActiveSession.Visibility = GameVisibility.Private;
+                }
+
+                OnlineMatchHud.Ensure();
+                OnlineDebugOverlay.Ensure();
+            }
+            else
+            {
+                sessionManager.MarkLocalModeConnected();
+                if (networkManager.IsHost)
+                    OnlineMatchHud.Ensure();
+            }
+        }
+
         pendingRequest = null;
         SetStatus(null);
         HideStatus();
@@ -332,25 +477,43 @@ public class GameSessionCoordinator : MonoBehaviour
 
     private void HandleClientDisconnect(ulong clientId)
     {
-        if (startingHost)
+        if (startingHost || returningToMenu)
             return;
 
         NetworkManager networkManager = NetworkManager.Singleton;
         if (networkManager == null || clientId != networkManager.LocalClientId)
             return;
 
-        if (localClientConnected)
+        if (!localClientConnected)
+        {
+            FailAndReturnToMenu("Unable to connect to game.");
             return;
+        }
 
-        FailAndReturnToMenu("Unable to connect to game.");
+        bool isHost = networkManager.IsHost || networkManager.IsServer;
+        LeaveToMenu(isHost ? null : "Host disconnected.");
     }
 
     private void HandleTransportFailure()
     {
-        if (localClientConnected || startingHost)
+        if (startingHost || returningToMenu)
             return;
 
+        if (localClientConnected)
+        {
+            LeaveToMenu("Connection lost.");
+            return;
+        }
+
         FailAndReturnToMenu("Connection failed.");
+    }
+
+    private void HandleRelayHostDisconnected()
+    {
+        if (returningToMenu || startingHost)
+            return;
+
+        LeaveToMenu("Host disconnected.");
     }
 
     private IEnumerator ClientConnectTimeout()
@@ -370,15 +533,33 @@ public class GameSessionCoordinator : MonoBehaviour
 
     private void FailAndReturnToMenu(string error, bool silent = false)
     {
-        if (shuttingDown)
+        StartReturnToMenu(error, silent, allowWhileConnected: false);
+    }
+
+    private void StartReturnToMenu(string error, bool silent, bool allowWhileConnected)
+    {
+        if (returningToMenu)
             return;
 
         NetworkManager live = NetworkManager.Singleton;
-        if (localClientConnected && live != null && live.IsListening)
+        if (!allowWhileConnected && localClientConnected && live != null && live.IsListening)
             return;
 
+        if (returnToMenuRoutine != null)
+            StopCoroutine(returnToMenuRoutine);
+        returnToMenuRoutine = StartCoroutine(ReturnToMenuRoutine(error, silent));
+    }
+
+    private IEnumerator ReturnToMenuRoutine(string error, bool silent)
+    {
+        returningToMenu = true;
         shuttingDown = true;
         PendingSessionKind errorKind = pendingRequest != null ? pendingRequest.Kind : LastErrorKind;
+        MultiplayerConnectionMode errorMode = pendingRequest != null
+            ? pendingRequest.ConnectionMode
+            : LastErrorMode;
+        bool deleteHostSession = sessionManager != null && sessionManager.IsHostSession;
+
         if (connectTimeoutRoutine != null)
         {
             StopCoroutine(connectTimeoutRoutine);
@@ -393,6 +574,24 @@ public class GameSessionCoordinator : MonoBehaviour
 
         UnbindNetworkCallbacks();
         LocalSessionRegistry.UnregisterCurrentProcess();
+        if (localClientConnected)
+            PlayerProfileMatchBridge.TryFinalizeLocalMatch();
+
+        OnlineMatchHud hud = FindAnyObjectByType<OnlineMatchHud>();
+        if (hud != null)
+            hud.Hide();
+
+        if (sessionManager != null)
+        {
+            Task leave = sessionManager.LeaveAsync(deleteHostSession);
+            float elapsed = 0f;
+            while (leave != null && !leave.IsCompleted && elapsed < 3f)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                yield return null;
+            }
+        }
+
         ShutdownNetwork();
         pendingRequest = null;
         ActiveSession = null;
@@ -404,6 +603,7 @@ public class GameSessionCoordinator : MonoBehaviour
         {
             LastError = error;
             LastErrorKind = errorKind;
+            LastErrorMode = errorMode;
             SetStatus(error, showBack: true);
             ConnectionFailed?.Invoke(error);
         }
@@ -417,6 +617,8 @@ public class GameSessionCoordinator : MonoBehaviour
             SceneManager.LoadScene(MainMenuSceneName, LoadSceneMode.Single);
 
         shuttingDown = false;
+        returningToMenu = false;
+        returnToMenuRoutine = null;
     }
 
     private IEnumerator ExecutePendingRequestRoutine(NetworkManager networkManager)
@@ -444,6 +646,14 @@ public class GameSessionCoordinator : MonoBehaviour
         BindNetworkCallbacks(networkManager);
         localClientConnected = false;
         shuttingDown = false;
+        returningToMenu = false;
+
+        if (pendingRequest.ConnectionMode == MultiplayerConnectionMode.Relay)
+        {
+            yield return ExecuteRelayRequest(networkManager);
+            sessionStartRoutine = null;
+            yield break;
+        }
 
         if (pendingRequest.Kind == PendingSessionKind.Host)
         {
@@ -453,6 +663,9 @@ public class GameSessionCoordinator : MonoBehaviour
         }
 
         ConfigureTransport(networkManager, pendingRequest);
+        PlayerProfileManager.Ensure();
+        CombatTelemetryManager.Ensure();
+        ResearchTelemetryManager.Ensure();
         bool clientStarted = networkManager.StartClient();
         if (!clientStarted)
         {
@@ -467,6 +680,102 @@ public class GameSessionCoordinator : MonoBehaviour
         sessionStartRoutine = null;
     }
 
+    private IEnumerator ExecuteRelayRequest(NetworkManager networkManager)
+    {
+        PlayerProfileManager.Ensure();
+        CombatTelemetryManager.Ensure();
+        ResearchTelemetryManager.Ensure();
+        OnlineDebugOverlay.Ensure();
+        sessionManager = MultiplayerSessionManager.Ensure();
+
+        bool hosting = pendingRequest != null && pendingRequest.Kind == PendingSessionKind.Host;
+        string joinCode = pendingRequest != null && pendingRequest.Session != null
+            ? pendingRequest.Session.JoinCode
+            : null;
+
+        startingHost = hosting;
+        bool isPrivate = pendingRequest == null || pendingRequest.Visibility != GameVisibility.Public;
+        string sessionId = pendingRequest != null && pendingRequest.Session != null
+            ? pendingRequest.Session.SessionId
+            : null;
+        Task<OnlineSessionOperationResult> task;
+        if (hosting)
+            task = sessionManager.HostRelaySessionAsync(isPrivate);
+        else if (!string.IsNullOrEmpty(sessionId) && string.IsNullOrEmpty(joinCode))
+            task = sessionManager.JoinRelaySessionByIdAsync(sessionId);
+        else
+            task = sessionManager.JoinRelaySessionAsync(joinCode);
+
+        while (task != null && !task.IsCompleted)
+        {
+            if (!localClientConnected && !string.IsNullOrEmpty(sessionManager.StatusMessage))
+                SetStatus(sessionManager.StatusMessage, showBack: true);
+            yield return null;
+        }
+
+        startingHost = false;
+
+        if (task != null && task.IsFaulted)
+        {
+            Exception exception = task.Exception != null ? task.Exception.GetBaseException() : null;
+            MultiplayerLog.Error("Relay session task failed.", exception);
+            FailAndReturnToMenu(OnlineSessionErrorMapper.ToPlayerMessage(exception));
+            yield break;
+        }
+
+        OnlineSessionOperationResult result = task != null
+            ? task.Result
+            : OnlineSessionOperationResult.Fail("Unable to connect to this match.");
+
+        if (result.Cancelled)
+            yield break;
+
+        if (!result.Succeeded)
+        {
+            FailAndReturnToMenu(string.IsNullOrEmpty(result.Error)
+                ? "Unable to connect to this match."
+                : result.Error);
+            yield break;
+        }
+
+        if (pendingRequest != null && pendingRequest.Session != null)
+        {
+            pendingRequest.Session.JoinCode = sessionManager.JoinCode;
+            pendingRequest.Session.SessionId = sessionManager.SessionId;
+            pendingRequest.Session.ConnectionMode = MultiplayerConnectionMode.Relay;
+            ActiveSession = pendingRequest.Session;
+        }
+        else if (ActiveSession == null && sessionManager != null)
+        {
+            ActiveSession = new GameSessionInfo
+            {
+                JoinCode = sessionManager.JoinCode,
+                SessionId = sessionManager.SessionId,
+                ConnectionMode = MultiplayerConnectionMode.Relay,
+                Visibility = pendingRequest != null ? pendingRequest.Visibility : GameVisibility.Private,
+                CreatedUtcTicks = DateTime.UtcNow.Ticks
+            };
+        }
+        MultiplayerLog.Info("Relay network connected.");
+
+        if (networkManager != null &&
+            (networkManager.IsHost || networkManager.IsClient) &&
+            !localClientConnected)
+        {
+            HandleClientConnected(networkManager.LocalClientId);
+        }
+
+        if (localClientConnected)
+            HideStatus();
+
+        if (!localClientConnected)
+        {
+            if (connectTimeoutRoutine != null)
+                StopCoroutine(connectTimeoutRoutine);
+            connectTimeoutRoutine = StartCoroutine(ClientConnectTimeout());
+        }
+    }
+
     private IEnumerator StartHostWithFreePort(NetworkManager networkManager)
     {
         GameSessionInfo session = pendingRequest.Session;
@@ -478,7 +787,9 @@ public class GameSessionCoordinator : MonoBehaviour
         Debug.Log($"Bullseye: starting host on 127.0.0.1:{port}");
 
         startingHost = true;
+        PlayerProfileManager.Ensure();
         CombatTelemetryManager.Ensure();
+        ResearchTelemetryManager.Ensure();
         networkManager.StartHost();
         bool hostIsUp = localClientConnected ||
                         (networkManager != null && networkManager.IsServer && networkManager.IsListening);
@@ -558,24 +869,30 @@ public class GameSessionCoordinator : MonoBehaviour
         IsBusy = true;
         LastError = null;
         LastErrorKind = PendingSessionKind.None;
+        LastErrorMode = MultiplayerConnectionMode.Local;
         EnsureStatusUi();
         if (statusCanvas != null)
             statusCanvas.gameObject.SetActive(true);
         if (statusBackButton != null)
-            statusBackButton.gameObject.SetActive(false);
+            statusBackButton.gameObject.SetActive(true);
+        if (statusBackLabel != null)
+            statusBackLabel.text = "Cancel";
     }
 
     private void SetStatus(string message, bool showBack = false)
     {
         StatusMessage = message;
         EnsureStatusUi();
-        bool visible = !string.IsNullOrEmpty(message);
+        bool overlayAllowed = !localClientConnected || returningToMenu;
+        bool visible = overlayAllowed && !string.IsNullOrEmpty(message);
         if (statusCanvas != null)
             statusCanvas.gameObject.SetActive(visible);
         if (statusLabel != null)
             statusLabel.text = message ?? string.Empty;
         if (statusBackButton != null)
-            statusBackButton.gameObject.SetActive(showBack && visible);
+            statusBackButton.gameObject.SetActive((showBack || IsBusy) && visible);
+        if (statusBackLabel != null)
+            statusBackLabel.text = IsBusy ? "Cancel" : "Back";
         StatusChanged?.Invoke(message);
     }
 
@@ -639,12 +956,19 @@ public class GameSessionCoordinator : MonoBehaviour
         MenuUiFactory.Stretch(dim.rectTransform);
 
         statusLabel = MenuUiFactory.CreateLabel(canvasObject.transform, "Status", "Connecting...", 36, new Vector2(0f, 40f), new Vector2(900f, 80f));
-        statusBackButton = MenuUiFactory.CreateButton(canvasObject.transform, "Back", "Back", new Vector2(0f, -60f), () =>
+        statusBackButton = MenuUiFactory.CreateButton(canvasObject.transform, "Back", "Cancel", new Vector2(0f, -60f), () =>
         {
+            if (IsBusy)
+            {
+                CancelConnection();
+                return;
+            }
+
             HideStatus();
             if (SceneManager.GetActiveScene().name != MainMenuSceneName)
                 SceneManager.LoadScene(MainMenuSceneName, LoadSceneMode.Single);
         });
+        statusBackLabel = statusBackButton.GetComponentInChildren<Text>();
         statusBackButton.gameObject.SetActive(false);
         statusCanvas.gameObject.SetActive(false);
     }

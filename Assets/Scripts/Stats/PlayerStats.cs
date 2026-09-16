@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -28,9 +29,24 @@ public class PlayerStats : NetworkBehaviour
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Server);
 
+    private readonly NetworkVariable<FixedString64Bytes> displayName = new(
+        default,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Owner);
+
     public int Eliminations => eliminations.Value;
     public int Deaths => deaths.Value;
     public int Assists => assists.Value;
+    public string DisplayName
+    {
+        get
+        {
+            string value = displayName.Value.ToString();
+            return string.IsNullOrWhiteSpace(value)
+                ? CurrentMatchStatistics.FallbackDisplayName(OwnerClientId)
+                : value;
+        }
+    }
 
     /// <summary>
     /// Match-session count of eliminations scored against a knocked-off bullseye.
@@ -46,6 +62,9 @@ public class PlayerStats : NetworkBehaviour
         deaths.OnValueChanged += OnStatChanged;
         assists.OnValueChanged += OnStatChanged;
         detachedBullseyeEliminations.OnValueChanged += OnStatChanged;
+        displayName.OnValueChanged += OnDisplayNameChanged;
+        if (IsOwner)
+            ApplyLocalDisplayName();
     }
 
     public override void OnNetworkDespawn()
@@ -54,6 +73,7 @@ public class PlayerStats : NetworkBehaviour
         deaths.OnValueChanged -= OnStatChanged;
         assists.OnValueChanged -= OnStatChanged;
         detachedBullseyeEliminations.OnValueChanged -= OnStatChanged;
+        displayName.OnValueChanged -= OnDisplayNameChanged;
     }
 
     public void AddElimination()
@@ -119,5 +139,20 @@ public class PlayerStats : NetworkBehaviour
     private void OnStatChanged(int previous, int next)
     {
         StatsChanged?.Invoke();
+    }
+
+    private void OnDisplayNameChanged(FixedString64Bytes previous, FixedString64Bytes next)
+    {
+        StatsChanged?.Invoke();
+    }
+
+    private void ApplyLocalDisplayName()
+    {
+        string name = PlayerProfileManager.Ensure().DisplayName;
+        if (string.IsNullOrWhiteSpace(name))
+            name = PlayerProfileConstants.DefaultDisplayName;
+        if (name.Length > 24)
+            name = name.Substring(0, 24);
+        displayName.Value = name;
     }
 }

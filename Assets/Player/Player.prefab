@@ -1055,6 +1055,7 @@ GameObject:
   - component: {fileID: 4451154756887156191}
   - component: {fileID: 3453876076560794487}
   - component: {fileID: 1349647467781100847}
+  - component: {fileID: 3686209570026602923}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -2695,6 +2696,30 @@ MonoBehaviour:
   probeHeight: 0.45
   probeDistance: 1.6
   ownerSpatialBlend: 0.22
+--- !u!114 &3686209570026602923
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: da832af37f5b40a439a7fa1764d4f5e3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ResearchEngagementTracker
+  acquisitionConeDegrees: 15
+  minAcquisitionDuration: 0.15
+  lossTimeout: 1.5
+  maxEngagementDuration: 30
+  targetSwitchHold: 0.25
+  reacquireGrace: 0.45
+  maxLineOfSightDistance: 200
+  sampleRateHz: 30
+  sampleRateMin: 20
+  sampleRateMax: 60
+  meaningfulAimMoveDegrees: 0.4
+  drawDebug: 0
 --- !u!1 &3625492656395199349
 GameObject:
   m_ObjectHideFlags: 0

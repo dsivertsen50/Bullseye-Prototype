@@ -34,8 +34,14 @@ public class PlayerShoot : NetworkBehaviour
     private PlayerWeaponInteractor interactor;
     private WeaponAccuracyController accuracy;
     private PlayerProjectileLauncher projectileLauncher;
+    private ResearchEngagementTracker researchTracker;
     private InputAction reloadAction;
     private float nextFireTime;
+    private Vector3 lastHitscanImpactPoint;
+    private PlayerHealth lastHitscanHitHealth;
+    private PlayerCombatHitbox lastHitscanHitbox;
+    private bool lastHitscanHitBullseye;
+    private bool lastHitscanHitEnvironment;
 
     private void Awake()
     {
@@ -49,6 +55,7 @@ public class PlayerShoot : NetworkBehaviour
         interactor = GetComponent<PlayerWeaponInteractor>();
         accuracy = GetComponent<WeaponAccuracyController>();
         projectileLauncher = GetComponent<PlayerProjectileLauncher>();
+        researchTracker = GetComponent<ResearchEngagementTracker>();
     }
 
     private void OnEnable()
@@ -114,8 +121,14 @@ public class PlayerShoot : NetworkBehaviour
         if (projectileLauncher == null)
             projectileLauncher = GetComponent<PlayerProjectileLauncher>();
 
-        if (projectileLauncher == null || !projectileLauncher.TryFire(definition))
+        if (researchTracker == null)
+            researchTracker = GetComponent<ResearchEngagementTracker>();
+
+        string researchShotId = ResearchTelemetryManager.Ensure().NextShotId();
+        if (projectileLauncher == null || !projectileLauncher.TryFire(definition, researchShotId))
             return;
+
+        researchTracker?.NotifyShotFired(researchShotId);
 
         if (inventory != null)
             inventory.NotifyShotFired();
@@ -134,6 +147,10 @@ public class PlayerShoot : NetworkBehaviour
 
     private void Shoot()
     {
+        if (researchTracker == null)
+            researchTracker = GetComponent<ResearchEngagementTracker>();
+        researchTracker?.NotifyShotFired();
+
         if (inventory != null)
             inventory.NotifyShotFired();
 
@@ -158,6 +175,11 @@ public class PlayerShoot : NetworkBehaviour
         shotOrigins.Clear();
         shotEnds.Clear();
         directHitPlayers.Clear();
+        lastHitscanImpactPoint = Vector3.zero;
+        lastHitscanHitHealth = null;
+        lastHitscanHitbox = null;
+        lastHitscanHitBullseye = false;
+        lastHitscanHitEnvironment = false;
         bool allowRicochet = definition == null || definition.CanRicochet;
         for (int i = 0; i < projectileCount; i++)
         {
@@ -202,10 +224,14 @@ public class PlayerShoot : NetworkBehaviour
 
             RaycastHit hit = trace.finalHit;
             TrackDirectPlayerHit(hit.collider);
+            RememberHitscanImpact(hit);
 
             if (HitscanRicochet.TryGetBullseyeTarget(hit.collider, out BullseyeTarget target))
             {
                 pelletHits.Add((target, trace.totalDistance));
+                lastHitscanHitBullseye = true;
+                lastHitscanHitHealth = target.OwnerHealth;
+                lastHitscanImpactPoint = hit.point;
                 continue;
             }
 
@@ -246,6 +272,11 @@ public class PlayerShoot : NetworkBehaviour
 
         if (accuracy != null)
             accuracy.NotifyShotFired();
+
+        if (impactPoints.Count > 0)
+            lastHitscanHitEnvironment = true;
+
+        ReportHitscanResearchImpact();
     }
 
     private void CollectShotSegments(Vector3 origin, in HitscanRicochet.TraceResult trace)
@@ -449,6 +480,60 @@ public class PlayerShoot : NetworkBehaviour
 
         if (!directHitPlayers.Contains(hitHealth))
             directHitPlayers.Add(hitHealth);
+    }
+
+    private void RememberHitscanImpact(RaycastHit hit)
+    {
+        lastHitscanImpactPoint = hit.point;
+        PlayerHealth hitHealth = hit.collider != null
+            ? hit.collider.GetComponentInParent<PlayerHealth>()
+            : null;
+        if (hitHealth != null && hitHealth != playerHealth)
+        {
+            lastHitscanHitHealth = hitHealth;
+            lastHitscanHitbox = hit.collider.GetComponentInParent<PlayerCombatHitbox>();
+            return;
+        }
+
+        if (hit.collider != null && BulletImpactManager.IsValidSurface(hit.collider))
+            lastHitscanHitEnvironment = true;
+    }
+
+    private void ReportHitscanResearchImpact()
+    {
+        if (researchTracker == null)
+            return;
+
+        ResearchBodyRegion region = ResearchBodyRegion.Other;
+        if (lastHitscanHitBullseye && lastHitscanHitHealth != null &&
+            ResearchTelemetrySnapshot.TryGetBullseyePose(
+                lastHitscanHitHealth,
+                out _,
+                out _,
+                out _,
+                out region,
+                out _,
+                out _))
+        {
+        }
+        else if (lastHitscanHitbox != null)
+        {
+            region = ResearchTelemetrySnapshot.MapCombatHitbox(lastHitscanHitbox);
+        }
+        else if (lastHitscanHitHealth != null)
+        {
+            region = ResearchTelemetrySnapshot.MapDamageZone(BullseyeBodyZone.Torso);
+        }
+
+        bool hitPlayer = lastHitscanHitHealth != null || lastHitscanHitBullseye;
+        researchTracker.NotifyHitscanImpact(
+            lastHitscanImpactPoint,
+            lastHitscanHitHealth,
+            lastHitscanHitBullseye,
+            region,
+            lastHitscanHitEnvironment && !hitPlayer,
+            0f,
+            false);
     }
 
     private bool RegisterGroupedHits()
