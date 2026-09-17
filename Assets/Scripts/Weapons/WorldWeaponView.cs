@@ -32,6 +32,8 @@ public class WorldWeaponView : NetworkBehaviour
     private Quaternion kickRestLocalRotation;
     private WeaponPresentationCoordinator coordinator;
     private ThirdPersonWeaponVisual currentVisual;
+    private AudioSource[] fireSfxVoices;
+    private int nextFireSfxVoice;
 
     public Transform WorldWeaponRoot => worldWeaponRoot;
     public Transform WeaponSocket => weaponSocket;
@@ -147,7 +149,7 @@ public class WorldWeaponView : NetworkBehaviour
             return;
 
         WeaponPresentationConfig config = Config;
-        PlayClip(config != null ? config.PickFireSfx() : null, config != null ? config.WorldFireSfxVolume : 1f);
+        PlayFireClip(config != null ? config.PickFireSfx() : null, config != null ? config.WorldFireSfxVolume : 1f);
         SpawnMuzzleEffect();
         // REQ-049: do not kick the world weapon. Grip_R / Grip_L live on that
         // transform, so a kick yanks both arms outward through IK.
@@ -446,6 +448,12 @@ public class WorldWeaponView : NetworkBehaviour
         audioSource.PlayOneShot(clip, Mathf.Clamp01(volume));
     }
 
+    private void PlayFireClip(AudioClip clip, float volume)
+    {
+        EnsureFireSfxVoices();
+        WeaponFireSfx.Play(fireSfxVoices, ref nextFireSfxVoice, clip, volume);
+    }
+
     private void PlayAnimationState(string stateName, float speed)
     {
         if (weaponAnimator == null || string.IsNullOrEmpty(stateName))
@@ -541,11 +549,21 @@ public class WorldWeaponView : NetworkBehaviour
         audioSource.spatialBlend = 1f;
         audioSource.rolloffMode = AudioRolloffMode.Logarithmic;
         audioSource.dopplerLevel = 0.15f;
+        audioSource.priority = WeaponFireSfx.Priority;
 
         WeaponPresentationConfig config = Config;
         audioSource.minDistance = config != null ? Mathf.Max(0.1f, config.WorldAudioMinDistance) : 1.5f;
         audioSource.maxDistance = config != null ? Mathf.Max(audioSource.minDistance + 0.1f, config.WorldAudioMaxDistance) : 45f;
         PlayerGameSettings.RouteToSfx(audioSource);
+        EnsureFireSfxVoices();
+    }
+
+    private void EnsureFireSfxVoices()
+    {
+        Transform host = audioSource != null ? audioSource.transform : transform;
+        float minDistance = audioSource != null ? audioSource.minDistance : 1.5f;
+        float maxDistance = audioSource != null ? audioSource.maxDistance : 45f;
+        fireSfxVoices = WeaponFireSfx.EnsureVoices(host, true, minDistance, maxDistance);
     }
 
     private void PreparePresentationObject()

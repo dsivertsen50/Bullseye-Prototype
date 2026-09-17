@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.Video;
 
@@ -18,7 +19,8 @@ public class MainMenuController : MonoBehaviour
     {
         Main,
         Play,
-        Host,
+        CustomMatch,
+        Lobby,
         Join,
         Profile,
         Controls,
@@ -31,6 +33,8 @@ public class MainMenuController : MonoBehaviour
     [SerializeField] private CreditsConfig creditsConfig;
     [SerializeField] private MenuAudioController menuAudio;
     [SerializeField] private WeaponCatalog weaponCatalog;
+    [SerializeField] private MapCatalog mapCatalog;
+    [SerializeField] private GameModeCatalog gameModeCatalog;
     [SerializeField] private string gameplaySceneName = GameSessionCoordinator.DefaultGameplaySceneName;
     [SerializeField] private float leftColumnPadding = 72f;
     [Tooltip("Optional still image shown on the right. If assigned, the 3D menu stage is hidden.")]
@@ -42,7 +46,6 @@ public class MainMenuController : MonoBehaviour
 
     private GameObject mainPanel;
     private GameObject playPanel;
-    private GameObject hostPanel;
     private GameObject joinPanel;
     private GameObject profilePanel;
     private GameObject controlsPanel;
@@ -50,6 +53,7 @@ public class MainMenuController : MonoBehaviour
     private GameObject controlSettingsPanel;
     private GameObject creditsPanel;
     private PlayerProfileUI profileUi;
+    private MatchMenuUI matchMenu;
 
     private Selectable playButton;
     private Selectable profileButton;
@@ -60,11 +64,6 @@ public class MainMenuController : MonoBehaviour
     private Selectable joinGameButton;
     private Selectable hostGameButton;
     private Selectable playBackButton;
-    private Button publicButton;
-    private Button privateButton;
-    private Button localButton;
-    private Selectable startGameButton;
-    private Selectable hostBackButton;
     private InputField joinCodeField;
     private Selectable joinConfirmButton;
     private Selectable joinBackButton;
@@ -85,9 +84,6 @@ public class MainMenuController : MonoBehaviour
     private Slider aimSlider;
     private Toggle invertToggle;
 
-    private Text hostJoinCodeLabel;
-    private Text hostVisibilityNote;
-    private Text hostErrorLabel;
     private Text joinPublicListLabel;
     private Text joinErrorLabel;
     private Text joinTitleLabel;
@@ -97,8 +93,6 @@ public class MainMenuController : MonoBehaviour
     private Coroutine publicQueryRoutine;
 
     private MenuScreen currentScreen = MenuScreen.Main;
-    private GameVisibility hostVisibility = GameVisibility.Private;
-    private bool hostLocalTest;
     private string reservedJoinCode;
     private bool built;
     private bool suppressUiCallbacks;
@@ -109,6 +103,7 @@ public class MainMenuController : MonoBehaviour
     private InputAction navigateAction;
     private InputSystemUIInputModule uiInputModule;
     private GameSessionCoordinator sessionCoordinator;
+    private Coroutine pendingSelect;
 
     private void Awake()
     {
@@ -134,8 +129,9 @@ public class MainMenuController : MonoBehaviour
                 sessionCoordinator.ClearLastError();
                 if (hostFailed)
                 {
-                    ShowScreen(MenuScreen.Host, false);
-                    SetHostError(error);
+                    ShowScreen(MenuScreen.CustomMatch, false);
+                    if (matchMenu != null)
+                        matchMenu.SetCustomError(error);
                 }
                 else
                 {
@@ -155,18 +151,74 @@ public class MainMenuController : MonoBehaviour
     {
         BindUiActions();
         PlayerGameSettings.Changed += HandleSettingsChanged;
+        if (sessionCoordinator == null)
+            EnsureCoordinator();
+        if (sessionCoordinator != null)
+            sessionCoordinator.LobbyReady += HandleLobbyReady;
+        MatchLobby.Ensure().Closed += HandleLobbyClosed;
     }
 
     private void OnDisable()
     {
         UnbindUiActions();
         PlayerGameSettings.Changed -= HandleSettingsChanged;
+        if (sessionCoordinator != null)
+            sessionCoordinator.LobbyReady -= HandleLobbyReady;
+        if (MatchLobby.Instance != null)
+            MatchLobby.Instance.Closed -= HandleLobbyClosed;
     }
 
     private void Update()
     {
         RestoreSelectionIfNeeded();
         TrackSelectionForNavigateSound();
+    }
+
+    /// <summary>
+    /// NGO Single scene load can leave MainMenu loaded. Hide the overlay and
+    /// leftover menu cameras so gameplay is visible.
+    /// </summary>
+    public static void HideForGameplay()
+    {
+        MainMenuController menu = FindAnyObjectByType<MainMenuController>();
+        if (menu != null)
+            menu.ApplyGameplayHide();
+
+        MenuBackdrop backdrop = FindAnyObjectByType<MenuBackdrop>();
+        if (backdrop != null)
+            backdrop.gameObject.SetActive(false);
+
+        DisableLeftoverMenuSceneRoots();
+    }
+
+    private void ApplyGameplayHide()
+    {
+        Canvas[] canvases = GetComponentsInChildren<Canvas>(true);
+        for (int i = 0; i < canvases.Length; i++)
+        {
+            if (canvases[i] != null)
+                canvases[i].gameObject.SetActive(false);
+        }
+
+        if (matchMenu != null)
+            matchMenu.Hide();
+
+        enabled = false;
+        gameObject.SetActive(false);
+    }
+
+    private static void DisableLeftoverMenuSceneRoots()
+    {
+        Scene menuScene = SceneManager.GetSceneByName(GameSessionCoordinator.MainMenuSceneName);
+        if (!menuScene.IsValid() || !menuScene.isLoaded)
+            return;
+
+        GameObject[] roots = menuScene.GetRootGameObjects();
+        for (int i = 0; i < roots.Length; i++)
+        {
+            if (roots[i] != null)
+                roots[i].SetActive(false);
+        }
     }
 
     private void EnsureCoordinator()
@@ -227,8 +279,15 @@ public class MainMenuController : MonoBehaviour
             case MenuScreen.Profile:
                 ShowScreen(MenuScreen.Main, fromCancel);
                 break;
-            case MenuScreen.Host:
+            case MenuScreen.CustomMatch:
+                if (MatchLobby.Ensure().IsInLobby)
+                {
+                    ShowScreen(MenuScreen.Lobby, fromCancel);
+                    break;
+                }
                 ShowScreen(MenuScreen.Play, fromCancel);
+                break;
+            case MenuScreen.Lobby:
                 break;
             case MenuScreen.Join:
                 ShowScreen(MenuScreen.Play, fromCancel);
@@ -255,16 +314,24 @@ public class MainMenuController : MonoBehaviour
         currentScreen = screen;
         SetActive(mainPanel, screen == MenuScreen.Main);
         SetActive(playPanel, screen == MenuScreen.Play);
-        SetActive(hostPanel, screen == MenuScreen.Host);
         SetActive(joinPanel, screen == MenuScreen.Join);
         SetActive(profilePanel, screen == MenuScreen.Profile);
         SetActive(controlsPanel, screen == MenuScreen.Controls);
         SetActive(settingsPanel, screen == MenuScreen.Settings);
         SetActive(controlSettingsPanel, screen == MenuScreen.ControlSettings);
         SetActive(creditsPanel, screen == MenuScreen.Credits);
+        if (matchMenu != null)
+        {
+            if (screen == MenuScreen.CustomMatch)
+                matchMenu.OpenCustomMatch();
+            else if (screen == MenuScreen.Lobby)
+                matchMenu.OpenLobby(MatchLobby.Ensure().IsHost);
+            else
+                matchMenu.Hide();
+        }
 
-        if (screen == MenuScreen.Host)
-            PrepareHostScreen();
+        if (screen == MenuScreen.CustomMatch)
+            PrepareCustomMatchScreen();
         if (screen == MenuScreen.Join)
             PrepareJoinScreen();
         if (screen == MenuScreen.Profile && profileUi != null)
@@ -285,13 +352,12 @@ public class MainMenuController : MonoBehaviour
 
     private static bool LocalTestAvailable => Application.isEditor;
 
-    private void PrepareHostScreen()
+    private void PrepareCustomMatchScreen()
     {
-        if (LocalTestAvailable)
-            hostLocalTest = true;
         EnsureLocalJoinCode();
-        SetHostError(null);
-        RefreshVisibilityButtons();
+        if (matchMenu != null)
+            matchMenu.SetCustomError(null);
+        MatchLobby.Ensure().Configure(mapCatalog, gameModeCatalog, null);
     }
 
     private void PrepareJoinScreen()
@@ -326,43 +392,6 @@ public class MainMenuController : MonoBehaviour
     {
         if (joinErrorLabel != null)
             joinErrorLabel.text = message ?? string.Empty;
-    }
-
-    private void SetHostError(string message)
-    {
-        if (hostErrorLabel != null)
-            hostErrorLabel.text = message ?? string.Empty;
-    }
-
-    private void RefreshVisibilityButtons()
-    {
-        MenuUiFactory.SetButtonSelectedVisual(publicButton, !hostLocalTest && hostVisibility == GameVisibility.Public);
-        MenuUiFactory.SetButtonSelectedVisual(privateButton, !hostLocalTest && hostVisibility == GameVisibility.Private);
-        if (localButton != null)
-        {
-            localButton.gameObject.SetActive(LocalTestAvailable);
-            MenuUiFactory.SetButtonSelectedVisual(localButton, hostLocalTest);
-        }
-
-        if (hostJoinCodeLabel != null)
-        {
-            if (hostLocalTest)
-                hostJoinCodeLabel.text = "Join Code  " + reservedJoinCode;
-            else if (hostVisibility == GameVisibility.Private)
-                hostJoinCodeLabel.text = "You'll get a join code after the match starts.";
-            else
-                hostJoinCodeLabel.text = "Public games appear under Join Game.";
-        }
-
-        if (hostVisibilityNote != null)
-        {
-            if (hostLocalTest)
-                hostVisibilityNote.text = "Local test stays on this computer. Use this for Multiplayer Play Mode.";
-            else if (hostVisibility == GameVisibility.Public)
-                hostVisibilityNote.text = "Public games can be found by other players in Join Game.";
-            else
-                hostVisibilityNote.text = "Private games are joined with a code. Share it with invited players.";
-        }
     }
 
     private void EnsureLocalJoinCode()
@@ -490,19 +519,75 @@ public class MainMenuController : MonoBehaviour
             return;
 
         PlaySelect();
-        if (hostLocalTest && LocalTestAvailable)
+        MatchLobby lobby = MatchLobby.Ensure();
+        lobby.Configure(mapCatalog, gameModeCatalog, null);
+        if (!MatchCatalogs.TryValidate(lobby.Configuration, mapCatalog, gameModeCatalog, out string validationError, out _, out _))
+        {
+            if (matchMenu != null)
+                matchMenu.SetCustomError(validationError);
+            return;
+        }
+
+        GameVisibility visibility = MatchCatalogs.ToGameVisibility(lobby.Configuration.Visibility);
+        if (MainMenuHostOptions.LocalTest && LocalTestAvailable)
         {
             EnsureLocalJoinCode();
             if (sessionCoordinator.TryHost(GameVisibility.Private, reservedJoinCode, out string localError))
                 return;
-            SetHostError(localError);
+            if (matchMenu != null)
+                matchMenu.SetCustomError(localError);
             return;
         }
 
-        if (sessionCoordinator.TryHostOnline(hostVisibility, out string error))
+        if (sessionCoordinator.TryHostOnline(visibility, out string error))
             return;
 
-        SetHostError(error);
+        if (matchMenu != null)
+            matchMenu.SetCustomError(error);
+    }
+
+    private void HandleLobbyReady()
+    {
+        ShowScreen(MenuScreen.Lobby, false);
+        if (matchMenu != null)
+            matchMenu.SetLobbyError(null);
+    }
+
+    private void HandleLobbyClosed()
+    {
+        if (currentScreen == MenuScreen.Lobby)
+            ShowScreen(MenuScreen.Play, false);
+    }
+
+    private void StartMatchFromLobby()
+    {
+        if (sessionCoordinator == null)
+            EnsureCoordinator();
+        if (sessionCoordinator == null)
+            return;
+
+        PlaySelect();
+        if (sessionCoordinator.TryStartMatch(out string error))
+            return;
+
+        if (matchMenu != null)
+            matchMenu.SetLobbyError(error);
+    }
+
+    private void LeaveLobbyFromMenu()
+    {
+        PlaySelect();
+        if (sessionCoordinator != null)
+            sessionCoordinator.LeaveToMenu(null);
+        ShowScreen(MenuScreen.Play, false);
+    }
+
+    private void CancelLobbyFromMenu()
+    {
+        PlaySelect();
+        if (sessionCoordinator != null)
+            sessionCoordinator.LeaveToMenu(null);
+        ShowScreen(MenuScreen.Main, false);
     }
 
     private void OpenJoin()
@@ -624,27 +709,41 @@ public class MainMenuController : MonoBehaviour
 
     private void SelectControl(Selectable selectable)
     {
-        suppressNavigateSound = true;
-        lastSelected = selectable != null ? selectable.gameObject : null;
-        if (selectable == null || EventSystem.current == null)
-            return;
+        if (pendingSelect != null)
+            StopCoroutine(pendingSelect);
+        pendingSelect = StartCoroutine(SelectControlNextFrame(selectable));
+    }
 
-        EventSystem.current.SetSelectedGameObject(null);
-        EventSystem.current.SetSelectedGameObject(selectable.gameObject);
+    private IEnumerator SelectControlNextFrame(Selectable selectable)
+    {
+        yield return null;
+
+        Selectable target = UsableSelectable(selectable) ?? UsableSelectable(DefaultSelectableForCurrentScreen());
+        suppressNavigateSound = true;
+        lastSelected = target != null ? target.gameObject : null;
+        if (target != null && EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+            EventSystem.current.SetSelectedGameObject(target.gameObject);
+        }
+
+        pendingSelect = null;
+    }
+
+    private static Selectable UsableSelectable(Selectable selectable)
+    {
+        if (selectable == null || !selectable.gameObject.activeInHierarchy || !selectable.IsInteractable())
+            return null;
+        return selectable;
     }
 
     private void RestoreSelectionIfNeeded()
     {
-        if (EventSystem.current == null)
+        if (EventSystem.current == null || pendingSelect != null)
             return;
 
         GameObject selected = EventSystem.current.currentSelectedGameObject;
         if (selected != null && selected.activeInHierarchy)
-            return;
-
-        bool wantsSelection = navigateAction != null &&
-                              navigateAction.ReadValue<Vector2>().sqrMagnitude > 0.25f;
-        if (!wantsSelection)
             return;
 
         SelectControl(DefaultSelectableForCurrentScreen());
@@ -655,7 +754,8 @@ public class MainMenuController : MonoBehaviour
         switch (currentScreen)
         {
             case MenuScreen.Play: return joinGameButton;
-            case MenuScreen.Host: return publicButton;
+            case MenuScreen.CustomMatch: return matchMenu != null ? matchMenu.CustomDefaultSelectable : playButton;
+            case MenuScreen.Lobby: return matchMenu != null ? matchMenu.LobbyDefaultSelectable : playButton;
             case MenuScreen.Join:
                 return publicSessionButtons.Count > 0 ? publicSessionButtons[0] : joinCodeField;
             case MenuScreen.Profile: return profileUi != null ? profileUi.DefaultSelectable : playButton;
@@ -715,7 +815,7 @@ public class MainMenuController : MonoBehaviour
 
         BuildMainPanel(canvasObject.transform);
         BuildPlayPanel(canvasObject.transform);
-        BuildHostPanel(canvasObject.transform);
+        BuildMatchMenu(canvasObject.transform);
         BuildJoinPanel(canvasObject.transform);
         BuildProfilePanel(canvasObject.transform);
         BuildControlsPanel(canvasObject.transform);
@@ -813,44 +913,25 @@ public class MainMenuController : MonoBehaviour
         playPanel.SetActive(false);
         MenuUiFactory.CreateLabel(playPanel.transform, "Title", "PLAY", 48, new Vector2(0f, 200f), new Vector2(520f, 64f));
         joinGameButton = MenuUiFactory.CreateButton(playPanel.transform, "JoinGame", "Join Game", new Vector2(0f, 90f), OpenJoin);
-        hostGameButton = MenuUiFactory.CreateButton(playPanel.transform, "HostGame", "Host Game", new Vector2(0f, 20f), () => ShowScreen(MenuScreen.Host, true));
+        hostGameButton = MenuUiFactory.CreateButton(playPanel.transform, "HostGame", "Custom Match", new Vector2(0f, 20f), () => ShowScreen(MenuScreen.CustomMatch, true));
         playBackButton = MenuUiFactory.CreateButton(playPanel.transform, "Back", "Back", new Vector2(0f, -90f), () => ShowScreen(MenuScreen.Main, true));
     }
 
-    private void BuildHostPanel(Transform parent)
+    private void BuildMatchMenu(Transform parent)
     {
-        hostPanel = CreateMenuPanel(parent, "HostPanel", new Vector2(640f, 620f));
-        hostPanel.SetActive(false);
-        MenuUiFactory.CreateLabel(hostPanel.transform, "Title", "HOST GAME", 44, new Vector2(0f, 240f), new Vector2(640f, 56f));
-        MenuUiFactory.CreateLabel(hostPanel.transform, "VisibilityLabel", "Visibility", 22, new Vector2(0f, 175f), new Vector2(520f, 28f));
-        publicButton = MenuUiFactory.CreateButton(hostPanel.transform, "Public", "Public", new Vector2(-150f, 120f), () =>
-        {
-            hostLocalTest = false;
-            hostVisibility = GameVisibility.Public;
-            RefreshVisibilityButtons();
-            PlaySelect();
-        }, new Vector2(220f, 54f));
-        privateButton = MenuUiFactory.CreateButton(hostPanel.transform, "Private", "Private", new Vector2(150f, 120f), () =>
-        {
-            hostLocalTest = false;
-            hostVisibility = GameVisibility.Private;
-            RefreshVisibilityButtons();
-            PlaySelect();
-        }, new Vector2(220f, 54f));
-        localButton = MenuUiFactory.CreateButton(hostPanel.transform, "Local", "Local Test", new Vector2(0f, 55f), () =>
-        {
-            hostLocalTest = true;
-            EnsureLocalJoinCode();
-            RefreshVisibilityButtons();
-            PlaySelect();
-        }, new Vector2(240f, 54f));
-        localButton.gameObject.SetActive(LocalTestAvailable);
-        hostJoinCodeLabel = MenuUiFactory.CreateLabel(hostPanel.transform, "JoinCode", "Join Code", 28, new Vector2(0f, -5f), new Vector2(640f, 40f));
-        hostVisibilityNote = MenuUiFactory.CreateLabel(hostPanel.transform, "VisibilityNote", string.Empty, 18, new Vector2(0f, -60f), new Vector2(640f, 80f));
-        startGameButton = MenuUiFactory.CreateButton(hostPanel.transform, "StartGame", "Start Game", new Vector2(0f, -120f), HostFromMenu);
-        hostErrorLabel = MenuUiFactory.CreateLabel(hostPanel.transform, "Error", string.Empty, 20, new Vector2(0f, -155f), new Vector2(640f, 40f));
-        hostErrorLabel.color = new Color(1f, 0.45f, 0.4f, 1f);
-        hostBackButton = MenuUiFactory.CreateButton(hostPanel.transform, "Back", "Back", new Vector2(0f, -210f), () => ShowScreen(MenuScreen.Play, true));
+        matchMenu = MatchMenuUI.Create(
+            parent,
+            leftColumnPadding,
+            mapCatalog,
+            gameModeCatalog,
+            menuAudio,
+            HostFromMenu,
+            () => ShowScreen(MenuScreen.Play, true),
+            StartMatchFromLobby,
+            LeaveLobbyFromMenu,
+            CancelLobbyFromMenu,
+            () => ShowScreen(MenuScreen.CustomMatch, true),
+            () => ShowScreen(MenuScreen.Lobby, true));
     }
 
     private void BuildJoinPanel(Transform parent)
@@ -991,19 +1072,6 @@ public class MainMenuController : MonoBehaviour
         MenuUiFactory.SetVerticalNav(joinGameButton, playBackButton, hostGameButton);
         MenuUiFactory.SetVerticalNav(hostGameButton, joinGameButton, playBackButton);
         MenuUiFactory.SetVerticalNav(playBackButton, hostGameButton, joinGameButton);
-
-        MenuUiFactory.SetNav(publicButton, hostBackButton, localButton != null ? localButton : startGameButton, privateButton, privateButton);
-        MenuUiFactory.SetNav(privateButton, hostBackButton, localButton != null ? localButton : startGameButton, publicButton, publicButton);
-        if (localButton != null)
-        {
-            MenuUiFactory.SetVerticalNav(localButton, publicButton, startGameButton);
-            MenuUiFactory.SetVerticalNav(startGameButton, localButton, hostBackButton);
-        }
-        else
-        {
-            MenuUiFactory.SetVerticalNav(startGameButton, publicButton, hostBackButton);
-        }
-        MenuUiFactory.SetVerticalNav(hostBackButton, startGameButton, publicButton);
 
         MenuUiFactory.SetVerticalNav(masterVolumeSlider, settingsBackButton, sfxVolumeSlider);
         MenuUiFactory.SetVerticalNav(sfxVolumeSlider, masterVolumeSlider, musicVolumeSlider);

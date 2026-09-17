@@ -16,6 +16,7 @@ public class WeaponShotAudio : MonoBehaviour
 
     private readonly List<AudioSource> active = new(16);
     private readonly Queue<AudioSource> pool = new();
+    private readonly HashSet<AudioSource> activeRicochets = new();
     private readonly List<Vector3> selectedImpactPoints = new(8);
 
     public static WeaponShotAudioSettings Settings
@@ -148,10 +149,7 @@ public class WeaponShotAudio : MonoBehaviour
             if (source.isPlaying)
                 continue;
 
-            source.Stop();
-            source.clip = null;
-            source.gameObject.SetActive(false);
-            pool.Enqueue(source);
+            Recycle(source);
             active.RemoveAt(i);
         }
     }
@@ -185,7 +183,11 @@ public class WeaponShotAudio : MonoBehaviour
         AudioClip[] clips,
         WeaponShotAudioSettings settings)
     {
-        for (int i = 0; i < points.Count; i++)
+        SelectImpactPoints(points, settings.MaxRicochetSoundsPerShot, settings.RicochetSoundSeparation, selectedImpactPoints);
+        PruneActiveRicochets();
+        int remaining = settings.MaxConcurrentRicochetSounds - activeRicochets.Count;
+        int playCount = Mathf.Min(selectedImpactPoints.Count, Mathf.Max(0, remaining));
+        for (int i = 0; i < playCount; i++)
         {
             AudioClip clip = PickClip(clips);
             if (clip == null)
@@ -195,11 +197,12 @@ public class WeaponShotAudio : MonoBehaviour
             float pitch = RandomPitch(settings.RicochetPitchVariation);
             PlayOne(
                 clip,
-                points[i],
+                selectedImpactPoints[i],
                 volume,
                 pitch,
                 settings.RicochetMinDistance,
-                settings.RicochetMaxDistance);
+                settings.RicochetMaxDistance,
+                ricochet: true);
         }
     }
 
@@ -209,7 +212,8 @@ public class WeaponShotAudio : MonoBehaviour
         float volume,
         float pitch,
         float minDistance,
-        float maxDistance)
+        float maxDistance,
+        bool ricochet = false)
     {
         AudioSource source = Rent();
         if (source == null)
@@ -225,6 +229,8 @@ public class WeaponShotAudio : MonoBehaviour
         PlayerGameSettings.RouteToSfx(source);
         source.Play();
         active.Add(source);
+        if (ricochet)
+            activeRicochets.Add(source);
     }
 
     private AudioSource Rent()
@@ -243,7 +249,10 @@ public class WeaponShotAudio : MonoBehaviour
             AudioSource oldest = active[0];
             active.RemoveAt(0);
             if (oldest != null)
+            {
+                activeRicochets.Remove(oldest);
                 oldest.Stop();
+            }
             return oldest;
         }
 
@@ -259,15 +268,27 @@ public class WeaponShotAudio : MonoBehaviour
                 continue;
 
             if (source != null)
-            {
-                source.Stop();
-                source.clip = null;
-                source.gameObject.SetActive(false);
-                pool.Enqueue(source);
-            }
+                Recycle(source);
 
             active.RemoveAt(i);
         }
+    }
+
+    private void PruneActiveRicochets()
+    {
+        activeRicochets.RemoveWhere(source => source == null);
+    }
+
+    private void Recycle(AudioSource source)
+    {
+        if (source == null)
+            return;
+
+        activeRicochets.Remove(source);
+        source.Stop();
+        source.clip = null;
+        source.gameObject.SetActive(false);
+        pool.Enqueue(source);
     }
 
     private void Bootstrap()
@@ -297,7 +318,7 @@ public class WeaponShotAudio : MonoBehaviour
         source.rolloffMode = AudioRolloffMode.Logarithmic;
         source.dopplerLevel = 0f;
         source.spread = 0f;
-        source.priority = 96;
+        source.priority = 192;
         PlayerGameSettings.RouteToSfx(source);
         return source;
     }

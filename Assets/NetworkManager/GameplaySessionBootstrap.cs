@@ -4,11 +4,20 @@ using UnityEngine;
 /// <summary>
 /// Starts host/client from a main-menu session request when the gameplay scene loads.
 /// Direct scene play still falls back to the existing NetworkButtons.
+/// If a persistent lobby NetworkManager is already running, the scene duplicate is removed.
 /// </summary>
 public class GameplaySessionBootstrap : MonoBehaviour
 {
     private void Awake()
     {
+        NetworkManager sceneManager = GetComponent<NetworkManager>();
+        NetworkManager singleton = NetworkManager.Singleton;
+        if (singleton != null && singleton != sceneManager && (singleton.IsListening || GameSessionCoordinator.HasMenuDrivenSession))
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         if (!GameSessionCoordinator.HasMenuDrivenSession)
             return;
 
@@ -25,6 +34,10 @@ public class GameplaySessionBootstrap : MonoBehaviour
 
     private void Start()
     {
+        NetworkManager sceneManager = GetComponent<NetworkManager>();
+        if (sceneManager == null || NetworkManager.Singleton != sceneManager)
+            return;
+
         GameSessionCoordinator coordinator = GameSessionCoordinator.Instance;
         if (coordinator == null || coordinator.PendingRequest == null)
             return;
@@ -50,7 +63,10 @@ public class GameplaySessionBootstrap : MonoBehaviour
         if (singleton == null || singleton == sceneManager)
             return;
 
-        if (singleton.IsListening || singleton.ShutdownInProgress)
+        if (singleton.IsListening || GameSessionCoordinator.HasMenuDrivenSession)
+            return;
+
+        if (singleton.ShutdownInProgress)
             singleton.Shutdown();
         Destroy(singleton.gameObject);
     }

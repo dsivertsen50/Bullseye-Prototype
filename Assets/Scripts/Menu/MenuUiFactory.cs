@@ -9,7 +9,8 @@ public static class MenuUiFactory
 {
     public static Color PanelColor => new Color(0.08f, 0.09f, 0.12f, 0.94f);
     public static Color ButtonColor => new Color(0.16f, 0.18f, 0.24f, 1f);
-    public static Color SelectedGreen => new Color(0.35f, 0.82f, 0.42f, 1f);
+    public static Color SelectedGreen => new Color(0.22f, 0.86f, 0.38f, 1f);
+    public static Color SelectorBlue => new Color(0.22f, 0.58f, 1f, 1f);
 
     public static GameObject CreatePanel(Transform parent, string name, Vector2 size, Color? color = null)
     {
@@ -257,9 +258,9 @@ public static class MenuUiFactory
     {
         ColorBlock colors = ColorBlock.defaultColorBlock;
         colors.normalColor = normal;
-        colors.highlightedColor = new Color(0.25f, 0.55f, 0.32f, 1f);
-        colors.selectedColor = SelectedGreen;
-        colors.pressedColor = new Color(0.18f, 0.4f, 0.24f, 1f);
+        colors.highlightedColor = SelectorBlue;
+        colors.selectedColor = SelectorBlue;
+        colors.pressedColor = new Color(0.14f, 0.38f, 0.82f, 1f);
         colors.disabledColor = new Color(0.12f, 0.12f, 0.14f, 0.55f);
         colors.colorMultiplier = 1f;
         colors.fadeDuration = 0.08f;
@@ -296,9 +297,21 @@ public static class MenuUiFactory
 
         Color normal = selected ? SelectedGreen : ButtonColor;
         button.colors = MenuColors(normal);
-        Image image = button.GetComponent<Image>();
-        if (image != null)
-            image.color = normal;
+
+        Outline outline = button.GetComponent<Outline>();
+        if (selected)
+        {
+            if (outline == null)
+                outline = button.gameObject.AddComponent<Outline>();
+            outline.effectColor = SelectedGreen;
+            outline.effectDistance = new Vector2(3f, -3f);
+            outline.useGraphicAlpha = false;
+            outline.enabled = true;
+        }
+        else if (outline != null)
+        {
+            outline.enabled = false;
+        }
     }
 
     public static Font ResolveUiFont()

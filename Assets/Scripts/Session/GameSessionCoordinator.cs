@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
@@ -10,8 +11,8 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Menu-driven multiplayer session flow. Host/Join create a session first;
-/// EnterMatch() is the seam where a future lobby can delay loading gameplay.
+/// Menu-driven multiplayer session flow. Host/Join create a lobby first;
+/// TryStartMatch() loads the selected map through NGO scene management.
 /// </summary>
 [DefaultExecutionOrder(-200)]
 public class GameSessionCoordinator : MonoBehaviour
@@ -23,8 +24,12 @@ public class GameSessionCoordinator : MonoBehaviour
     private const int HostPortRetryCount = 8;
 
     [SerializeField] private string gameplaySceneName = DefaultGameplaySceneName;
-    [SerializeField] private bool enterMatchImmediately = true;
+    [SerializeField] private bool enterMatchImmediately;
     [SerializeField] private float clientConnectTimeout = 12f;
+    [SerializeField] private GameObject persistentNetworkManagerPrefab;
+    [SerializeField] private GameObject lobbyNetworkPrefab;
+    [SerializeField] private MapCatalog mapCatalog;
+    [SerializeField] private GameModeCatalog gameModeCatalog;
 
     private PendingSessionRequest pendingRequest;
     private Coroutine connectTimeoutRoutine;
@@ -32,7 +37,6 @@ public class GameSessionCoordinator : MonoBehaviour
     private Text statusLabel;
     private Button statusBackButton;
     private bool localClientConnected;
-    private bool shuttingDown;
     private bool startingHost;
     private bool returningToMenu;
     private Coroutine sessionStartRoutine;
@@ -40,6 +44,9 @@ public class GameSessionCoordinator : MonoBehaviour
     private int hostAttemptCount;
     private MultiplayerSessionManager sessionManager;
     private Text statusBackLabel;
+    private MatchLobby matchLobby;
+    private bool sceneEventsBound;
+    private bool connectionApprovalBound;
 
     public static GameSessionCoordinator Instance { get; private set; }
 
@@ -59,6 +66,7 @@ public class GameSessionCoordinator : MonoBehaviour
     public event Action<string> StatusChanged;
     public event Action<string> ConnectionFailed;
     public event Action ConnectionSucceeded;
+    public event Action LobbyReady;
 
     public enum PendingSessionKind
     {
@@ -73,6 +81,7 @@ public class GameSessionCoordinator : MonoBehaviour
         public GameVisibility Visibility;
         public MultiplayerConnectionMode ConnectionMode = MultiplayerConnectionMode.Local;
         public GameSessionInfo Session;
+        public MatchConfiguration Configuration;
     }
 
     private void Awake()
@@ -87,6 +96,8 @@ public class GameSessionCoordinator : MonoBehaviour
         DontDestroyOnLoad(gameObject);
         sessionManager = MultiplayerSessionManager.Ensure();
         sessionManager.HostDisconnected += HandleRelayHostDisconnected;
+        matchLobby = MatchLobby.Ensure();
+        matchLobby.Configure(mapCatalog, gameModeCatalog, lobbyNetworkPrefab);
         EnsureStatusUi();
     }
 
@@ -119,24 +130,24 @@ public class GameSessionCoordinator : MonoBehaviour
         }
 
         GameSessionInfo session = CreateHostSession(visibility, reservedJoinCode);
+        MatchConfiguration configuration = CurrentMatchConfiguration(visibility);
+        session.MapId = configuration.MapId;
+        session.GameModeId = configuration.GameModeId;
+        session.MaxPlayers = configuration.MaxPlayers;
         pendingRequest = new PendingSessionRequest
         {
             Kind = PendingSessionKind.Host,
             Visibility = visibility,
             Session = session,
-            ConnectionMode = MultiplayerConnectionMode.Local
+            ConnectionMode = MultiplayerConnectionMode.Local,
+            Configuration = configuration
         };
         StartedFromMenu = true;
         hostAttemptCount = 0;
         MultiplayerSessionManager.Ensure().SetLocalMode();
         SetStatus("Creating Game...");
         BeginBusy();
-
-        if (enterMatchImmediately)
-            EnterMatch();
-        else
-            SetStatus("Session created. Waiting for lobby.");
-
+        EnterLobby();
         return true;
     }
 
@@ -189,14 +200,15 @@ public class GameSessionCoordinator : MonoBehaviour
             Kind = PendingSessionKind.Join,
             Visibility = session.Visibility,
             Session = session,
-            ConnectionMode = session.ConnectionMode
+            ConnectionMode = session.ConnectionMode,
+            Configuration = CurrentMatchConfiguration(session.Visibility)
         };
         StartedFromMenu = true;
         if (session.ConnectionMode == MultiplayerConnectionMode.Local)
             MultiplayerSessionManager.Ensure().SetLocalMode();
-        SetStatus("Joining Game...");
+        SetStatus(pendingRequest.Kind == PendingSessionKind.Host ? "Creating Game..." : "Joining Game...");
         BeginBusy();
-        EnterMatch();
+        EnterLobby();
         return true;
     }
 
@@ -218,14 +230,18 @@ public class GameSessionCoordinator : MonoBehaviour
             {
                 Visibility = visibility,
                 ConnectionMode = MultiplayerConnectionMode.Relay,
-                CreatedUtcTicks = DateTime.UtcNow.Ticks
-            }
+                CreatedUtcTicks = DateTime.UtcNow.Ticks,
+                MapId = CurrentMatchConfiguration(visibility).MapId,
+                GameModeId = CurrentMatchConfiguration(visibility).GameModeId,
+                MaxPlayers = MultiplayerSessionManager.Ensure().MaxPlayers
+            },
+            Configuration = CurrentMatchConfiguration(visibility)
         };
         StartedFromMenu = true;
         hostAttemptCount = 0;
         SetStatus("Initializing online services...");
         BeginBusy();
-        EnterMatch();
+        EnterLobby();
         return true;
     }
 
@@ -256,12 +272,13 @@ public class GameSessionCoordinator : MonoBehaviour
                 Visibility = GameVisibility.Private,
                 ConnectionMode = MultiplayerConnectionMode.Relay,
                 CreatedUtcTicks = DateTime.UtcNow.Ticks
-            }
+            },
+            Configuration = MatchConfiguration.CreateDefault(MultiplayerSessionManager.Ensure().MaxPlayers)
         };
         StartedFromMenu = true;
         SetStatus("Initializing online services...");
         BeginBusy();
-        EnterMatch();
+        EnterLobby();
         return true;
     }
 
@@ -285,26 +302,78 @@ public class GameSessionCoordinator : MonoBehaviour
             Kind = PendingSessionKind.Join,
             Visibility = GameVisibility.Public,
             ConnectionMode = MultiplayerConnectionMode.Relay,
-            Session = session
+            Session = session,
+            Configuration = MatchConfiguration.CreateDefault(MultiplayerSessionManager.Ensure().MaxPlayers)
         };
         StartedFromMenu = true;
         SetStatus("Initializing online services...");
         BeginBusy();
-        EnterMatch();
+        EnterLobby();
         return true;
     }
 
     /// <summary>
-    /// Loads the gameplay scene. A future lobby can call this after ready-up
-    /// instead of hosting directly into a match.
+    /// Creates the multiplayer session on the current menu scene and opens the lobby.
     /// </summary>
-    public void EnterMatch()
+    public void EnterLobby()
     {
         if (pendingRequest == null)
             return;
 
+        if (enterMatchImmediately)
+        {
+            SetStatus(pendingRequest.Kind == PendingSessionKind.Host ? "Creating Game..." : "Connecting...");
+            SceneManager.LoadScene(ResolveGameplaySceneName(), LoadSceneMode.Single);
+            return;
+        }
+
+        matchLobby = MatchLobby.Ensure();
+        matchLobby.Configure(mapCatalog, gameModeCatalog, lobbyNetworkPrefab);
+        if (pendingRequest.Configuration != null)
+            matchLobby.SetDraftConfiguration(pendingRequest.Configuration);
+
+        MenuDisplayPawn.NeutralizeScenePawns();
         SetStatus(pendingRequest.Kind == PendingSessionKind.Host ? "Creating Game..." : "Connecting...");
-        SceneManager.LoadScene(GameplaySceneName, LoadSceneMode.Single);
+        NetworkManager networkManager = EnsurePersistentNetworkManager();
+        if (networkManager == null)
+        {
+            FailAndReturnToMenu(pendingRequest.Kind == PendingSessionKind.Host
+                ? "Unable to create game."
+                : "Unable to connect to game.");
+            return;
+        }
+
+        ExecutePendingRequest(networkManager);
+    }
+
+    public bool TryStartMatch(out string error)
+    {
+        error = null;
+        matchLobby = MatchLobby.Ensure();
+        if (matchLobby.TryGetStartError(out error))
+            return false;
+
+        MapDefinition map = matchLobby.SelectedMap;
+        NetworkManager networkManager = NetworkManager.Singleton;
+        if (networkManager == null || networkManager.SceneManager == null)
+        {
+            error = "The session is not ready yet.";
+            return false;
+        }
+
+        matchLobby.SetState(MatchState.Starting);
+        BindSceneEvents(networkManager);
+        SceneEventProgressStatus status = networkManager.SceneManager.LoadScene(map.SceneName, LoadSceneMode.Single);
+        if (status != SceneEventProgressStatus.Started)
+        {
+            matchLobby.SetState(MatchState.Lobby);
+            error = "Unable to start the match.";
+            return false;
+        }
+
+        HideMenuForGameplay();
+        SetStatus("Starting match...");
+        return true;
     }
 
     public void ExecutePendingRequest(NetworkManager networkManager)
@@ -398,6 +467,15 @@ public class GameSessionCoordinator : MonoBehaviour
             gameplaySceneName = sceneName;
     }
 
+    public void SetMatchAssets(MapCatalog maps, GameModeCatalog modes, GameObject networkManagerPrefab, GameObject lobbyStatePrefab)
+    {
+        mapCatalog = maps;
+        gameModeCatalog = modes;
+        persistentNetworkManagerPrefab = networkManagerPrefab;
+        lobbyNetworkPrefab = lobbyStatePrefab;
+        MatchLobby.Ensure().Configure(maps, modes, lobbyStatePrefab);
+    }
+
     private void ConfigureTransport(NetworkManager networkManager, PendingSessionRequest request)
     {
         if (request == null || request.Session == null)
@@ -455,24 +533,24 @@ public class GameSessionCoordinator : MonoBehaviour
                     ActiveSession.JoinCode = sessionManager.JoinCode;
                     ActiveSession.SessionId = sessionManager.SessionId;
                     ActiveSession.ConnectionMode = MultiplayerConnectionMode.Relay;
-                    ActiveSession.Visibility = GameVisibility.Private;
+                    ActiveSession.Visibility = pendingRequest != null ? pendingRequest.Visibility : GameVisibility.Private;
                 }
 
-                OnlineMatchHud.Ensure();
                 OnlineDebugOverlay.Ensure();
             }
             else
             {
                 sessionManager.MarkLocalModeConnected();
-                if (networkManager.IsHost)
-                    OnlineMatchHud.Ensure();
             }
         }
 
+        OpenLobbyAfterConnect(networkManager.IsServer || networkManager.IsHost);
         pendingRequest = null;
         SetStatus(null);
         HideStatus();
+        DespawnPlayersIfStillInLobby();
         ConnectionSucceeded?.Invoke();
+        LobbyReady?.Invoke();
     }
 
     private void HandleClientDisconnect(ulong clientId)
@@ -553,7 +631,6 @@ public class GameSessionCoordinator : MonoBehaviour
     private IEnumerator ReturnToMenuRoutine(string error, bool silent)
     {
         returningToMenu = true;
-        shuttingDown = true;
         PendingSessionKind errorKind = pendingRequest != null ? pendingRequest.Kind : LastErrorKind;
         MultiplayerConnectionMode errorMode = pendingRequest != null
             ? pendingRequest.ConnectionMode
@@ -580,6 +657,11 @@ public class GameSessionCoordinator : MonoBehaviour
         OnlineMatchHud hud = FindAnyObjectByType<OnlineMatchHud>();
         if (hud != null)
             hud.Hide();
+
+        if (matchLobby != null)
+            matchLobby.Close();
+        UnbindSceneEvents();
+        UnbindConnectionApproval();
 
         if (sessionManager != null)
         {
@@ -616,7 +698,6 @@ public class GameSessionCoordinator : MonoBehaviour
         if (SceneManager.GetActiveScene().name != MainMenuSceneName)
             SceneManager.LoadScene(MainMenuSceneName, LoadSceneMode.Single);
 
-        shuttingDown = false;
         returningToMenu = false;
         returnToMenuRoutine = null;
     }
@@ -644,9 +725,12 @@ public class GameSessionCoordinator : MonoBehaviour
 
         UnbindNetworkCallbacks();
         BindNetworkCallbacks(networkManager);
+        BindConnectionApproval(networkManager);
+        BindSceneEvents(networkManager);
+        MatchConnectionPayload.ApplyTo(networkManager);
         localClientConnected = false;
-        shuttingDown = false;
         returningToMenu = false;
+        MenuDisplayPawn.NeutralizeScenePawns();
 
         if (pendingRequest.ConnectionMode == MultiplayerConnectionMode.Relay)
         {
@@ -700,7 +784,7 @@ public class GameSessionCoordinator : MonoBehaviour
             : null;
         Task<OnlineSessionOperationResult> task;
         if (hosting)
-            task = sessionManager.HostRelaySessionAsync(isPrivate);
+            task = sessionManager.HostRelaySessionAsync(isPrivate, pendingRequest != null ? pendingRequest.Configuration : null);
         else if (!string.IsNullOrEmpty(sessionId) && string.IsNullOrEmpty(joinCode))
             task = sessionManager.JoinRelaySessionByIdAsync(sessionId);
         else
@@ -811,6 +895,8 @@ public class GameSessionCoordinator : MonoBehaviour
         {
             LocalSessionRegistry.Register(session);
             ActiveSession = session;
+            if (!localClientConnected)
+                HandleClientConnected(networkManager.LocalClientId);
             yield break;
         }
 
@@ -820,8 +906,12 @@ public class GameSessionCoordinator : MonoBehaviour
             Debug.LogWarning($"Bullseye: host bind failed on port {port}, retrying with a fresh NetworkManager ({hostAttemptCount}/{HostPortRetryCount}).");
             DestroyNetworkManager();
             yield return null;
-            SceneManager.LoadScene(GameplaySceneName, LoadSceneMode.Single);
-            yield break;
+            NetworkManager replacement = EnsurePersistentNetworkManager();
+            if (replacement != null)
+            {
+                sessionStartRoutine = StartCoroutine(ExecutePendingRequestRoutine(replacement));
+                yield break;
+            }
         }
 
         LocalSessionRegistry.UnregisterCurrentProcess();
@@ -854,6 +944,11 @@ public class GameSessionCoordinator : MonoBehaviour
 
     private static void DestroyNetworkManager()
     {
+        if (Instance != null)
+            Instance.UnbindSceneEvents();
+        else
+            UnbindSceneEventsFrom(NetworkManager.Singleton);
+
         NetworkManager networkManager = NetworkManager.Singleton;
         if (networkManager == null)
             return;
@@ -862,6 +957,258 @@ public class GameSessionCoordinator : MonoBehaviour
             networkManager.Shutdown();
 
         UnityEngine.Object.Destroy(networkManager.gameObject);
+    }
+
+    private MatchConfiguration CurrentMatchConfiguration(GameVisibility visibility)
+    {
+        MatchLobby lobby = MatchLobby.Ensure();
+        lobby.Configure(mapCatalog, gameModeCatalog, lobbyNetworkPrefab);
+        MatchConfiguration configuration = lobby.Configuration != null
+            ? lobby.Configuration.Clone()
+            : MatchConfiguration.CreateDefault(MultiplayerSessionManager.Ensure().MaxPlayers);
+        configuration.Visibility = MatchCatalogs.ToMatchVisibility(visibility);
+        configuration.MaxPlayers = MultiplayerSessionManager.Ensure().MaxPlayers;
+        return configuration;
+    }
+
+    private string ResolveGameplaySceneName()
+    {
+        MapDefinition map = matchLobby != null ? matchLobby.SelectedMap : null;
+        if (map != null && map.HasLoadableScene)
+            return map.SceneName;
+        return GameplaySceneName;
+    }
+
+    private void OpenLobbyAfterConnect(bool isHost)
+    {
+        matchLobby = MatchLobby.Ensure();
+        matchLobby.Configure(mapCatalog, gameModeCatalog, lobbyNetworkPrefab);
+        MatchConfiguration configuration = pendingRequest != null && pendingRequest.Configuration != null
+            ? pendingRequest.Configuration
+            : matchLobby.Configuration;
+
+        if (sessionManager != null && sessionManager.ActiveMultiplayerSession != null)
+            matchLobby.OpenSession(configuration, sessionManager.IsHostSession);
+        else if (isHost)
+            matchLobby.OpenLocalHost(configuration);
+        else
+            matchLobby.OpenLocalClient(configuration);
+
+        if (isHost)
+            matchLobby.SpawnNetworkStateIfNeeded();
+    }
+
+    private NetworkManager EnsurePersistentNetworkManager()
+    {
+        NetworkManager existing = NetworkManager.Singleton;
+        if (existing != null)
+        {
+            existing.NetworkConfig.AutoSpawnPlayerPrefabClientSide = false;
+            existing.NetworkConfig.ConnectionApproval = true;
+            BindConnectionApproval(existing);
+            return existing;
+        }
+
+        if (persistentNetworkManagerPrefab == null)
+        {
+            Debug.LogError("Bullseye: Persistent NetworkManager prefab is missing.");
+            return null;
+        }
+
+        GameObject instance = Instantiate(persistentNetworkManagerPrefab);
+        instance.name = "NetworkManager";
+        DontDestroyOnLoad(instance);
+        NetworkManager networkManager = instance.GetComponent<NetworkManager>();
+        if (networkManager == null)
+        {
+            Debug.LogError("Bullseye: Persistent NetworkManager prefab has no NetworkManager.");
+            return null;
+        }
+
+        networkManager.NetworkConfig.AutoSpawnPlayerPrefabClientSide = false;
+        networkManager.NetworkConfig.ConnectionApproval = true;
+        BindConnectionApproval(networkManager);
+        return networkManager;
+    }
+
+    private void BindConnectionApproval(NetworkManager networkManager)
+    {
+        if (networkManager == null)
+            return;
+
+        networkManager.NetworkConfig.ConnectionApproval = true;
+        if (connectionApprovalBound)
+            return;
+
+        networkManager.ConnectionApprovalCallback = HandleConnectionApproval;
+        connectionApprovalBound = true;
+    }
+
+    private void UnbindConnectionApproval()
+    {
+        NetworkManager networkManager = NetworkManager.Singleton;
+        if (connectionApprovalBound && networkManager != null)
+            networkManager.ConnectionApprovalCallback = null;
+        connectionApprovalBound = false;
+    }
+
+    private void HandleConnectionApproval(NetworkManager.ConnectionApprovalRequest request, NetworkManager.ConnectionApprovalResponse response)
+    {
+        response.Approved = true;
+        MatchLobby lobby = MatchLobby.Ensure();
+        lobby.RegisterConnectionPayload(request.ClientNetworkId, request.Payload);
+        bool inMenu = SceneManager.GetActiveScene().name == MainMenuSceneName;
+        response.CreatePlayerObject = !inMenu && lobby.State == MatchState.InMatch;
+    }
+
+    private void BindSceneEvents(NetworkManager networkManager)
+    {
+        if (networkManager == null || networkManager.SceneManager == null || sceneEventsBound)
+            return;
+
+        networkManager.SceneManager.OnLoad += HandleSceneLoadStarted;
+        networkManager.SceneManager.OnLoadComplete += HandleSceneLoadComplete;
+        networkManager.SceneManager.OnLoadEventCompleted += HandleLoadEventCompleted;
+        sceneEventsBound = true;
+    }
+
+    private void UnbindSceneEvents()
+    {
+        UnbindSceneEventsFrom(NetworkManager.Singleton);
+        sceneEventsBound = false;
+    }
+
+    private static void UnbindSceneEventsFrom(NetworkManager networkManager)
+    {
+        if (networkManager == null || networkManager.SceneManager == null)
+            return;
+
+        networkManager.SceneManager.OnLoad -= HandleSceneLoadStarted;
+        networkManager.SceneManager.OnLoadComplete -= HandleSceneLoadComplete;
+        networkManager.SceneManager.OnLoadEventCompleted -= HandleLoadEventCompleted;
+    }
+
+    private static void HandleSceneLoadStarted(ulong clientId, string sceneName, LoadSceneMode loadSceneMode, AsyncOperation asyncOperation)
+    {
+        GameSessionCoordinator coordinator = Instance;
+        if (coordinator == null || sceneName == MainMenuSceneName)
+            return;
+        coordinator.HideMenuForGameplay();
+    }
+
+    private static void HandleSceneLoadComplete(ulong clientId, string sceneName, LoadSceneMode loadSceneMode)
+    {
+        GameSessionCoordinator coordinator = Instance;
+        NetworkManager networkManager = NetworkManager.Singleton;
+        if (coordinator == null || networkManager == null || clientId != networkManager.LocalClientId)
+            return;
+        if (sceneName == MainMenuSceneName)
+            return;
+
+        coordinator.HideMenuForGameplay();
+        coordinator.TryUnloadLeftoverMenuScene();
+    }
+
+    private static void HandleLoadEventCompleted(string sceneName, LoadSceneMode loadSceneMode, List<ulong> clientsCompleted, List<ulong> clientsTimedOut)
+    {
+        GameSessionCoordinator coordinator = Instance;
+        if (coordinator == null)
+            return;
+        coordinator.HandleMatchSceneLoaded(sceneName);
+    }
+
+    private void HandleMatchSceneLoaded(string sceneName)
+    {
+        if (sceneName != MainMenuSceneName)
+        {
+            HideMenuForGameplay();
+            TryUnloadLeftoverMenuScene();
+        }
+
+        matchLobby = MatchLobby.Ensure();
+        MapDefinition map = matchLobby.SelectedMap;
+        if (map == null || sceneName != map.SceneName)
+            return;
+
+        NetworkManager networkManager = NetworkManager.Singleton;
+        if (networkManager != null && networkManager.IsServer)
+            SpawnConnectedPlayers(networkManager);
+
+        matchLobby.SetState(MatchState.InMatch);
+        SetStatus(null);
+        HideStatus();
+
+        if (networkManager != null && networkManager.IsHost)
+            OnlineMatchHud.Ensure();
+    }
+
+    private void HideMenuForGameplay()
+    {
+        HideStatus();
+        MainMenuController.HideForGameplay();
+    }
+
+    private void TryUnloadLeftoverMenuScene()
+    {
+        Scene menu = SceneManager.GetSceneByName(MainMenuSceneName);
+        if (!menu.IsValid() || !menu.isLoaded)
+            return;
+
+        string mapName = matchLobby != null && matchLobby.SelectedMap != null
+            ? matchLobby.SelectedMap.SceneName
+            : GameplaySceneName;
+        Scene map = SceneManager.GetSceneByName(mapName);
+        if (map.IsValid() && map.isLoaded && SceneManager.GetActiveScene() == menu)
+            SceneManager.SetActiveScene(map);
+
+        if (SceneManager.GetActiveScene() == menu)
+            return;
+
+        SceneManager.UnloadSceneAsync(menu);
+    }
+
+    private static void SpawnConnectedPlayers(NetworkManager networkManager)
+    {
+        if (networkManager == null || networkManager.SpawnManager == null || networkManager.NetworkConfig.PlayerPrefab == null)
+            return;
+
+        NetworkObject prefab = networkManager.NetworkConfig.PlayerPrefab.GetComponent<NetworkObject>();
+        if (prefab == null)
+            return;
+
+        IReadOnlyList<ulong> clients = networkManager.ConnectedClientsIds;
+        for (int i = 0; i < clients.Count; i++)
+        {
+            ulong clientId = clients[i];
+            if (networkManager.SpawnManager.GetPlayerNetworkObject(clientId) != null)
+                continue;
+
+            networkManager.SpawnManager.InstantiateAndSpawn(prefab, clientId, true, true);
+        }
+    }
+
+    private static void DespawnPlayersIfStillInLobby()
+    {
+        if (SceneManager.GetActiveScene().name != MainMenuSceneName)
+            return;
+
+        MenuDisplayPawn.NeutralizeScenePawns();
+
+        NetworkManager networkManager = NetworkManager.Singleton;
+        if (networkManager == null || !networkManager.IsServer || networkManager.SpawnManager == null)
+            return;
+
+        IReadOnlyList<ulong> clients = networkManager.ConnectedClientsIds;
+        for (int i = 0; i < clients.Count; i++)
+        {
+            NetworkObject player = networkManager.SpawnManager.GetPlayerNetworkObject(clients[i]);
+            if (player == null || !player.IsSpawned)
+                continue;
+            if (player.GetComponent<MenuDisplayPawn>() == null
+                && player.gameObject.scene.name != MainMenuSceneName)
+                continue;
+            player.Despawn(true);
+        }
     }
 
     private void BeginBusy()

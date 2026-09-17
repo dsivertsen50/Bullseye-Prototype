@@ -366,11 +366,6 @@ public class LocalPauseMenu : NetworkBehaviour
         if (selected != null && selected.activeInHierarchy)
             return;
 
-        bool wantsSelection = navigateAction != null &&
-                              navigateAction.ReadValue<Vector2>().sqrMagnitude > 0.25f;
-        if (!wantsSelection)
-            return;
-
         SelectControl(DefaultSelectableForCurrentPage());
     }
 

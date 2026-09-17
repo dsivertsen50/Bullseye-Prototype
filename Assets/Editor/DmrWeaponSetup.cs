@@ -436,7 +436,7 @@ public static class DmrWeaponSetup
     private static void AssignScenePickup(WeaponDefinition definition)
     {
         Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
-        PrototypeGroundWeaponLayout layout = Object.FindFirstObjectByType<PrototypeGroundWeaponLayout>();
+        PrototypeGroundWeaponLayout layout = Object.FindAnyObjectByType<PrototypeGroundWeaponLayout>();
         if (layout == null)
         {
             EditorSceneManager.CloseScene(scene, true);

@@ -43,7 +43,7 @@ public class OnlineDebugOverlay : MonoBehaviour
         if (!visible || manager == null || manager.ConnectionMode != MultiplayerConnectionMode.Relay)
             return;
 
-        LocalPlayerMenuState[] menus = FindObjectsByType<LocalPlayerMenuState>(FindObjectsSortMode.None);
+        LocalPlayerMenuState[] menus = FindObjectsByType<LocalPlayerMenuState>(FindObjectsInactive.Exclude);
         for (int i = 0; i < menus.Length; i++)
         {
             if (menus[i] != null && menus[i].IsOwner && menus[i].IsMenuOpen)

@@ -47,6 +47,12 @@ public class WeaponShotAudioSettings : ScriptableObject
     private float ricochetPitchVariation = 0.08f;
     [SerializeField, Range(0f, 0.25f), Tooltip("Volume is randomized down from Ricochet Volume by this fraction.")]
     private float ricochetVolumeVariation = 0.12f;
+    [SerializeField, Min(1), Tooltip("Hard cap on ricochet sounds from one trigger pull.")]
+    private int maxRicochetSoundsPerShot = 2;
+    [SerializeField, Min(0f), Tooltip("Skip extra ricochet sounds closer than this, in meters.")]
+    private float ricochetSoundSeparation = 0.8f;
+    [SerializeField, Min(1), Tooltip("Global cap on overlapping ricochet voices. Leaves room for gunshots.")]
+    private int maxConcurrentRicochetSounds = 8;
     [SerializeField, Min(0.1f)] private float ricochetMinDistance = 1.2f;
     [SerializeField, Min(1f)] private float ricochetMaxDistance = 42f;
 
@@ -81,6 +87,9 @@ public class WeaponShotAudioSettings : ScriptableObject
     public float RicochetVolume => Mathf.Max(0f, ricochetVolume);
     public float RicochetPitchVariation => Mathf.Max(0f, ricochetPitchVariation);
     public float RicochetVolumeVariation => Mathf.Clamp01(ricochetVolumeVariation);
+    public int MaxRicochetSoundsPerShot => Mathf.Max(1, maxRicochetSoundsPerShot);
+    public float RicochetSoundSeparation => Mathf.Max(0f, ricochetSoundSeparation);
+    public int MaxConcurrentRicochetSounds => Mathf.Max(1, maxConcurrentRicochetSounds);
     public float RicochetMinDistance => Mathf.Max(0.1f, ricochetMinDistance);
     public float RicochetMaxDistance => Mathf.Max(RicochetMinDistance + 0.1f, ricochetMaxDistance);
 
@@ -135,6 +144,9 @@ public class WeaponShotAudioSettings : ScriptableObject
         ricochetVolume = Mathf.Max(0f, ricochetVolume);
         ricochetPitchVariation = Mathf.Max(0f, ricochetPitchVariation);
         ricochetVolumeVariation = Mathf.Clamp01(ricochetVolumeVariation);
+        maxRicochetSoundsPerShot = Mathf.Max(1, maxRicochetSoundsPerShot);
+        ricochetSoundSeparation = Mathf.Max(0f, ricochetSoundSeparation);
+        maxConcurrentRicochetSounds = Mathf.Max(1, maxConcurrentRicochetSounds);
         ricochetMinDistance = Mathf.Max(0.1f, ricochetMinDistance);
         ricochetMaxDistance = Mathf.Max(ricochetMinDistance + 0.1f, ricochetMaxDistance);
     }
