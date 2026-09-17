@@ -155,6 +155,9 @@ public static class WeaponShotAudioSetup
         so.FindProperty("nearMissCooldown").floatValue = 0.12f;
         so.FindProperty("flybyMinDistance").floatValue = 0.35f;
         so.FindProperty("flybyMaxDistance").floatValue = 10f;
+        so.FindProperty("maxRicochetSoundsPerShot").intValue = 2;
+        so.FindProperty("ricochetSoundSeparation").floatValue = 0.8f;
+        so.FindProperty("maxConcurrentRicochetSounds").intValue = 8;
         so.FindProperty("debugNearMiss").boolValue = false;
         so.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(settings);

@@ -71,6 +71,8 @@ public class WeaponPresentationController : NetworkBehaviour
     private bool adsTargetCached;
     private bool wasMenuOpen;
     private WeaponDefinition appliedDefinition;
+    private AudioSource[] fireSfxVoices;
+    private int nextFireSfxVoice;
 
     private PlayerAimZoom playerAimZoom;
     private PlayerMovement playerMovement;
@@ -190,7 +192,7 @@ public class WeaponPresentationController : NetworkBehaviour
             return;
 
         PlayAnimationState(config != null ? config.FireAnimationState : "Fire", config != null ? config.FireAnimationSpeed : 1f);
-        PlayClip(config != null ? config.PickFireSfx() : null, config != null ? config.FireSfxVolume : 1f);
+        PlayFireClip(config != null ? config.PickFireSfx() : null, config != null ? config.FireSfxVolume : 1f);
         SpawnMuzzleEffect();
         PlayProceduralFireKick();
         RaiseRecoilRequest();
@@ -620,6 +622,12 @@ public class WeaponPresentationController : NetworkBehaviour
         audioSource.PlayOneShot(clip, Mathf.Clamp01(volume));
     }
 
+    private void PlayFireClip(AudioClip clip, float volume)
+    {
+        EnsureFireSfxVoices();
+        WeaponFireSfx.Play(fireSfxVoices, ref nextFireSfxVoice, clip, volume);
+    }
+
     private void PlayAnimationState(string stateName, float speed, bool restart = true)
     {
         if (weaponAnimator == null || string.IsNullOrEmpty(stateName))
@@ -1009,24 +1017,23 @@ public class WeaponPresentationController : NetworkBehaviour
 
     private void PrepareAudioSource()
     {
-        if (audioSource != null)
-        {
-            PlayerGameSettings.RouteToSfx(audioSource);
-            return;
-        }
-
         Transform host = weaponKick != null ? weaponKick : weaponMount;
         if (host == null)
             host = transform;
 
-        audioSource = host.GetComponent<AudioSource>();
+        if (audioSource == null)
+            audioSource = host.GetComponent<AudioSource>();
         if (audioSource == null)
             audioSource = host.gameObject.AddComponent<AudioSource>();
 
-        audioSource.playOnAwake = false;
-        audioSource.spatialBlend = 0f;
-        audioSource.loop = false;
-        PlayerGameSettings.RouteToSfx(audioSource);
+        WeaponFireSfx.ConfigureOneShotSource(audioSource, false);
+        EnsureFireSfxVoices();
+    }
+
+    private void EnsureFireSfxVoices()
+    {
+        Transform host = audioSource != null ? audioSource.transform : transform;
+        fireSfxVoices = WeaponFireSfx.EnsureVoices(host, false, 1f, 8f);
     }
 
     private static Transform FindChildByName(Transform root, string childName)

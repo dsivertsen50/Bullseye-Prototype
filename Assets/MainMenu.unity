@@ -149,8 +149,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameSessionCoordinator
   gameplaySceneName: ArenaPrototype
-  enterMatchImmediately: 1
+  enterMatchImmediately: 0
   clientConnectTimeout: 12
+  persistentNetworkManagerPrefab: {fileID: 7352221879952696149, guid: 2e11759ec9d455e42af30306c96a010f, type: 3}
+  lobbyNetworkPrefab: {fileID: 6389577641496526157, guid: a19bf944781d61d4d9362cd783dd5009, type: 3}
+  mapCatalog: {fileID: 11400000, guid: 55192895f60988d49b143cc5f8e742d7, type: 2}
+  gameModeCatalog: {fileID: 11400000, guid: 6510ef9d0b572d342854a346e8162f52, type: 2}
 --- !u!4 &32321861
 Transform:
   m_ObjectHideFlags: 0
@@ -1071,6 +1075,23 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1336669003 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3422818454917793740, guid: e15ccc810d7c17146aa9515a43c1eafc, type: 3}
+  m_PrefabInstance: {fileID: 1686857720}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1336669061
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1336669003}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1064c3e97181cc24cb00c65a64102a52, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MenuDisplayPawn
 --- !u!1 &1471251575
 GameObject:
   m_ObjectHideFlags: 0
@@ -1151,6 +1172,10 @@ PrefabInstance:
       value: Player
       objectReference: {fileID: 0}
     - target: {fileID: 3645876338594599811, guid: e15ccc810d7c17146aa9515a43c1eafc, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3645876338594599811, guid: e15ccc810d7c17146aa9515a43c1eafc, type: 3}
       propertyPath: m_InScenePlaced
       value: 1
       objectReference: {fileID: 0}
@@ -1217,6 +1242,10 @@ PrefabInstance:
     - target: {fileID: 6104577051467670539, guid: e15ccc810d7c17146aa9515a43c1eafc, type: 3}
       propertyPath: m_LocalRotation.z
       value: 5.020705e-12
+      objectReference: {fileID: 0}
+    - target: {fileID: 6286195477711956745, guid: e15ccc810d7c17146aa9515a43c1eafc, type: 3}
+      propertyPath: m_Enabled
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7501317163123089568, guid: e15ccc810d7c17146aa9515a43c1eafc, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1392,7 +1421,10 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 2673781517383384994, guid: e15ccc810d7c17146aa9515a43c1eafc, type: 3}
       insertIndex: -1
       addedObject: {fileID: 353721213}
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 3422818454917793740, guid: e15ccc810d7c17146aa9515a43c1eafc, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1336669061}
   m_SourcePrefab: {fileID: 100100000, guid: e15ccc810d7c17146aa9515a43c1eafc, type: 3}
 --- !u!114 &1710573577
 MonoBehaviour:
@@ -1470,6 +1502,8 @@ MonoBehaviour:
   creditsConfig: {fileID: 11400000, guid: a5e2122c19cdcde4cb99ed94b279dbe3, type: 2}
   menuAudio: {fileID: 1849161035}
   weaponCatalog: {fileID: 11400000, guid: d8275886b6f4677488a9455cb3df12ed, type: 2}
+  mapCatalog: {fileID: 11400000, guid: 55192895f60988d49b143cc5f8e742d7, type: 2}
+  gameModeCatalog: {fileID: 11400000, guid: 6510ef9d0b572d342854a346e8162f52, type: 2}
   gameplaySceneName: ArenaPrototype
   leftColumnPadding: 72
   backgroundImage: {fileID: 0}

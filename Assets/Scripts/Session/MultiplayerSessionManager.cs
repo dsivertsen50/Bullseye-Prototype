@@ -13,6 +13,7 @@ public class MultiplayerSessionManager : MonoBehaviour
 {
     public const string DisplayNamePropertyKey = "DisplayName";
     public const string BuildVersionPropertyKey = "BuildVersion";
+    public const string PublicTagPropertyKey = MatchSessionKeys.PublicTag;
 
     [SerializeField] private int maxPlayers = 8;
     [SerializeField] private float sessionOperationTimeout = 35f;
@@ -34,6 +35,8 @@ public class MultiplayerSessionManager : MonoBehaviour
     public string UnityPlayerId => OnlineServicesBootstrap.UnityPlayerId;
     public bool IsRelaySession => ConnectionMode == MultiplayerConnectionMode.Relay && activeSession != null;
     public bool IsHostSession => activeSession != null && activeSession.IsHost;
+    public ISession ActiveMultiplayerSession => activeSession;
+    public int PlayerCount => activeSession != null ? activeSession.PlayerCount : 0;
 
     public event Action StateChanged;
     public event Action HostDisconnected;
@@ -82,7 +85,7 @@ public class MultiplayerSessionManager : MonoBehaviour
         SetState(MultiplayerConnectionState.Offline, null);
     }
 
-    public async Task<OnlineSessionOperationResult> HostRelaySessionAsync(bool isPrivate)
+    public async Task<OnlineSessionOperationResult> HostRelaySessionAsync(bool isPrivate, MatchConfiguration configuration = null)
     {
         int serial = BeginOperation();
         ConnectionMode = MultiplayerConnectionMode.Relay;
@@ -111,9 +114,12 @@ public class MultiplayerSessionManager : MonoBehaviour
             SessionOptions options = new SessionOptions
             {
                 Name = "Bullseye",
-                MaxPlayers = MaxPlayers,
+                MaxPlayers = configuration != null && configuration.MaxPlayers > 0
+                    ? Mathf.Clamp(configuration.MaxPlayers, 2, 16)
+                    : MaxPlayers,
                 IsPrivate = isPrivate,
-                PlayerProperties = BuildPlayerProperties()
+                PlayerProperties = BuildPlayerProperties(),
+                SessionProperties = BuildSessionProperties(configuration, MatchState.Lobby)
             }.WithRelayNetwork();
 
             IHostSession created = await AwaitWithTimeout(
@@ -392,6 +398,8 @@ public class MultiplayerSessionManager : MonoBehaviour
         session.RemovedFromSession += HandleRemovedFromSession;
         session.PlayerJoined += HandlePlayerJoined;
         session.PlayerHasLeft += HandlePlayerHasLeft;
+        session.Changed += HandleSessionChanged;
+        session.SessionPropertiesChanged += HandleSessionChanged;
     }
 
     private void UnbindSessionEvents()
@@ -406,6 +414,8 @@ public class MultiplayerSessionManager : MonoBehaviour
         activeSession.RemovedFromSession -= HandleRemovedFromSession;
         activeSession.PlayerJoined -= HandlePlayerJoined;
         activeSession.PlayerHasLeft -= HandlePlayerHasLeft;
+        activeSession.Changed -= HandleSessionChanged;
+        activeSession.SessionPropertiesChanged -= HandleSessionChanged;
         eventsBound = false;
     }
 
@@ -424,11 +434,37 @@ public class MultiplayerSessionManager : MonoBehaviour
     private void HandlePlayerJoined(string playerId)
     {
         MultiplayerLog.Info("Player joined session: " + playerId);
+        StateChanged?.Invoke();
     }
 
     private void HandlePlayerHasLeft(string playerId)
     {
         MultiplayerLog.Info("Player left session: " + playerId);
+        StateChanged?.Invoke();
+    }
+
+    private void HandleSessionChanged()
+    {
+        StateChanged?.Invoke();
+    }
+
+    public void PublishMatchConfiguration(MatchConfiguration configuration, MatchState matchState)
+    {
+        if (activeSession == null || !activeSession.IsHost || configuration == null)
+            return;
+
+        try
+        {
+            IHostSession host = activeSession.AsHost();
+            host.SetProperties(BuildSessionProperties(configuration, matchState));
+            if (matchState == MatchState.Starting || matchState == MatchState.InMatch)
+                host.IsLocked = true;
+            _ = host.SavePropertiesAsync();
+        }
+        catch (Exception exception)
+        {
+            MultiplayerLog.Error("Publishing match configuration failed.", exception);
+        }
     }
 
     private void HandleRemoteSessionEnded()
@@ -456,10 +492,27 @@ public class MultiplayerSessionManager : MonoBehaviour
         if (string.IsNullOrWhiteSpace(displayName))
             displayName = PlayerProfileConstants.DefaultDisplayName;
 
+        string publicTag = PublicPlayerTagUtility.ResolveLocalTag();
+        if (string.IsNullOrWhiteSpace(displayName) || displayName == PlayerProfileConstants.DefaultDisplayName)
+            displayName = PublicPlayerTagUtility.FallbackDisplayName(publicTag);
+
         return new Dictionary<string, PlayerProperty>
         {
             { DisplayNamePropertyKey, new PlayerProperty(displayName, VisibilityPropertyOptions.Member) },
+            { PublicTagPropertyKey, new PlayerProperty(publicTag, VisibilityPropertyOptions.Member) },
             { BuildVersionPropertyKey, new PlayerProperty(Application.version ?? "0", VisibilityPropertyOptions.Member) }
+        };
+    }
+
+    public static Dictionary<string, SessionProperty> BuildSessionProperties(MatchConfiguration configuration, MatchState matchState)
+    {
+        MatchConfiguration config = configuration ?? MatchConfiguration.CreateDefault(8);
+        return new Dictionary<string, SessionProperty>
+        {
+            { MatchSessionKeys.MapId, new SessionProperty(config.MapId ?? MatchIds.DefaultMapId, VisibilityPropertyOptions.Public) },
+            { MatchSessionKeys.GameModeId, new SessionProperty(config.GameModeId ?? MatchIds.DefaultGameModeId, VisibilityPropertyOptions.Public) },
+            { MatchSessionKeys.MatchState, new SessionProperty(matchState.ToString(), VisibilityPropertyOptions.Public) },
+            { MatchSessionKeys.Visibility, new SessionProperty(config.Visibility.ToString(), VisibilityPropertyOptions.Public) }
         };
     }
 

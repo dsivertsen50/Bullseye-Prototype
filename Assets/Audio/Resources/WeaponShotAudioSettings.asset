@@ -47,4 +47,7 @@ MonoBehaviour:
   ricochetVolumeVariation: 0.12
   ricochetMinDistance: 1.2
   ricochetMaxDistance: 42
+  maxRicochetSoundsPerShot: 2
+  ricochetSoundSeparation: 0.8
+  maxConcurrentRicochetSounds: 8
   debugNearMiss: 0

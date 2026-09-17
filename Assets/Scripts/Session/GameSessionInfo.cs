@@ -16,5 +16,9 @@ public class GameSessionInfo
     public string ListenAddress;
     public int HostProcessId;
     public long CreatedUtcTicks;
+    public string MapId;
+    public string GameModeId;
+    public int MaxPlayers;
+    public int PlayerCount;
     public bool IsPublic => Visibility == GameVisibility.Public;
 }
