@@ -13,6 +13,16 @@ public static class MultiplayerLog
         Debug.Log(Prefix + message);
     }
 
+    public static void Relay(string message)
+    {
+        Debug.Log("[Relay] " + message);
+    }
+
+    public static void Lobby(string message)
+    {
+        Debug.Log("[Lobby] " + message);
+    }
+
     public static void Warning(string message)
     {
         Debug.LogWarning(Prefix + message);

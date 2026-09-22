@@ -46,7 +46,7 @@ public class MainMenuController : MonoBehaviour
 
     private GameObject mainPanel;
     private GameObject playPanel;
-    private GameObject joinPanel;
+    private JoinCodeEntryUI joinEntry;
     private GameObject profilePanel;
     private GameObject controlsPanel;
     private GameObject settingsPanel;
@@ -64,9 +64,6 @@ public class MainMenuController : MonoBehaviour
     private Selectable joinGameButton;
     private Selectable hostGameButton;
     private Selectable playBackButton;
-    private InputField joinCodeField;
-    private Selectable joinConfirmButton;
-    private Selectable joinBackButton;
     private Selectable settingsControlButton;
     private Selectable settingsBackButton;
     private Selectable controlSettingsBackButton;
@@ -84,9 +81,7 @@ public class MainMenuController : MonoBehaviour
     private Slider aimSlider;
     private Toggle invertToggle;
 
-    private Text joinPublicListLabel;
-    private Text joinErrorLabel;
-    private Text joinTitleLabel;
+    private bool joinInputOverridesActive;
     private Text creditsBody;
     private readonly List<Button> publicSessionButtons = new List<Button>();
     private int publicQuerySerial;
@@ -104,6 +99,9 @@ public class MainMenuController : MonoBehaviour
     private InputSystemUIInputModule uiInputModule;
     private GameSessionCoordinator sessionCoordinator;
     private Coroutine pendingSelect;
+    private float joinListRefreshTimer;
+    private List<GameSessionInfo> lastOnlineSessions;
+    private string lastJoinListSignature = string.Empty;
 
     private void Awake()
     {
@@ -154,16 +152,23 @@ public class MainMenuController : MonoBehaviour
         if (sessionCoordinator == null)
             EnsureCoordinator();
         if (sessionCoordinator != null)
+        {
             sessionCoordinator.LobbyReady += HandleLobbyReady;
+            sessionCoordinator.ConnectionFailed += HandleConnectionFailed;
+        }
         MatchLobby.Ensure().Closed += HandleLobbyClosed;
     }
 
     private void OnDisable()
     {
+        SetJoinInputOverrides(false);
         UnbindUiActions();
         PlayerGameSettings.Changed -= HandleSettingsChanged;
         if (sessionCoordinator != null)
+        {
             sessionCoordinator.LobbyReady -= HandleLobbyReady;
+            sessionCoordinator.ConnectionFailed -= HandleConnectionFailed;
+        }
         if (MatchLobby.Instance != null)
             MatchLobby.Instance.Closed -= HandleLobbyClosed;
     }
@@ -172,6 +177,27 @@ public class MainMenuController : MonoBehaviour
     {
         RestoreSelectionIfNeeded();
         TrackSelectionForNavigateSound();
+        TickJoinListRefresh();
+        if (currentScreen == MenuScreen.Join &&
+            joinEntry != null &&
+            joinEntry.IsBusy &&
+            (sessionCoordinator == null || !sessionCoordinator.IsBusy))
+        {
+            joinEntry.SetBusy(false);
+        }
+    }
+
+    private void TickJoinListRefresh()
+    {
+        if (currentScreen != MenuScreen.Join || publicQueryRoutine != null)
+            return;
+
+        joinListRefreshTimer += Time.unscaledDeltaTime;
+        if (joinListRefreshTimer < 1.25f)
+            return;
+
+        joinListRefreshTimer = 0f;
+        ApplyPublicSessionsIfChanged(MergeLocalPublicSessions(lastOnlineSessions));
     }
 
     /// <summary>
@@ -259,6 +285,9 @@ public class MainMenuController : MonoBehaviour
 
     private void OnCancelPerformed(InputAction.CallbackContext context)
     {
+        bool fromKeyboard = context.control != null && context.control.device is Keyboard;
+        if (currentScreen == MenuScreen.Join && !fromKeyboard && joinEntry != null && joinEntry.TryBackspace())
+            return;
         HandleBack(true);
     }
 
@@ -269,7 +298,16 @@ public class MainMenuController : MonoBehaviour
         lastBackFrame = Time.frameCount;
 
         if (sessionCoordinator != null && sessionCoordinator.IsBusy)
+        {
+            if (currentScreen == MenuScreen.Join)
+            {
+                sessionCoordinator.CancelConnection();
+                if (joinEntry != null)
+                    joinEntry.SetBusy(false);
+                ShowScreen(MenuScreen.Play, fromCancel);
+            }
             return;
+        }
 
         switch (currentScreen)
         {
@@ -314,7 +352,14 @@ public class MainMenuController : MonoBehaviour
         currentScreen = screen;
         SetActive(mainPanel, screen == MenuScreen.Main);
         SetActive(playPanel, screen == MenuScreen.Play);
-        SetActive(joinPanel, screen == MenuScreen.Join);
+        SetJoinInputOverrides(screen == MenuScreen.Join);
+        if (joinEntry != null)
+        {
+            if (screen == MenuScreen.Join)
+                joinEntry.Open(false);
+            else
+                joinEntry.Hide();
+        }
         SetActive(profilePanel, screen == MenuScreen.Profile);
         SetActive(controlsPanel, screen == MenuScreen.Controls);
         SetActive(settingsPanel, screen == MenuScreen.Settings);
@@ -350,48 +395,38 @@ public class MainMenuController : MonoBehaviour
             panel.SetActive(active);
     }
 
-    private static bool LocalTestAvailable => Application.isEditor;
+    private static bool LocalTestAvailable =>
+#if UNITY_EDITOR
+        true;
+#else
+        Debug.isDebugBuild;
+#endif
 
     private void PrepareCustomMatchScreen()
     {
         EnsureLocalJoinCode();
         if (matchMenu != null)
+        {
             matchMenu.SetCustomError(null);
+            matchMenu.SetLocalTestHint(LocalTestAvailable ? reservedJoinCode : null);
+        }
         MatchLobby.Ensure().Configure(mapCatalog, gameModeCatalog, null);
     }
 
     private void PrepareJoinScreen()
     {
-        if (joinTitleLabel != null)
-            joinTitleLabel.text = "JOIN GAME";
-        if (joinConfirmButton != null)
-        {
-            Text confirmLabel = joinConfirmButton.GetComponentInChildren<Text>();
-            if (confirmLabel != null)
-                confirmLabel.text = "Join Game";
-        }
-
-        Transform publicTitle = joinPanel != null ? joinPanel.transform.Find("PublicTitle") : null;
-        if (publicTitle != null)
-        {
-            Text publicTitleText = publicTitle.GetComponent<Text>();
-            if (publicTitleText != null)
-                publicTitleText.text = "Public Games";
-        }
-
-        Transform privateTitle = joinPanel != null ? joinPanel.transform.Find("PrivateTitle") : null;
-        if (privateTitle != null)
-            privateTitle.gameObject.SetActive(true);
-
+        if (joinEntry != null)
+            joinEntry.Prepare(LocalTestAvailable);
         RebuildPublicSessionList();
-        if (joinErrorLabel != null && string.IsNullOrEmpty(joinErrorLabel.text))
-            joinErrorLabel.text = string.Empty;
     }
 
     private void SetJoinError(string message)
     {
-        if (joinErrorLabel != null)
-            joinErrorLabel.text = message ?? string.Empty;
+        if (joinEntry != null)
+        {
+            joinEntry.SetBusy(false);
+            joinEntry.SetError(message);
+        }
     }
 
     private void EnsureLocalJoinCode()
@@ -403,9 +438,12 @@ public class MainMenuController : MonoBehaviour
 
     private void RebuildPublicSessionList()
     {
+        lastJoinListSignature = string.Empty;
         ClearPublicSessionButtons();
-        if (joinPublicListLabel != null)
-            joinPublicListLabel.text = "Looking for public games...";
+        if (joinEntry != null)
+            joinEntry.SetPublicListMessage(LocalTestAvailable
+                ? "Looking for local test and public games..."
+                : "Looking for public games...");
         WireJoinNavigation();
 
         if (publicQueryRoutine != null)
@@ -426,20 +464,53 @@ public class MainMenuController : MonoBehaviour
 
         if (task == null || task.IsFaulted || task.Result == null)
         {
+            lastOnlineSessions = null;
             List<GameSessionInfo> localOnly = MergeLocalPublicSessions(null);
             if (localOnly.Count > 0)
             {
-                ApplyPublicSessions(localOnly);
+                ApplyPublicSessionsIfChanged(localOnly);
                 yield break;
             }
 
-            if (joinPublicListLabel != null)
-                joinPublicListLabel.text = "Unable to list public games.\nYou can still join with a join code.";
+            if (joinEntry != null)
+                joinEntry.SetPublicListMessage(LocalTestAvailable
+                    ? "No local test games yet.\nHost Local Test on Player 1, or enter a join code."
+                    : "Unable to list public games.\nYou can still join with a join code.");
             WireJoinNavigation();
             yield break;
         }
 
-        ApplyPublicSessions(MergeLocalPublicSessions(task.Result));
+        lastOnlineSessions = task.Result;
+        ApplyPublicSessionsIfChanged(MergeLocalPublicSessions(task.Result));
+    }
+
+    private void ApplyPublicSessionsIfChanged(List<GameSessionInfo> sessions)
+    {
+        string signature = BuildJoinListSignature(sessions);
+        if (signature == lastJoinListSignature && publicSessionButtons.Count > 0)
+            return;
+        lastJoinListSignature = signature;
+        ApplyPublicSessions(sessions);
+    }
+
+    private static string BuildJoinListSignature(List<GameSessionInfo> sessions)
+    {
+        if (sessions == null || sessions.Count == 0)
+            return "empty";
+
+        var parts = new System.Text.StringBuilder();
+        int count = Mathf.Min(sessions.Count, 3);
+        for (int i = 0; i < count; i++)
+        {
+            GameSessionInfo session = sessions[i];
+            if (session == null)
+                continue;
+            parts.Append(session.JoinCode).Append('|')
+                .Append(session.SessionId).Append('|')
+                .Append(session.ConnectionMode).Append(';');
+        }
+
+        return parts.ToString();
     }
 
     private void ApplyPublicSessions(List<GameSessionInfo> sessions)
@@ -447,25 +518,31 @@ public class MainMenuController : MonoBehaviour
         ClearPublicSessionButtons();
         if (sessions == null || sessions.Count == 0)
         {
-            if (joinPublicListLabel != null)
-                joinPublicListLabel.text = "No public games found.\nAsk a host for a join code, or host a public game.";
+            if (joinEntry != null)
+                joinEntry.SetPublicListMessage(LocalTestAvailable
+                    ? "No local test games found.\nOn Player 1: Host Custom Match → Local Test → Create Lobby."
+                    : "No public games found.\nAsk a host for a join code, or host a public game.");
             WireJoinNavigation();
             return;
         }
 
-        if (joinPublicListLabel != null)
-            joinPublicListLabel.text = "Public games";
-        float y = 70f;
+        if (joinEntry != null)
+            joinEntry.SetPublicListMessage(string.Empty);
+        Transform parent = joinEntry != null ? joinEntry.PublicListRoot : null;
+        if (parent == null)
+            return;
+
+        float y = -330f;
         int count = Mathf.Min(sessions.Count, 3);
         for (int i = 0; i < count; i++)
         {
             GameSessionInfo session = sessions[i];
             string label = session.ConnectionMode == MultiplayerConnectionMode.Local && !string.IsNullOrEmpty(session.JoinCode)
-                ? "Join " + session.JoinCode
+                ? (session.IsPublic ? "Join Local " : "Join Local Test ") + session.JoinCode
                 : "Join Game " + (i + 1);
-            Button button = MenuUiFactory.CreateButton(joinPanel.transform, "PublicSession" + i, label, new Vector2(0f, y), () => JoinListedSession(session), new Vector2(420f, 48f));
+            Button button = MenuUiFactory.CreateButton(parent, "PublicSession" + i, label, new Vector2(0f, y), () => JoinListedSession(session), new Vector2(420f, 44f));
             publicSessionButtons.Add(button);
-            y -= 56f;
+            y -= 48f;
         }
 
         WireJoinNavigation();
@@ -485,9 +562,18 @@ public class MainMenuController : MonoBehaviour
     private static List<GameSessionInfo> MergeLocalPublicSessions(List<GameSessionInfo> online)
     {
         List<GameSessionInfo> merged = new List<GameSessionInfo>();
-        List<GameSessionInfo> local = LocalSessionRegistry.ListPublicSessions();
+        List<GameSessionInfo> local = LocalSessionRegistry.ListLocalSessions();
+        int selfPid = System.Diagnostics.Process.GetCurrentProcess().Id;
         if (local != null)
-            merged.AddRange(local);
+        {
+            for (int i = 0; i < local.Count; i++)
+            {
+                GameSessionInfo session = local[i];
+                if (session == null || session.HostProcessId == selfPid)
+                    continue;
+                merged.Add(session);
+            }
+        }
         if (online != null)
             merged.AddRange(online);
         return merged;
@@ -533,14 +619,20 @@ public class MainMenuController : MonoBehaviour
         {
             EnsureLocalJoinCode();
             if (sessionCoordinator.TryHost(GameVisibility.Private, reservedJoinCode, out string localError))
+            {
+                OpenHostLobby();
                 return;
+            }
             if (matchMenu != null)
                 matchMenu.SetCustomError(localError);
             return;
         }
 
         if (sessionCoordinator.TryHostOnline(visibility, out string error))
+        {
+            OpenHostLobby();
             return;
+        }
 
         if (matchMenu != null)
             matchMenu.SetCustomError(error);
@@ -551,6 +643,34 @@ public class MainMenuController : MonoBehaviour
         ShowScreen(MenuScreen.Lobby, false);
         if (matchMenu != null)
             matchMenu.SetLobbyError(null);
+    }
+
+    private void HandleConnectionFailed(string error)
+    {
+        if (sessionCoordinator != null)
+            sessionCoordinator.HideStatus();
+
+        if (sessionCoordinator != null && sessionCoordinator.LastErrorKind == GameSessionCoordinator.PendingSessionKind.Host)
+        {
+            ShowScreen(MenuScreen.CustomMatch, false);
+            if (matchMenu != null)
+                matchMenu.SetCustomError(error);
+            if (sessionCoordinator != null)
+                sessionCoordinator.ClearLastError();
+            return;
+        }
+
+        ShowScreen(MenuScreen.Join, false);
+        SetJoinError(error);
+        if (sessionCoordinator != null)
+            sessionCoordinator.ClearLastError();
+    }
+
+    private void OpenHostLobby()
+    {
+        ShowScreen(MenuScreen.Lobby, false);
+        if (matchMenu != null)
+            matchMenu.OpenLobby(true);
     }
 
     private void HandleLobbyClosed()
@@ -590,8 +710,19 @@ public class MainMenuController : MonoBehaviour
         ShowScreen(MenuScreen.Main, false);
     }
 
+    private void CancelJoinAndBack()
+    {
+        if (sessionCoordinator != null && sessionCoordinator.IsBusy)
+            sessionCoordinator.CancelConnection();
+        if (joinEntry != null)
+            joinEntry.SetBusy(false);
+        ShowScreen(MenuScreen.Play, true);
+    }
+
     private void OpenJoin()
     {
+        if (joinEntry != null)
+            joinEntry.ClearCode();
         ShowScreen(MenuScreen.Join, true);
     }
 
@@ -601,7 +732,9 @@ public class MainMenuController : MonoBehaviour
             return;
 
         PlaySelect();
-        string code = joinCodeField != null ? joinCodeField.text : string.Empty;
+        if (joinEntry != null)
+            joinEntry.SetBusy(true);
+        string code = joinEntry != null ? joinEntry.CurrentCode : string.Empty;
         string normalized = LocalSessionRegistry.NormalizeCode(code);
         if (!string.IsNullOrEmpty(normalized) && LocalSessionRegistry.FindByJoinCode(normalized) != null)
         {
@@ -757,7 +890,7 @@ public class MainMenuController : MonoBehaviour
             case MenuScreen.CustomMatch: return matchMenu != null ? matchMenu.CustomDefaultSelectable : playButton;
             case MenuScreen.Lobby: return matchMenu != null ? matchMenu.LobbyDefaultSelectable : playButton;
             case MenuScreen.Join:
-                return publicSessionButtons.Count > 0 ? publicSessionButtons[0] : joinCodeField;
+                return joinEntry != null ? joinEntry.DefaultSelectable : joinGameButton;
             case MenuScreen.Profile: return profileUi != null ? profileUi.DefaultSelectable : playButton;
             case MenuScreen.Controls: return controlsBackButton;
             case MenuScreen.Settings: return masterVolumeSlider;
@@ -936,28 +1069,12 @@ public class MainMenuController : MonoBehaviour
 
     private void BuildJoinPanel(Transform parent)
     {
-        joinPanel = CreateMenuPanel(parent, "JoinPanel", new Vector2(680f, 720f));
-        joinPanel.SetActive(false);
-        joinTitleLabel = MenuUiFactory.CreateLabel(joinPanel.transform, "Title", "JOIN GAME", 44, new Vector2(0f, 310f), new Vector2(680f, 56f));
-        MenuUiFactory.CreateLabel(joinPanel.transform, "PublicTitle", "Public Games", 24, new Vector2(0f, 250f), new Vector2(640f, 32f));
-        joinPublicListLabel = MenuUiFactory.CreateLabel(joinPanel.transform, "PublicPlaceholder", string.Empty, 18, new Vector2(0f, 175f), new Vector2(680f, 90f));
-        MenuUiFactory.CreateLabel(joinPanel.transform, "PrivateTitle", "Private Game", 24, new Vector2(0f, 20f), new Vector2(640f, 32f));
-        MenuUiFactory.CreateLabel(joinPanel.transform, "JoinCodeLabel", "Enter Join Code", 18, new Vector2(0f, -20f), new Vector2(520f, 24f));
-        joinCodeField = MenuUiFactory.CreateInputField(joinPanel.transform, "JoinCode", "Join Code", new Vector2(0f, -60f), new Vector2(420f, 54f));
-        joinCodeField.characterLimit = 12;
-        joinCodeField.contentType = InputField.ContentType.Alphanumeric;
-        joinCodeField.onEndEdit.AddListener(text =>
-        {
-            if (Keyboard.current != null &&
-                (Keyboard.current.enterKey.wasPressedThisFrame || Keyboard.current.numpadEnterKey.wasPressedThisFrame))
-            {
-                JoinFromMenu();
-            }
-        });
-        joinConfirmButton = MenuUiFactory.CreateButton(joinPanel.transform, "Join", "Join Game", new Vector2(0f, -130f), JoinFromMenu);
-        joinBackButton = MenuUiFactory.CreateButton(joinPanel.transform, "Back", "Back", new Vector2(0f, -200f), () => ShowScreen(MenuScreen.Play, true));
-        joinErrorLabel = MenuUiFactory.CreateLabel(joinPanel.transform, "Error", string.Empty, 20, new Vector2(0f, -260f), new Vector2(680f, 48f));
-        joinErrorLabel.color = new Color(1f, 0.45f, 0.4f, 1f);
+        joinEntry = JoinCodeEntryUI.Create(
+            parent,
+            leftColumnPadding,
+            menuAudio,
+            JoinFromMenu,
+            CancelJoinAndBack);
     }
 
     private void BuildControlsPanel(Transform parent)
@@ -1096,19 +1213,48 @@ public class MainMenuController : MonoBehaviour
 
     private void WireJoinNavigation()
     {
-        Selectable firstPublic = publicSessionButtons.Count > 0 ? publicSessionButtons[0] : joinCodeField;
-        Selectable lastPublic = publicSessionButtons.Count > 0 ? publicSessionButtons[publicSessionButtons.Count - 1] : joinBackButton;
+        if (joinEntry != null)
+            joinEntry.WirePublicNavigation(publicSessionButtons);
+    }
 
-        for (int i = 0; i < publicSessionButtons.Count; i++)
+    private void SetJoinInputOverrides(bool joinMode)
+    {
+        if (playerActions == null || joinMode == joinInputOverridesActive)
+            return;
+
+        InputActionMap uiMap = playerActions.FindActionMap("UI");
+        if (uiMap == null)
+            return;
+
+        InputAction navigate = uiMap.FindAction("Navigate");
+        InputAction submit = uiMap.FindAction("Submit");
+        if (navigate != null)
+            navigate.RemoveAllBindingOverrides();
+        if (submit != null)
+            submit.RemoveAllBindingOverrides();
+
+        joinInputOverridesActive = joinMode;
+        if (!joinMode)
+            return;
+
+        DisableBinding(navigate, "<Keyboard>/w");
+        DisableBinding(navigate, "<Keyboard>/a");
+        DisableBinding(navigate, "<Keyboard>/s");
+        DisableBinding(navigate, "<Keyboard>/d");
+        DisableBinding(submit, "<Keyboard>/enter");
+        DisableBinding(submit, "<Keyboard>/numpadEnter");
+    }
+
+    private static void DisableBinding(InputAction action, string path)
+    {
+        if (action == null || string.IsNullOrEmpty(path))
+            return;
+
+        for (int i = 0; i < action.bindings.Count; i++)
         {
-            Selectable up = i == 0 ? joinBackButton : publicSessionButtons[i - 1];
-            Selectable down = i == publicSessionButtons.Count - 1 ? joinCodeField : publicSessionButtons[i + 1];
-            MenuUiFactory.SetVerticalNav(publicSessionButtons[i], up, down);
+            if (action.bindings[i].path == path)
+                action.ApplyBindingOverride(i, new InputBinding { overridePath = "" });
         }
-
-        MenuUiFactory.SetVerticalNav(joinCodeField, lastPublic, joinConfirmButton);
-        MenuUiFactory.SetVerticalNav(joinConfirmButton, joinCodeField, joinBackButton);
-        MenuUiFactory.SetVerticalNav(joinBackButton, joinConfirmButton, firstPublic);
     }
 
     private void ConfigureEventSystem()

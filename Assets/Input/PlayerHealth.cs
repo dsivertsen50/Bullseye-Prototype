@@ -31,7 +31,7 @@ public class PlayerHealth : NetworkBehaviour
     [SerializeField] private float regenerationRate = 1f;
 
     [Header("Respawn")]
-    [SerializeField] private float respawnDelay = 3f;
+    [SerializeField] private float respawnDelay = 5f;
 
     [Header("Prototype Region Bounds")]
     [SerializeField, Range(0.05f, 0.95f)] private float lowerTorsoBoundary = 1f / 3f;
@@ -56,6 +56,7 @@ public class PlayerHealth : NetworkBehaviour
     private BullseyeDetachController detachController;
     private PlayerGrenadeThrower grenadeThrower;
     private BullseyeShatterController shatterController;
+    private EliminationController eliminationController;
     private Collider bullseyeCollider;
     private Coroutine respawnRoutine;
     private float regenerationDelayRemaining;
@@ -67,8 +68,13 @@ public class PlayerHealth : NetworkBehaviour
     public int MaxHealth => GetMaxHealth();
     public bool IsDead => isDead.Value;
     public bool AreDeathVisualsHidden =>
-        IsDead && (shatterController == null || shatterController.AreCorpseVisualsHidden);
-    public float RespawnDelay => Mathf.Max(0f, respawnDelay);
+        IsDead && (eliminationController != null
+            ? eliminationController.AreVisualsHidden
+            : shatterController == null || shatterController.AreCorpseVisualsHidden);
+    public float RespawnDelay =>
+        eliminationController != null
+            ? eliminationController.TotalDuration
+            : Mathf.Max(0f, respawnDelay);
     public event System.Action<int, int> HealthChanged;
 
     private void Awake()
@@ -77,6 +83,7 @@ public class PlayerHealth : NetworkBehaviour
         detachController = GetComponent<BullseyeDetachController>();
         grenadeThrower = GetComponent<PlayerGrenadeThrower>();
         shatterController = GetComponent<BullseyeShatterController>();
+        eliminationController = GetComponent<EliminationController>();
 
         if (bodyCapsule == null)
             bodyCapsule = GetComponentInChildren<CapsuleCollider>();
@@ -108,7 +115,9 @@ public class PlayerHealth : NetworkBehaviour
         currentHealth.OnValueChanged -= OnCurrentHealthChanged;
         isDead.OnValueChanged -= OnDeadChanged;
         StopRespawnRoutine();
-        if (shatterController != null)
+        if (eliminationController != null)
+            eliminationController.CleanupForDespawn();
+        else if (shatterController != null)
             shatterController.CleanupForDespawn();
     }
 
@@ -423,10 +432,12 @@ public class PlayerHealth : NetworkBehaviour
                 attached.enabled = !dead && (detachController == null || detachController.IsAttached);
         }
 
-        if (TryGetComponent(out BullseyeSurfaceVisual visual) && dead)
+        if (TryGetComponent(out BullseyeSurfaceVisual visual) && dead && eliminationController == null)
             visual.SetAttachedVisible(false);
 
-        if (shatterController != null)
+        if (eliminationController != null)
+            eliminationController.HandleDeadChanged(dead);
+        else if (shatterController != null)
             shatterController.HandleDeadChanged(dead);
 
         if (dead && playerHaptics != null)
@@ -461,6 +472,9 @@ public class PlayerHealth : NetworkBehaviour
 
         if (TryGetComponent(out PlayerMovement movement))
             movement.ResetAfterRespawn();
+
+        if (eliminationController != null)
+            eliminationController.RestoreAfterRespawn();
 
         if (TryGetComponent(out PlayerLook look))
             look.ResetAfterRespawn();
@@ -656,7 +670,12 @@ public class PlayerHealth : NetworkBehaviour
         lowerBodyDamage = Mathf.Max(0, lowerBodyDamage);
         regenerationDelay = Mathf.Max(0f, regenerationDelay);
         regenerationRate = Mathf.Max(0f, regenerationRate);
-        respawnDelay = Mathf.Max(0f, respawnDelay);
+        if (eliminationController == null)
+            eliminationController = GetComponent<EliminationController>();
+        if (eliminationController != null)
+            respawnDelay = eliminationController.TotalDuration;
+        else
+            respawnDelay = Mathf.Max(0f, respawnDelay);
 
         lowerTorsoBoundary = Mathf.Clamp(lowerTorsoBoundary, 0.05f, 0.95f);
         torsoHeadBoundary = Mathf.Clamp(torsoHeadBoundary, 0.05f, 0.95f);

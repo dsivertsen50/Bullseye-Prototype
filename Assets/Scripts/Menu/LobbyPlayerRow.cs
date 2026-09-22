@@ -36,7 +36,7 @@ public class LobbyPlayerRow : MonoBehaviour
     {
         if (info == null)
         {
-            nameLabel.text = string.Empty;
+            BindWaiting();
             return;
         }
 
@@ -46,6 +46,17 @@ public class LobbyPlayerRow : MonoBehaviour
         tagLabel.text = PublicPlayerTagUtility.Format(info.PublicTag);
         youLabel.text = info.IsLocal ? "YOU" : string.Empty;
         hostLabel.text = info.IsHost ? "HOST" : string.Empty;
+        readyLabel.text = string.Empty;
+        nameLabel.color = Color.white;
+    }
+
+    public void BindWaiting()
+    {
+        nameLabel.text = "Waiting...";
+        nameLabel.color = ProfileUiFactory.MutedColor;
+        tagLabel.text = string.Empty;
+        youLabel.text = string.Empty;
+        hostLabel.text = string.Empty;
         readyLabel.text = string.Empty;
     }
 }

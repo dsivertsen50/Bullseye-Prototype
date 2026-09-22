@@ -55,7 +55,8 @@ public enum ResearchMovementState
     Sliding = 7,
     DolphinDiving = 8,
     WallRunning = 9,
-    Other = 10
+    Other = 10,
+    Climbing = 11
 }
 
 public enum ResearchStance

@@ -15,6 +15,8 @@ public static class LocalSessionRegistry
     private const string FileName = "local-sessions.json";
     private const string CodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private const int CodeLength = 6;
+    public const int MinJoinCodeLength = 6;
+    public const int MaxJoinCodeLength = 12;
 
     [Serializable]
     private class SessionList
@@ -83,17 +85,37 @@ public static class LocalSessionRegistry
 
     public static List<GameSessionInfo> ListPublicSessions()
     {
+        return ListSessions(publicOnly: true);
+    }
+
+    /// <summary>
+    /// Same-machine hosts, including private Local Test sessions used by
+    /// Multiplayer Play Mode. The Join Game screen uses this so Player 2 can
+    /// see a local host without typing a join code.
+    /// </summary>
+    public static List<GameSessionInfo> ListLocalSessions()
+    {
+        return ListSessions(publicOnly: false);
+    }
+
+    private static List<GameSessionInfo> ListSessions(bool publicOnly)
+    {
         PruneStale();
         GameSessionInfo[] sessions = Read().sessions ?? Array.Empty<GameSessionInfo>();
-        var publicSessions = new List<GameSessionInfo>();
+        var matches = new List<GameSessionInfo>();
         for (int i = 0; i < sessions.Length; i++)
         {
             GameSessionInfo session = sessions[i];
-            if (session != null && session.IsPublic)
-                publicSessions.Add(session);
+            if (session == null)
+                continue;
+            if (session.ConnectionMode == MultiplayerConnectionMode.Relay)
+                continue;
+            if (publicOnly && !session.IsPublic)
+                continue;
+            matches.Add(session);
         }
 
-        return publicSessions;
+        return matches;
     }
 
     public static string NormalizeCode(string joinCode)

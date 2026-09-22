@@ -23,6 +23,8 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     private static readonly int IsProneHash = Animator.StringToHash("IsProne");
     private static readonly int IsSprintingHash = Animator.StringToHash("IsSprinting");
     private static readonly int IsDolphinDivingHash = Animator.StringToHash("IsDolphinDiving");
+    private static readonly int IsClimbingHash = Animator.StringToHash("IsClimbing");
+    private static readonly int ClimbSpeedHash = Animator.StringToHash("ClimbSpeed");
     private static readonly int ProneMoveSpeedHash = Animator.StringToHash("ProneMoveSpeed");
     private static readonly int DolphinDiveTriggerHash = Animator.StringToHash("DolphinDive");
     private static readonly int DiveTriggerHash = Animator.StringToHash("DiveTrigger");
@@ -120,9 +122,43 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
             return;
 
         bool dead = animationState != null ? animationState.IsDead : playerHealth != null && playerHealth.IsDead;
-        ApplyDeathFreeze(dead);
-        ApplyGameplayParameters(dead);
-        ApplyHeadLook(dead);
+        if (dead)
+        {
+            FreezeCurrentVisualPose();
+            return;
+        }
+
+        ApplyDeathFreeze(false);
+        ApplyGameplayParameters(false);
+        ApplyHeadLook(false);
+    }
+
+    public bool TryCapturePose(out int stateHash, out float normalizedTime)
+    {
+        stateHash = 0;
+        normalizedTime = 0f;
+        if (thirdPersonAnimator == null || !thirdPersonAnimator.isActiveAndEnabled)
+            return false;
+
+        AnimatorStateInfo info = thirdPersonAnimator.GetCurrentAnimatorStateInfo(0);
+        stateHash = info.fullPathHash;
+        normalizedTime = Mathf.Repeat(info.normalizedTime, 1f);
+        return stateHash != 0;
+    }
+
+    public void FreezeCurrentVisualPose()
+    {
+        if (thirdPersonAnimator == null)
+            return;
+
+        thirdPersonAnimator.speed = 0f;
+        thirdPersonAnimator.applyRootMotion = false;
+        appliedDead = true;
+    }
+
+    public void ApplyFrozenPose(int stateHash, float normalizedTime)
+    {
+        FreezeCurrentVisualPose();
     }
 
     public void ResetAfterRespawn()
@@ -187,6 +223,10 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         thirdPersonAnimator.SetBool(IsProneHash, animationState.IsProne);
         thirdPersonAnimator.SetBool(IsSprintingHash, animationState.IsSprinting && !animationState.IsProne && !animationState.IsCrouching);
         thirdPersonAnimator.SetBool(IsDolphinDivingHash, animationState.IsDolphinDiving);
+        if (HasParameter(IsClimbingHash))
+            thirdPersonAnimator.SetBool(IsClimbingHash, animationState.IsClimbing);
+        if (HasParameter(ClimbSpeedHash))
+            thirdPersonAnimator.SetFloat(ClimbSpeedHash, animationState.ClimbSpeed);
         thirdPersonAnimator.SetFloat(ProneMoveSpeedHash, animationState.ProneMoveSpeed);
         thirdPersonAnimator.SetFloat(TurnSpeedHash, animationState.TurnSpeed, damp, Time.deltaTime);
         thirdPersonAnimator.SetBool(IsTurningLeftHash, animationState.IsTurningLeft);

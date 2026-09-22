@@ -71,6 +71,7 @@ public class ThirdPersonWeaponRig : MonoBehaviour
     private ThirdPersonWeaponHoldPose blendedPose = ThirdPersonWeaponHoldPose.DefaultLongGun;
     private Vector3 debugGunPosition;
     private Quaternion debugGunRotation;
+    private bool poseOnceForElimination;
 
     public float WeaponPoseWeight => poseWeight * switchBlend;
     public bool DrawPoseGuides => drawGizmos;
@@ -182,7 +183,34 @@ public class ThirdPersonWeaponRig : MonoBehaviour
         DisableLegacyPoseLayer();
     }
 
+    public void PoseOnceForElimination()
+    {
+        AttachWeaponToFrozenHands();
+    }
+
+    public void AttachWeaponToFrozenHands()
+    {
+        if (thirdPersonAnimator == null)
+            ResolveHierarchy();
+        if (thirdPersonAnimator == null)
+            return;
+
+        Transform hand = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.RightHand);
+        if (hand == null)
+            return;
+
+        worldWeapon?.SnapToHand(hand);
+    }
+
     private void LateUpdate()
+    {
+        if (playerHealth != null && playerHealth.IsDead && !poseOnceForElimination)
+            return;
+
+        EvaluateCurrentPose(Time.deltaTime);
+    }
+
+    private void EvaluateCurrentPose(float dt)
     {
         if (!CanPose())
         {
@@ -195,10 +223,9 @@ public class ThirdPersonWeaponRig : MonoBehaviour
             return;
 
         WeaponDefinition definition = ActiveDefinition;
-        float dt = Time.deltaTime;
         float blendTime = definition != null ? definition.IkBlendDuration : poseBlendTime;
         float targetWeight = ResolveTargetWeight(definition);
-        poseWeight = MoveToward(poseWeight, targetWeight, dt, blendTime);
+        poseWeight = dt <= 0f ? targetWeight : MoveToward(poseWeight, targetWeight, dt, blendTime);
         debugPoseWeight = poseWeight;
 
         bool sprinting = animationState != null && animationState.IsSprinting && !animationState.IsProne;
@@ -206,12 +233,24 @@ public class ThirdPersonWeaponRig : MonoBehaviour
         bool crouching = animationState != null && animationState.IsCrouching && !animationState.IsProne && !sprinting;
         bool prone = animationState != null && animationState.IsProne;
         bool reloading = animationState != null && animationState.IsReloading;
-        aimBlend = MoveToward(aimBlend, aiming ? 1f : 0f, dt, aimBlendTime);
-        sprintBlend = MoveToward(sprintBlend, sprinting ? 1f : 0f, dt, sprintBlendTime);
-        crouchBlend = MoveToward(crouchBlend, crouching ? 1f : 0f, dt, poseBlendTime);
-        proneBlend = MoveToward(proneBlend, prone ? 1f : 0f, dt, proneBlendTime);
-        reloadBlend = MoveToward(reloadBlend, reloading ? 1f : 0f, dt, reloadBlendTime);
-        switchBlend = MoveToward(switchBlend, 1f, dt, switchBlendTime);
+        if (dt <= 0f)
+        {
+            aimBlend = aiming ? 1f : 0f;
+            sprintBlend = sprinting ? 1f : 0f;
+            crouchBlend = crouching ? 1f : 0f;
+            proneBlend = prone ? 1f : 0f;
+            reloadBlend = reloading ? 1f : 0f;
+            switchBlend = 1f;
+        }
+        else
+        {
+            aimBlend = MoveToward(aimBlend, aiming ? 1f : 0f, dt, aimBlendTime);
+            sprintBlend = MoveToward(sprintBlend, sprinting ? 1f : 0f, dt, sprintBlendTime);
+            crouchBlend = MoveToward(crouchBlend, crouching ? 1f : 0f, dt, poseBlendTime);
+            proneBlend = MoveToward(proneBlend, prone ? 1f : 0f, dt, proneBlendTime);
+            reloadBlend = MoveToward(reloadBlend, reloading ? 1f : 0f, dt, reloadBlendTime);
+            switchBlend = MoveToward(switchBlend, 1f, dt, switchBlendTime);
+        }
 
         UpdateBlendedHold(definition);
         PlaceWeaponAnchor();
@@ -234,6 +273,7 @@ public class ThirdPersonWeaponRig : MonoBehaviour
 
     public void ResetAfterRespawn()
     {
+        poseOnceForElimination = false;
         poseWeight = 0f;
         aimBlend = 0f;
         sprintBlend = 0f;
@@ -296,11 +336,17 @@ public class ThirdPersonWeaponRig : MonoBehaviour
     {
         if (IsEditorPreview)
             return true;
-        if (networkObject != null && networkObject.IsSpawned && networkObject.IsOwner)
-            return false;
+        if (networkObject != null && networkObject.IsSpawned && networkObject.IsOwner && !poseOnceForElimination)
+        {
+            EliminationController elimination = playerHealth != null
+                ? playerHealth.GetComponent<EliminationController>()
+                : GetComponent<EliminationController>();
+            if (elimination == null || !elimination.ShowOwnerWorldWeapon)
+                return false;
+        }
         if (playerHealth != null && playerHealth.AreDeathVisualsHidden)
             return false;
-        if (worldWeapon != null && !worldWeapon.IsRemotePresentationActive)
+        if (worldWeapon != null && !worldWeapon.IsRemotePresentationActive && !poseOnceForElimination)
             return false;
         return true;
     }
@@ -308,7 +354,7 @@ public class ThirdPersonWeaponRig : MonoBehaviour
     private float ResolveTargetWeight(WeaponDefinition definition)
     {
         if (playerHealth != null && playerHealth.IsDead)
-            return 0f;
+            return poseOnceForElimination ? 1f : poseWeight;
         if (definition == null)
             return 0f;
         if (animationState == null)

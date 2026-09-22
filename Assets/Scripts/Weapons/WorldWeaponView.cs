@@ -34,6 +34,9 @@ public class WorldWeaponView : NetworkBehaviour
     private ThirdPersonWeaponVisual currentVisual;
     private AudioSource[] fireSfxVoices;
     private int nextFireSfxVoice;
+    private bool ownerEliminationPresentation;
+    private float frozenAnimatorSpeed = 1f;
+    private bool weaponAnimatorFrozen;
 
     public Transform WorldWeaponRoot => worldWeaponRoot;
     public Transform WeaponSocket => weaponSocket;
@@ -227,15 +230,87 @@ public class WorldWeaponView : NetworkBehaviour
 
     private void HandleDeathPresentation()
     {
-        ResetPresentation();
+        FreezeWeaponAnimator();
     }
 
     private void HandleRespawnPresentation()
     {
+        RestoreWeaponAnimator();
         ResetPresentation();
-        SetWorldWeaponActive(true);
+        SetWorldWeaponActive(!IsOwner);
         thirdPersonRig?.ResetAfterRespawn();
         thirdPersonRig?.NotifyWeaponChanged();
+    }
+
+    public void BeginOwnerEliminationPresentation()
+    {
+        if (!IsOwner)
+            return;
+
+        PlayerWeaponInventory inventory = GetComponent<PlayerWeaponInventory>();
+        if (inventory != null && inventory.ActiveDefinition != null)
+            definition = inventory.ActiveDefinition;
+
+        ownerEliminationPresentation = true;
+        remotePresentationEnabled = true;
+        enabled = true;
+        if (weaponKick != null && weaponKick.childCount == 0 && definition != null)
+            RebuildWorldModel(definition);
+
+        BindThirdPersonVisual();
+        SetWorldWeaponActive(true);
+        FreezeWeaponAnimator();
+    }
+
+    public void SnapToHand(Transform hand)
+    {
+        if (worldWeaponRoot == null || hand == null)
+            return;
+
+        if (weaponHandAnchor != null && worldWeaponRoot.parent != weaponHandAnchor)
+            worldWeaponRoot.SetParent(weaponHandAnchor, true);
+
+        worldWeaponRoot.SetPositionAndRotation(hand.position, hand.rotation);
+        Vector3 localScale = definition != null ? definition.WorldLocalScale : Vector3.one;
+        worldWeaponRoot.localScale = CounterParentScale(localScale, worldWeaponRoot.parent);
+    }
+
+    public void EndOwnerEliminationPresentation()
+    {
+        RestoreWeaponAnimator();
+        if (!IsOwner && !ownerEliminationPresentation)
+            return;
+
+        ownerEliminationPresentation = false;
+        if (!IsOwner)
+            return;
+
+        remotePresentationEnabled = false;
+        SetWorldWeaponActive(false);
+        enabled = false;
+    }
+
+    public void FreezeWeaponAnimator()
+    {
+        if (weaponAnimator == null || weaponAnimatorFrozen)
+            return;
+
+        frozenAnimatorSpeed = weaponAnimator.speed;
+        weaponAnimator.speed = 0f;
+        weaponAnimatorFrozen = true;
+    }
+
+    public void RestoreWeaponAnimator()
+    {
+        if (weaponAnimator == null)
+        {
+            weaponAnimatorFrozen = false;
+            return;
+        }
+
+        if (weaponAnimatorFrozen)
+            weaponAnimator.speed = Mathf.Abs(frozenAnimatorSpeed) < 0.001f ? 1f : frozenAnimatorSpeed;
+        weaponAnimatorFrozen = false;
     }
 
     public void BindThirdPersonVisual()
@@ -261,7 +336,7 @@ public class WorldWeaponView : NetworkBehaviour
 
     public void AttachToAnchor()
     {
-        if (IsSpawned && IsOwner)
+        if (IsSpawned && IsOwner && !ownerEliminationPresentation)
             return;
 
         ResolveHierarchyFallbacks();

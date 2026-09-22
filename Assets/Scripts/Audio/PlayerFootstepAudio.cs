@@ -72,7 +72,7 @@ public class PlayerFootstepAudio : MonoBehaviour
         {
             if (movement.IsProne || movement.IsDolphinDiving)
                 return false;
-            if (movement.IsSliding || movement.IsWallRunning)
+            if (movement.IsSliding || movement.IsWallRunning || movement.IsClimbing)
                 return false;
         }
 

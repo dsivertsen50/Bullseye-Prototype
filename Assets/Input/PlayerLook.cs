@@ -26,6 +26,15 @@ public class PlayerLook : MonoBehaviour
 
     public float Yaw => yaw;
     public float Pitch => pitch;
+    public bool IsLookFromMouse =>
+        lookAction != null && lookAction.action != null && lookAction.action.activeControl?.device is Mouse;
+
+    public Vector2 ReadRawLookInput()
+    {
+        if (lookAction == null || lookAction.action == null)
+            return Vector2.zero;
+        return lookAction.action.ReadValue<Vector2>();
+    }
 
     public void SetLookTransform(Transform lookTransform)
     {

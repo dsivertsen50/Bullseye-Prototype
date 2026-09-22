@@ -85,6 +85,8 @@ public static class ResearchTelemetrySnapshot
 
         if (movement.IsDolphinDiving)
             return ResearchMovementState.DolphinDiving;
+        if (movement.IsClimbing)
+            return ResearchMovementState.Climbing;
         if (movement.IsWallRunning)
             return ResearchMovementState.WallRunning;
         if (movement.IsSliding)
@@ -116,7 +118,7 @@ public static class ResearchTelemetrySnapshot
             return ResearchStance.Prone;
         if (movement.IsCrouched)
             return ResearchStance.Crouching;
-        if (movement.IsSliding || movement.IsWallRunning)
+        if (movement.IsSliding || movement.IsWallRunning || movement.IsClimbing)
             return ResearchStance.Other;
         return ResearchStance.Standing;
     }
