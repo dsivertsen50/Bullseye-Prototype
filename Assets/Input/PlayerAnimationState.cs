@@ -112,6 +112,8 @@ public class PlayerAnimationState : NetworkBehaviour
     public bool IsCrouching => movement != null && movement.IsCrouched;
     public bool IsProne => movement != null && movement.IsProne;
     public bool IsDolphinDiving => movement != null && movement.IsDolphinDiving;
+    public bool IsClimbing => movement != null && movement.IsClimbing;
+    public float ClimbSpeed => movement != null ? movement.ClimbSpeed : 0f;
     public float ProneMoveSpeed => IsProne ? Speed : 0f;
     public float TurnSpeed => turnSpeed.Value;
     public bool IsTurningLeft => !IsMoving && turnSpeed.Value <= -proneTurnThreshold;

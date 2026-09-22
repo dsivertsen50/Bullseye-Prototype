@@ -11,11 +11,12 @@ using Unity.Netcode;
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(CapsuleCollider))]
-public class PlayerMovement : NetworkBehaviour
+public partial class PlayerMovement : NetworkBehaviour
 {
     private const float ExtraGravityForce = 30.19f;
     private const float ExtraGravityMultiplier = 10f;
     private const float FrictionThreshold = 0.1f;
+    private const float IdleStopSpeed = 0.5f;
     private const float MaxSlopeAngle = 60f;
     private const float JumpIgnoreDuration = 0.2f;
     private const float UngroundDelay = 0.1f;
@@ -128,6 +129,7 @@ public class PlayerMovement : NetworkBehaviour
     [Header("Ground")]
     [SerializeField] private float groundCheckDistance = 0.4f;
     [SerializeField] private LayerMask whatIsGround = ~0;
+    [SerializeField] private PhysicsMaterial locomotionPhysicsMaterial;
 
     [Header("Input")]
     [SerializeField] private InputActionReference moveAction;
@@ -353,6 +355,7 @@ public class PlayerMovement : NetworkBehaviour
     public override void OnNetworkDespawn()
     {
         crouched.OnValueChanged -= OnCrouchedChanged;
+        ClearClimbState();
     }
 
     private void OnEnable()
@@ -369,11 +372,17 @@ public class PlayerMovement : NetworkBehaviour
             CrouchInput.Enable();
     }
 
+    private void OnDisable()
+    {
+        ClearClimbState();
+    }
+
     private void Update()
     {
         if (!IsMovementOwner)
         {
-            TickStanceTransition();
+            if (playerHealth == null || !playerHealth.IsDead)
+                TickStanceTransition();
             return;
         }
 
@@ -387,20 +396,25 @@ public class PlayerMovement : NetworkBehaviour
         if (dead)
         {
             ClearWallRunState();
+            ClearClimbState();
             FreezeDeadBody();
+            TickWallRunDebug();
+            return;
         }
-        else
+
+        RestoreAlivePhysics();
+        TickClimbLifecycle();
+        if (menuOpen)
+            EndWallRun();
+        if (!menuOpen)
         {
-            RestoreAlivePhysics();
-            if (menuOpen)
-                EndWallRun();
-            if (!menuOpen)
-            {
+            if (!IsClimbing)
                 UpdatePostureInput();
-                TickSlideAirborne();
-                TryJump();
-                UpdateCurrentSpeed();
-            }
+            TickSlideAirborne();
+            TryJump();
+            UpdateCurrentSpeed();
+            if (!IsClimbing)
+                TryBeginClimb();
         }
 
         TickStanceTransition();
@@ -409,6 +423,13 @@ public class PlayerMovement : NetworkBehaviour
 
     private void LateUpdate()
     {
+        TickClimbVisual();
+
+        if (playerHealth != null && playerHealth.IsDead)
+            return;
+        if (IsClimbing)
+            return;
+
         float poseBlend = stanceBlend <= 1f ? 0f : Mathf.Clamp01(stanceBlend - 1f);
         ApplyPlaceholderPronePose(poseBlend, false);
         KeepProneVisualAboveGround(poseBlend);
@@ -430,7 +451,12 @@ public class PlayerMovement : NetworkBehaviour
         if (rb.isKinematic)
             return;
 
-        if (wallRunning)
+        if (IsClimbing)
+        {
+            TickClimbPhysics();
+            TickClimbExits();
+        }
+        else if (wallRunning)
         {
             TickWallRunPhysics();
             TickWallRunExits();
@@ -503,6 +529,8 @@ public class PlayerMovement : NetworkBehaviour
         jumpIgnoreTimer = JumpIgnoreDuration;
         EndSlide();
         EndWallRun();
+        if (IsClimbing)
+            EndClimb(false);
 
         if (dolphinDiving.Value)
             diveBecameAirborne = true;
@@ -521,6 +549,7 @@ public class PlayerMovement : NetworkBehaviour
     public void FreezeForDeath()
     {
         ClearWallRunState();
+        ClearClimbState();
         CancelDolphinDive(false);
         FreezeDeadBody();
     }
@@ -552,6 +581,7 @@ public class PlayerMovement : NetworkBehaviour
         EndSlide();
         CancelDolphinDive(false);
         ClearWallRunState();
+        ClearClimbState();
 
         if (IsSpawned && IsOwner)
         {
@@ -590,6 +620,27 @@ public class PlayerMovement : NetworkBehaviour
         rb.linearDamping = 0f;
         rb.angularDamping = 0.05f;
         rb.useGravity = true;
+        ApplyLocomotionPhysicsMaterial();
+    }
+
+    private void ApplyLocomotionPhysicsMaterial()
+    {
+        if (playerCapsule == null)
+            return;
+
+        if (locomotionPhysicsMaterial == null)
+        {
+            locomotionPhysicsMaterial = new PhysicsMaterial("PlayerLocomotionNoFriction")
+            {
+                dynamicFriction = 0f,
+                staticFriction = 0f,
+                bounciness = 0f,
+                frictionCombine = PhysicsMaterialCombine.Minimum,
+                bounceCombine = PhysicsMaterialCombine.Minimum
+            };
+        }
+
+        playerCapsule.sharedMaterial = locomotionPhysicsMaterial;
     }
 
     private void ConfigureAuthorityPhysics()
@@ -619,7 +670,7 @@ public class PlayerMovement : NetworkBehaviour
         if (rb == null || (playerHealth != null && playerHealth.IsDead))
             return;
 
-        rb.useGravity = !wallRunning;
+        rb.useGravity = !wallRunning && !IsClimbing;
         if (IsMovementOwner)
             rb.isKinematic = false;
     }
@@ -645,6 +696,7 @@ public class PlayerMovement : NetworkBehaviour
         {
             FrictionForce(0f, 0f, FindVelRelativeToLook());
             LimitDiagonalVelocity();
+            ApplyIdleGroundStop(Vector2.zero);
             return;
         }
 
@@ -711,6 +763,8 @@ public class PlayerMovement : NetworkBehaviour
             rb.linearVelocity = new Vector3(targetVelocity.x, yVel, targetVelocity.z);
         }
 
+        ApplyIdleGroundStop(input);
+
         if (!onSlope)
             rb.AddForce(Vector3.down * Time.fixedDeltaTime * ExtraGravityMultiplier);
     }
@@ -774,12 +828,35 @@ public class PlayerMovement : NetworkBehaviour
         }
     }
 
+    private void ApplyIdleGroundStop(Vector2 input)
+    {
+        if (!grounded || hasJumped || knockbackTimer > 0f || dolphinDiving.Value)
+            return;
+
+        Vector3 horizontalVel = HorizontalVelocity();
+        bool isCrouchSliding = crouched.Value && !prone.Value && horizontalVel.magnitude >= crouchSpeed;
+        if (isCrouchSliding)
+            return;
+
+        if (input.sqrMagnitude >= 0.01f)
+            return;
+
+        if (horizontalVel.sqrMagnitude <= IdleStopSpeed * IdleStopSpeed)
+            rb.linearVelocity = new Vector3(0f, rb.linearVelocity.y, 0f);
+    }
+
     private void TryJump()
     {
         if (jumpAction == null || jumpAction.action == null)
             return;
         if (!jumpAction.action.WasPressedThisFrame())
             return;
+
+        if (IsClimbing)
+        {
+            PerformLadderJump();
+            return;
+        }
 
         if (wallRunning)
         {
@@ -829,7 +906,7 @@ public class PlayerMovement : NetworkBehaviour
     {
         if (!jumpAvailable)
             return false;
-        if (prone.Value || dolphinDiving.Value)
+        if (prone.Value || dolphinDiving.Value || IsClimbing)
             return false;
         if (crouched.Value && !canJumpWhileCrouching)
             return false;
@@ -865,6 +942,12 @@ public class PlayerMovement : NetworkBehaviour
     {
         if (sliding)
             return;
+
+        if (IsClimbing)
+        {
+            IsSprinting = false;
+            return;
+        }
 
         if (wallRunning)
         {
@@ -910,7 +993,7 @@ public class PlayerMovement : NetworkBehaviour
         bool movingBackward = input.y < -0.1f;
         bool movingSideways = Mathf.Abs(input.x) > 0.1f;
 
-        if (prone.Value || dolphinDiving.Value)
+        if (prone.Value || dolphinDiving.Value || IsClimbing)
             return false;
         if (crouched.Value)
             return false;
@@ -942,7 +1025,7 @@ public class PlayerMovement : NetworkBehaviour
 
     private void UpdatePostureInput()
     {
-        if (wallRunning)
+        if (wallRunning || IsClimbing)
             return;
 
         InputAction crouchInput = CrouchInput;
@@ -1051,7 +1134,7 @@ public class PlayerMovement : NetworkBehaviour
 
     private bool CanBeginDiveCandidate()
     {
-        if (prone.Value || dolphinDiving.Value || crouched.Value)
+        if (prone.Value || dolphinDiving.Value || crouched.Value || IsClimbing)
             return false;
         if (!grounded || hasJumped)
             return false;
@@ -1063,7 +1146,7 @@ public class PlayerMovement : NetworkBehaviour
 
     private bool CanTriggerDolphinDive()
     {
-        if (!diveCandidateThisPress || prone.Value || dolphinDiving.Value || crouched.Value)
+        if (!diveCandidateThisPress || prone.Value || dolphinDiving.Value || crouched.Value || IsClimbing)
             return false;
         if (diveCooldownRemaining > 0f || !grounded || hasJumped)
             return false;
@@ -1080,6 +1163,8 @@ public class PlayerMovement : NetworkBehaviour
 
         EndSlide();
         EndWallRun();
+        if (IsClimbing)
+            EndClimb(false);
         IsSprinting = false;
         sprintToggledOn = false;
         if (prone.Value)
@@ -1408,7 +1493,7 @@ public class PlayerMovement : NetworkBehaviour
     {
         if (!allowSliding || !grounded || hasJumped || rb == null)
             return;
-        if (prone.Value || dolphinDiving.Value)
+        if (prone.Value || dolphinDiving.Value || IsClimbing)
             return;
         if (LocksHorizontalLocomotion)
             return;
@@ -1550,8 +1635,11 @@ public class PlayerMovement : NetworkBehaviour
                 if (wallRunning)
                     EndWallRun();
                 ClearSameWallRestriction();
-                float downwardSpeed = rb != null ? Mathf.Max(0f, -rb.linearVelocity.y) : 0f;
-                Landed?.Invoke(downwardSpeed);
+                if (!IsClimbing)
+                {
+                    float downwardSpeed = rb != null ? Mathf.Max(0f, -rb.linearVelocity.y) : 0f;
+                    Landed?.Invoke(downwardSpeed);
+                }
             }
             return;
         }
@@ -1602,6 +1690,8 @@ public class PlayerMovement : NetworkBehaviour
         {
             RaycastHit candidate = groundHits[i];
             if (candidate.collider == null || IsOwnCollider(candidate.collider))
+                continue;
+            if (IsClimbing && IsCurrentLadderCollider(candidate.collider))
                 continue;
             if (!IsFloor(candidate.normal))
                 continue;
@@ -2088,7 +2178,7 @@ public class PlayerMovement : NetworkBehaviour
             return false;
         }
 
-        if (crouched.Value || prone.Value || dolphinDiving.Value)
+        if (crouched.Value || prone.Value || dolphinDiving.Value || IsClimbing)
         {
             blockReason = "Invalid posture.";
             return false;

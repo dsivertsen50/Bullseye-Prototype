@@ -304,7 +304,7 @@ public class MatchLobby : MonoBehaviour
 
         eventsBound = true;
         session.Changed += HandleSessionChanged;
-        session.PlayerJoined += HandleSessionPlayerChanged;
+        session.PlayerJoined += HandleSessionPlayerJoined;
         session.PlayerHasLeft += HandleSessionPlayerChanged;
         session.SessionPropertiesChanged += HandleSessionChanged;
         session.PlayerPropertiesChanged += HandleSessionChanged;
@@ -322,7 +322,7 @@ public class MatchLobby : MonoBehaviour
         }
 
         session.Changed -= HandleSessionChanged;
-        session.PlayerJoined -= HandleSessionPlayerChanged;
+        session.PlayerJoined -= HandleSessionPlayerJoined;
         session.PlayerHasLeft -= HandleSessionPlayerChanged;
         session.SessionPropertiesChanged -= HandleSessionChanged;
         session.PlayerPropertiesChanged -= HandleSessionChanged;
@@ -367,11 +367,42 @@ public class MatchLobby : MonoBehaviour
         RefreshRoster();
     }
 
+    private void HandleSessionPlayerJoined(string playerId)
+    {
+        RefreshRoster();
+        LobbyPlayerInfo info = FindPlayerBySessionId(playerId);
+        MultiplayerLog.Lobby("Player joined: " + (info != null && !string.IsNullOrEmpty(info.DisplayName)
+            ? info.DisplayName
+            : playerId));
+    }
+
+    private LobbyPlayerInfo FindPlayerBySessionId(string playerId)
+    {
+        if (string.IsNullOrEmpty(playerId))
+            return null;
+        for (int i = 0; i < roster.Count; i++)
+        {
+            if (roster[i] != null && roster[i].SessionPlayerId == playerId)
+                return roster[i];
+        }
+
+        return null;
+    }
+
     private void HandleClientConnected(ulong clientId)
     {
         RefreshRoster();
         if (IsHost)
             SpawnNetworkStateIfNeeded();
+
+        if (!UsesSessionRoster())
+        {
+            namesByClient.TryGetValue(clientId, out LobbyPlayerInfo stored);
+            string name = stored != null && !string.IsNullOrEmpty(stored.DisplayName)
+                ? stored.DisplayName
+                : "Client " + clientId;
+            MultiplayerLog.Lobby("Player joined: " + name);
+        }
     }
 
     private void HandleClientDisconnected(ulong clientId)

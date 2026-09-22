@@ -47,6 +47,7 @@ public class GameSessionCoordinator : MonoBehaviour
     private MatchLobby matchLobby;
     private bool sceneEventsBound;
     private bool connectionApprovalBound;
+    private bool showBusyOverlay;
 
     public static GameSessionCoordinator Instance { get; private set; }
 
@@ -59,6 +60,20 @@ public class GameSessionCoordinator : MonoBehaviour
     public GameSessionInfo ActiveSession { get; private set; }
     public string GameplaySceneName => string.IsNullOrEmpty(gameplaySceneName) ? DefaultGameplaySceneName : gameplaySceneName;
     public PendingSessionRequest PendingRequest => pendingRequest;
+    public bool IsPendingHost => pendingRequest != null && pendingRequest.Kind == PendingSessionKind.Host;
+    public string CurrentJoinCode
+    {
+        get
+        {
+            if (sessionManager != null && !string.IsNullOrEmpty(sessionManager.JoinCode))
+                return sessionManager.JoinCode;
+            if (ActiveSession != null && !string.IsNullOrEmpty(ActiveSession.JoinCode))
+                return ActiveSession.JoinCode;
+            if (pendingRequest != null && pendingRequest.Session != null && !string.IsNullOrEmpty(pendingRequest.Session.JoinCode))
+                return pendingRequest.Session.JoinCode;
+            return null;
+        }
+    }
 
     public static bool HasMenuDrivenSession =>
         Instance != null && (Instance.StartedFromMenu || Instance.pendingRequest != null || Instance.IsBusy);
@@ -145,8 +160,8 @@ public class GameSessionCoordinator : MonoBehaviour
         StartedFromMenu = true;
         hostAttemptCount = 0;
         MultiplayerSessionManager.Ensure().SetLocalMode();
-        SetStatus("Creating Game...");
-        BeginBusy();
+        SetStatus("Creating lobby...");
+        BeginBusy(showOverlay: false);
         EnterLobby();
         return true;
     }
@@ -164,9 +179,9 @@ public class GameSessionCoordinator : MonoBehaviour
             return TryJoinSession(CreateDirectSession(address, port), out error);
 
         string normalized = LocalSessionRegistry.NormalizeCode(joinCode);
-        if (string.IsNullOrEmpty(normalized))
+        if (normalized.Length < LocalSessionRegistry.MinJoinCodeLength)
         {
-            error = "Enter a join code.";
+            error = "Enter a valid join code.";
             return false;
         }
 
@@ -206,8 +221,8 @@ public class GameSessionCoordinator : MonoBehaviour
         StartedFromMenu = true;
         if (session.ConnectionMode == MultiplayerConnectionMode.Local)
             MultiplayerSessionManager.Ensure().SetLocalMode();
-        SetStatus(pendingRequest.Kind == PendingSessionKind.Host ? "Creating Game..." : "Joining Game...");
-        BeginBusy();
+        SetStatus(pendingRequest.Kind == PendingSessionKind.Host ? "Creating lobby..." : "Joining lobby...");
+        BeginBusy(showOverlay: pendingRequest.Kind != PendingSessionKind.Host);
         EnterLobby();
         return true;
     }
@@ -239,8 +254,8 @@ public class GameSessionCoordinator : MonoBehaviour
         };
         StartedFromMenu = true;
         hostAttemptCount = 0;
-        SetStatus("Initializing online services...");
-        BeginBusy();
+        SetStatus("Creating lobby...");
+        BeginBusy(showOverlay: false);
         EnterLobby();
         return true;
     }
@@ -255,9 +270,9 @@ public class GameSessionCoordinator : MonoBehaviour
         }
 
         string normalized = LocalSessionRegistry.NormalizeCode(joinCode);
-        if (string.IsNullOrEmpty(normalized))
+        if (normalized.Length < LocalSessionRegistry.MinJoinCodeLength)
         {
-            error = "Enter a join code.";
+            error = "Enter a valid join code.";
             return false;
         }
 
@@ -276,8 +291,8 @@ public class GameSessionCoordinator : MonoBehaviour
             Configuration = MatchConfiguration.CreateDefault(MultiplayerSessionManager.Ensure().MaxPlayers)
         };
         StartedFromMenu = true;
-        SetStatus("Initializing online services...");
-        BeginBusy();
+        SetStatus("Joining lobby...");
+        BeginBusy(showOverlay: true);
         EnterLobby();
         return true;
     }
@@ -306,8 +321,8 @@ public class GameSessionCoordinator : MonoBehaviour
             Configuration = MatchConfiguration.CreateDefault(MultiplayerSessionManager.Ensure().MaxPlayers)
         };
         StartedFromMenu = true;
-        SetStatus("Initializing online services...");
-        BeginBusy();
+        SetStatus("Joining lobby...");
+        BeginBusy(showOverlay: true);
         EnterLobby();
         return true;
     }
@@ -333,7 +348,7 @@ public class GameSessionCoordinator : MonoBehaviour
             matchLobby.SetDraftConfiguration(pendingRequest.Configuration);
 
         MenuDisplayPawn.NeutralizeScenePawns();
-        SetStatus(pendingRequest.Kind == PendingSessionKind.Host ? "Creating Game..." : "Connecting...");
+        SetStatus(pendingRequest.Kind == PendingSessionKind.Host ? "Creating lobby..." : "Joining lobby...");
         NetworkManager networkManager = EnsurePersistentNetworkManager();
         if (networkManager == null)
         {
@@ -410,6 +425,7 @@ public class GameSessionCoordinator : MonoBehaviour
 
     public void HideStatus()
     {
+        showBusyOverlay = false;
         if (statusCanvas != null)
             statusCanvas.gameObject.SetActive(false);
     }
@@ -424,6 +440,7 @@ public class GameSessionCoordinator : MonoBehaviour
         {
             JoinCode = code,
             Visibility = visibility,
+            ConnectionMode = MultiplayerConnectionMode.Local,
             Address = "127.0.0.1",
             Port = DefaultPort,
             ListenAddress = "127.0.0.1",
@@ -564,7 +581,8 @@ public class GameSessionCoordinator : MonoBehaviour
 
         if (!localClientConnected)
         {
-            FailAndReturnToMenu("Unable to connect to game.");
+            string reason = networkManager.DisconnectReason;
+            FailAndReturnToMenu(MapDisconnectReason(reason));
             return;
         }
 
@@ -686,17 +704,25 @@ public class GameSessionCoordinator : MonoBehaviour
             LastError = error;
             LastErrorKind = errorKind;
             LastErrorMode = errorMode;
-            SetStatus(error, showBack: true);
             ConnectionFailed?.Invoke(error);
+            if (SceneManager.GetActiveScene().name != MainMenuSceneName)
+            {
+                showBusyOverlay = true;
+                SetStatus(error, showBack: true);
+                SceneManager.LoadScene(MainMenuSceneName, LoadSceneMode.Single);
+            }
+            else
+            {
+                HideStatus();
+            }
         }
         else
         {
             SetStatus(null);
             HideStatus();
+            if (SceneManager.GetActiveScene().name != MainMenuSceneName)
+                SceneManager.LoadScene(MainMenuSceneName, LoadSceneMode.Single);
         }
-
-        if (SceneManager.GetActiveScene().name != MainMenuSceneName)
-            SceneManager.LoadScene(MainMenuSceneName, LoadSceneMode.Single);
 
         returningToMenu = false;
         returnToMenuRoutine = null;
@@ -817,7 +843,7 @@ public class GameSessionCoordinator : MonoBehaviour
         if (!result.Succeeded)
         {
             FailAndReturnToMenu(string.IsNullOrEmpty(result.Error)
-                ? "Unable to connect to this match."
+                ? "Unable to join lobby.\nCheck the join code and try again."
                 : result.Error);
             yield break;
         }
@@ -840,6 +866,10 @@ public class GameSessionCoordinator : MonoBehaviour
                 CreatedUtcTicks = DateTime.UtcNow.Ticks
             };
         }
+        if (hosting)
+            MultiplayerLog.Relay("Host started successfully.");
+        else
+            MultiplayerLog.Relay("Client connected.");
         MultiplayerLog.Info("Relay network connected.");
 
         if (networkManager != null &&
@@ -1054,8 +1084,28 @@ public class GameSessionCoordinator : MonoBehaviour
 
     private void HandleConnectionApproval(NetworkManager.ConnectionApprovalRequest request, NetworkManager.ConnectionApprovalResponse response)
     {
-        response.Approved = true;
         MatchLobby lobby = MatchLobby.Ensure();
+        if (lobby.State == MatchState.Starting || lobby.State == MatchState.InMatch)
+        {
+            response.Approved = false;
+            response.Reason = "This match has already started.";
+            MultiplayerLog.Relay("Rejected late join. Match already started.");
+            return;
+        }
+
+        NetworkManager networkManager = NetworkManager.Singleton;
+        int connected = networkManager != null && networkManager.ConnectedClientsIds != null
+            ? networkManager.ConnectedClientsIds.Count
+            : 0;
+        if (connected >= lobby.MaxPlayers)
+        {
+            response.Approved = false;
+            response.Reason = "This lobby is full.";
+            MultiplayerLog.Relay("Rejected join. Lobby is full.");
+            return;
+        }
+
+        response.Approved = true;
         lobby.RegisterConnectionPayload(request.ClientNetworkId, request.Payload);
         bool inMenu = SceneManager.GetActiveScene().name == MainMenuSceneName;
         response.CreatePlayerObject = !inMenu && lobby.State == MatchState.InMatch;
@@ -1211,26 +1261,46 @@ public class GameSessionCoordinator : MonoBehaviour
         }
     }
 
-    private void BeginBusy()
+    private void BeginBusy(bool showOverlay = true)
     {
         IsBusy = true;
+        showBusyOverlay = showOverlay;
         LastError = null;
         LastErrorKind = PendingSessionKind.None;
         LastErrorMode = MultiplayerConnectionMode.Local;
         EnsureStatusUi();
         if (statusCanvas != null)
-            statusCanvas.gameObject.SetActive(true);
+            statusCanvas.gameObject.SetActive(showOverlay);
         if (statusBackButton != null)
-            statusBackButton.gameObject.SetActive(true);
+            statusBackButton.gameObject.SetActive(showOverlay);
         if (statusBackLabel != null)
             statusBackLabel.text = "Cancel";
+    }
+
+    private static string MapDisconnectReason(string reason)
+    {
+        if (string.IsNullOrEmpty(reason))
+            return "Unable to connect.\nPlease check your connection and try again.";
+        if (ContainsIgnoreCase(reason, "already started"))
+            return "This match has already started.";
+        if (ContainsIgnoreCase(reason, "full"))
+            return "This lobby is full.";
+        if (ContainsIgnoreCase(reason, "no longer"))
+            return "This lobby is no longer available.";
+        return "Unable to join lobby.\nCheck the join code and try again.";
+    }
+
+    private static bool ContainsIgnoreCase(string value, string token)
+    {
+        return !string.IsNullOrEmpty(value) &&
+               value.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private void SetStatus(string message, bool showBack = false)
     {
         StatusMessage = message;
         EnsureStatusUi();
-        bool overlayAllowed = !localClientConnected || returningToMenu;
+        bool overlayAllowed = showBusyOverlay && (!localClientConnected || returningToMenu);
         bool visible = overlayAllowed && !string.IsNullOrEmpty(message);
         if (statusCanvas != null)
             statusCanvas.gameObject.SetActive(visible);

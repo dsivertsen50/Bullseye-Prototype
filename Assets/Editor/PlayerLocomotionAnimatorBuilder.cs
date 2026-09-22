@@ -236,6 +236,8 @@ public static class PlayerLocomotionAnimatorBuilder
         AddBool(controller, "IsSprinting");
         AddBool(controller, "IsProne");
         AddBool(controller, "IsDolphinDiving");
+        AddBool(controller, "IsClimbing");
+        AddFloat(controller, "ClimbSpeed");
         AddBool(controller, "IsAiming");
         AddBool(controller, "IsReloading");
         AddBool(controller, "IsFiring");

@@ -57,6 +57,21 @@ public class PlayerNetworkSetup : NetworkBehaviour
             LocalOwnedCamera = null;
     }
 
+    public void SetLocalBodyVisibleToCamera(bool visible)
+    {
+        if (!IsOwner || playerCamera == null)
+            return;
+
+        int layer = LayerMask.NameToLayer(LocalPlayerBodyLayerName);
+        if (layer < 0)
+            return;
+
+        if (visible)
+            playerCamera.cullingMask |= 1 << layer;
+        else
+            playerCamera.cullingMask &= ~(1 << layer);
+    }
+
     private void HideLocalBodyFromFirstPersonCamera()
     {
         Transform body = visualRoot;

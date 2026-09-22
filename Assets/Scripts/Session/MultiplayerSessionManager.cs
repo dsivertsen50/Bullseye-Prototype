@@ -108,7 +108,8 @@ public class MultiplayerSessionManager : MonoBehaviour
                 return OnlineSessionOperationResult.Fail(LastError);
             }
 
-            SetState(MultiplayerConnectionState.CreatingSession, "Creating online match...");
+            SetState(MultiplayerConnectionState.CreatingSession, "Generating join code...");
+            MultiplayerLog.Relay("Creating allocation...");
             MultiplayerLog.Info("Creating Relay session. Private=" + isPrivate + " Build " + Application.version);
 
             SessionOptions options = new SessionOptions
@@ -137,7 +138,7 @@ public class MultiplayerSessionManager : MonoBehaviour
             BindSession(session);
             SetState(MultiplayerConnectionState.WaitingForPlayers, "Waiting for players...");
             MultiplayerLog.Info("Online session created.");
-            MultiplayerLog.Info("Join code: " + JoinCode);
+            MultiplayerLog.Relay("Join code generated: " + JoinCode);
             MultiplayerLog.Info("Session ID: " + SessionId);
             return OnlineSessionOperationResult.Ok(session);
         }
@@ -165,7 +166,7 @@ public class MultiplayerSessionManager : MonoBehaviour
         string normalized = LocalSessionRegistry.NormalizeCode(joinCode);
         if (string.IsNullOrEmpty(normalized))
         {
-            Fail("Enter a join code.");
+            Fail("Enter a valid join code.");
             return OnlineSessionOperationResult.Fail(LastError);
         }
 
@@ -183,8 +184,8 @@ public class MultiplayerSessionManager : MonoBehaviour
                 return OnlineSessionOperationResult.Fail(services.PlayerMessage);
             }
 
-            SetState(MultiplayerConnectionState.JoiningSession, "Joining match...");
-            MultiplayerLog.Info("Joining session by code.");
+            SetState(MultiplayerConnectionState.JoiningSession, "Joining lobby...");
+            MultiplayerLog.Relay("Attempting join with code " + normalized);
 
             JoinSessionOptions options = new JoinSessionOptions
             {
@@ -202,9 +203,16 @@ public class MultiplayerSessionManager : MonoBehaviour
                 return OnlineSessionOperationResult.CancelledResult();
             }
 
+            if (IsMatchAlreadyStarted(session))
+            {
+                await SafeLeaveAsync(session, deleteIfHost: false);
+                Fail("This match has already started.");
+                return OnlineSessionOperationResult.Fail(LastError);
+            }
+
             BindSession(session);
             SetState(MultiplayerConnectionState.Connecting, "Connecting...");
-            MultiplayerLog.Info("Relay network connected.");
+            MultiplayerLog.Relay("Client connected.");
             MultiplayerLog.Info("Join code: " + JoinCode);
             return OnlineSessionOperationResult.Ok(session);
         }
@@ -268,9 +276,16 @@ public class MultiplayerSessionManager : MonoBehaviour
                 return OnlineSessionOperationResult.CancelledResult();
             }
 
+            if (IsMatchAlreadyStarted(session))
+            {
+                await SafeLeaveAsync(session, deleteIfHost: false);
+                Fail("This match has already started.");
+                return OnlineSessionOperationResult.Fail(LastError);
+            }
+
             BindSession(session);
             SetState(MultiplayerConnectionState.Connecting, "Connecting...");
-            MultiplayerLog.Info("Relay network connected.");
+            MultiplayerLog.Relay("Client connected.");
             MultiplayerLog.Info("Join code: " + JoinCode);
             return OnlineSessionOperationResult.Ok(session);
         }
@@ -388,9 +403,8 @@ public class MultiplayerSessionManager : MonoBehaviour
     {
         UnbindSessionEvents();
         activeSession = session;
-        JoinCode = session != null ? session.Code : null;
-        SessionId = session != null ? session.Id : null;
         eventsBound = true;
+        RefreshJoinCodeFromSession();
         if (session == null)
             return;
 
@@ -445,7 +459,34 @@ public class MultiplayerSessionManager : MonoBehaviour
 
     private void HandleSessionChanged()
     {
+        RefreshJoinCodeFromSession();
         StateChanged?.Invoke();
+    }
+
+    private void RefreshJoinCodeFromSession()
+    {
+        if (activeSession == null)
+        {
+            JoinCode = null;
+            SessionId = null;
+            return;
+        }
+
+        SessionId = activeSession.Id;
+        if (!string.IsNullOrEmpty(activeSession.Code))
+            JoinCode = activeSession.Code;
+    }
+
+    private static bool IsMatchAlreadyStarted(ISession session)
+    {
+        if (session == null)
+            return false;
+        if (session.Properties == null ||
+            !session.Properties.TryGetValue(MatchSessionKeys.MatchState, out SessionProperty property) ||
+            property == null)
+            return false;
+        return string.Equals(property.Value, MatchState.Starting.ToString(), StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(property.Value, MatchState.InMatch.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 
     public void PublishMatchConfiguration(MatchConfiguration configuration, MatchState matchState)

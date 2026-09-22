@@ -20,18 +20,20 @@ public static class OnlineSessionErrorMapper
             return FromSessionError(sessionException.Error, sessionException.Message);
 
         string message = inner.Message ?? string.Empty;
-        if (Contains(message, "not found") || Contains(message, "does not exist") || Contains(message, "invalid code"))
-            return "Unable to join this match.\nCheck the join code and try again.";
+        if (Contains(message, "already started") || Contains(message, "in progress") || Contains(message, "locked"))
+            return "This match has already started.";
+        if (Contains(message, "not found") || Contains(message, "does not exist") || Contains(message, "invalid code") || Contains(message, "no longer"))
+            return "Unable to join lobby.\nCheck the join code and try again.";
         if (Contains(message, "full"))
-            return "This match is full.";
+            return "This lobby is full.";
         if (Contains(message, "timeout") || Contains(message, "timed out"))
-            return "The connection timed out.\nCheck your Internet connection and try again.";
+            return "Unable to connect.\nPlease check your connection and try again.";
         if (Contains(message, "network") || Contains(message, "internet") || Contains(message, "offline"))
-            return "Unable to reach online services.\nCheck your Internet connection and try again.";
+            return "Unable to connect.\nPlease check your connection and try again.";
         if (Contains(message, "auth"))
             return "Unable to sign in to online services.\nCheck your Internet connection and try again.";
 
-        return "Unable to connect to this match.\nCheck the join code and try again.";
+        return "Unable to join lobby.\nCheck the join code and try again.";
     }
 
     public static string FromSessionError(SessionError error, string technicalMessage = null)
@@ -40,15 +42,16 @@ public static class OnlineSessionErrorMapper
         {
             case SessionError.SessionNotFound:
             case SessionError.SessionDeleted:
+                return "This lobby is no longer available.";
             case SessionError.InvalidSessionIdentifier:
             case SessionError.InvalidParameter:
-                return "Unable to join this match.\nCheck the join code and try again.";
+                return "Unable to join lobby.\nCheck the join code and try again.";
             case SessionError.NotAuthorized:
                 return "Unable to sign in to online services.\nCheck your Internet connection and try again.";
             case SessionError.RateLimitExceeded:
                 return "Too many attempts. Wait a moment and try again.";
             case SessionError.Forbidden:
-                return "Unable to join this match.";
+                return "This match has already started.";
             case SessionError.NetworkSetupFailed:
             case SessionError.NetworkManagerStartFailed:
             case SessionError.NetworkManagerNotInitialized:
@@ -63,8 +66,8 @@ public static class OnlineSessionErrorMapper
             default:
                 if (!string.IsNullOrEmpty(technicalMessage) &&
                     technicalMessage.IndexOf("full", StringComparison.OrdinalIgnoreCase) >= 0)
-                    return "This match is full.";
-                return "Unable to connect to this match.\nCheck the join code and try again.";
+                    return "This lobby is full.";
+                return "Unable to join lobby.\nCheck the join code and try again.";
         }
     }
 

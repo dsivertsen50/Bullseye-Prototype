@@ -43,16 +43,22 @@ public class MatchMenuUI : MonoBehaviour
     private Text previewDescriptionLabel;
     private Image previewImage;
     private Text customErrorLabel;
+    private Text localTestHintLabel;
+    private string reservedLocalJoinCode;
     private Text lobbyTitleLabel;
     private Text lobbyModeLabel;
     private Text lobbyModeDescriptionLabel;
     private Text lobbyMapNameLabel;
     private Text lobbyMapDescriptionLabel;
     private Image lobbyPreviewImage;
+    private Text lobbyJoinCodeHeading;
     private Text lobbyJoinCodeLabel;
+    private Text lobbyJoinCodeCopiedLabel;
+    private Button copyJoinCodeButton;
     private Text lobbyPlayerCountLabel;
     private Text lobbyErrorLabel;
     private Text lobbyHostHintLabel;
+    private float joinCodeCopiedUntil;
     private ScrollRect playerScroll;
     private Transform playerContent;
     private string focusedMapId;
@@ -113,6 +119,8 @@ public class MatchMenuUI : MonoBehaviour
     {
         MatchLobby lobby = MatchLobby.Ensure();
         lobby.Changed += HandleLobbyChanged;
+        MultiplayerSessionManager manager = MultiplayerSessionManager.Ensure();
+        manager.StateChanged += HandleSessionStateChanged;
     }
 
     private void OnDisable()
@@ -120,6 +128,19 @@ public class MatchMenuUI : MonoBehaviour
         MatchLobby lobby = MatchLobby.Instance;
         if (lobby != null)
             lobby.Changed -= HandleLobbyChanged;
+        MultiplayerSessionManager manager = MultiplayerSessionManager.Instance;
+        if (manager != null)
+            manager.StateChanged -= HandleSessionStateChanged;
+    }
+
+    private void Update()
+    {
+        if (lobbyPanel == null || !lobbyPanel.activeSelf)
+            return;
+
+        RefreshJoinCode();
+        if (lobbyJoinCodeCopiedLabel != null)
+            lobbyJoinCodeCopiedLabel.enabled = Time.unscaledTime < joinCodeCopiedUntil;
     }
 
     public void OpenCustomMatch()
@@ -157,6 +178,28 @@ public class MatchMenuUI : MonoBehaviour
             customErrorLabel.text = message ?? string.Empty;
     }
 
+    public void SetLocalTestHint(string joinCode)
+    {
+        reservedLocalJoinCode = joinCode;
+        if (localTestHintLabel == null)
+            return;
+        if (!MainMenuHostOptions.LocalTest || string.IsNullOrEmpty(joinCode))
+        {
+            localTestHintLabel.text = string.Empty;
+            return;
+        }
+
+        localTestHintLabel.gameObject.SetActive(true);
+        localTestHintLabel.text = "Player 2: Join Game → Local Test " + joinCode;
+    }
+
+    private static bool LocalTestUiAvailable =>
+#if UNITY_EDITOR
+        true;
+#else
+        Debug.isDebugBuild;
+#endif
+
     public void SetLobbyError(string message)
     {
         if (lobbyErrorLabel != null)
@@ -190,7 +233,9 @@ public class MatchMenuUI : MonoBehaviour
         publicButton = MenuUiFactory.CreateButton(root, "Public", "Public", new Vector2(-390f, 310f), () => SetVisibility(MatchVisibility.Public, false), new Vector2(180f, 48f));
         privateButton = MenuUiFactory.CreateButton(root, "Private", "Private", new Vector2(-200f, 310f), () => SetVisibility(MatchVisibility.Private, false), new Vector2(180f, 48f));
         localButton = MenuUiFactory.CreateButton(root, "Local", "Local Test", new Vector2(-10f, 310f), () => SetVisibility(MatchVisibility.Private, true), new Vector2(180f, 48f));
-        localButton.gameObject.SetActive(Application.isEditor);
+        localButton.gameObject.SetActive(LocalTestUiAvailable);
+        localTestHintLabel = MenuUiFactory.CreateLabel(root, "LocalTestHint", string.Empty, 16, new Vector2(200f, 310f), new Vector2(420f, 48f), TextAnchor.MiddleLeft);
+        localTestHintLabel.color = ProfileUiFactory.MutedColor;
 
         MenuUiFactory.CreateLabel(root, "ModeLabel", "GAME MODE", 20, new Vector2(-360f, 250f), new Vector2(280f, 28f), TextAnchor.MiddleLeft);
         BuildModeButtons(root, 200f);
@@ -237,8 +282,15 @@ public class MatchMenuUI : MonoBehaviour
         playerScroll = ProfileUiFactory.CreateScrollArea(root, "Players", new Vector2(-200f, 40f), new Vector2(680f, 280f));
         playerContent = playerScroll.content;
 
-        lobbyJoinCodeLabel = MenuUiFactory.CreateLabel(root, "JoinCode", string.Empty, 28, new Vector2(0f, -150f), new Vector2(900f, 40f));
-        lobbyHostHintLabel = MenuUiFactory.CreateLabel(root, "HostHint", string.Empty, 16, new Vector2(0f, -190f), new Vector2(900f, 28f));
+        lobbyJoinCodeHeading = MenuUiFactory.CreateLabel(root, "JoinCodeHeading", "JOIN CODE", 18, new Vector2(0f, -125f), new Vector2(900f, 24f));
+        lobbyJoinCodeLabel = MenuUiFactory.CreateLabel(root, "JoinCode", string.Empty, 42, new Vector2(-80f, -165f), new Vector2(620f, 52f));
+        copyJoinCodeButton = MenuUiFactory.CreateButton(root, "CopyCode", "Copy Code", new Vector2(320f, -165f), CopyJoinCode, new Vector2(180f, 44f));
+        Text copyLabel = copyJoinCodeButton.GetComponentInChildren<Text>();
+        if (copyLabel != null)
+            copyLabel.fontSize = 18;
+        lobbyJoinCodeCopiedLabel = MenuUiFactory.CreateLabel(root, "Copied", "Copied", 16, new Vector2(320f, -200f), new Vector2(180f, 22f));
+        lobbyJoinCodeCopiedLabel.enabled = false;
+        lobbyHostHintLabel = MenuUiFactory.CreateLabel(root, "HostHint", string.Empty, 16, new Vector2(0f, -210f), new Vector2(900f, 28f));
         lobbyHostHintLabel.color = ProfileUiFactory.MutedColor;
 
         startMatchButton = MenuUiFactory.CreateButton(root, "StartMatch", "Start Match", new Vector2(220f, -270f), () => onStartMatch?.Invoke(), new Vector2(260f, 54f));
@@ -408,18 +460,32 @@ public class MatchMenuUI : MonoBehaviour
             RefreshCustomMatch();
     }
 
+    private void HandleSessionStateChanged()
+    {
+        if (lobbyPanel != null && lobbyPanel.activeSelf)
+            RefreshJoinCode();
+    }
+
     private void RefreshCustomMatch()
     {
         MatchLobby lobby = MatchLobby.Ensure();
         MatchConfiguration config = lobby.Configuration;
         bool inExistingLobby = lobby.IsInLobby;
-        bool localTest = MainMenuHostOptions.LocalTest && Application.isEditor;
+        bool localTest = MainMenuHostOptions.LocalTest && LocalTestUiAvailable;
         MenuUiFactory.SetButtonSelectedVisual(publicButton, !localTest && config.Visibility == MatchVisibility.Public);
         MenuUiFactory.SetButtonSelectedVisual(privateButton, !localTest && config.Visibility == MatchVisibility.Private);
         if (localButton != null)
         {
-            localButton.gameObject.SetActive(Application.isEditor);
+            localButton.gameObject.SetActive(LocalTestUiAvailable);
             MenuUiFactory.SetButtonSelectedVisual(localButton, localTest);
+        }
+
+        if (localTestHintLabel != null)
+        {
+            localTestHintLabel.gameObject.SetActive(localTest);
+            localTestHintLabel.text = localTest && !string.IsNullOrEmpty(reservedLocalJoinCode)
+                ? "Player 2: Join Game → Local Test " + reservedLocalJoinCode
+                : string.Empty;
         }
 
         for (int i = 0; i < modeButtons.Count; i++)
@@ -474,7 +540,7 @@ public class MatchMenuUI : MonoBehaviour
     {
         MatchLobby lobby = MatchLobby.Ensure();
         MatchConfiguration config = lobby.Configuration;
-        hostControlsVisible = lobby.IsHost;
+        hostControlsVisible = IsActingHost(lobby);
         GameModeDefinition mode = lobby.SelectedMode;
         MapDefinition map = lobby.SelectedMap;
 
@@ -498,26 +564,25 @@ public class MatchMenuUI : MonoBehaviour
             lobbyPlayerCountLabel.text = "PLAYERS  " + lobby.PlayerCount + " / " + lobby.MaxPlayers;
 
         RebuildPlayerRows(lobby);
-
-        string joinCode = ResolveJoinCode();
-        bool showJoinCode = lobby.IsHost && !string.IsNullOrEmpty(joinCode);
-        if (lobbyJoinCodeLabel != null)
-            lobbyJoinCodeLabel.text = showJoinCode ? "JOIN CODE  " + joinCode : string.Empty;
+        RefreshJoinCode();
         if (lobbyHostHintLabel != null)
-            lobbyHostHintLabel.text = lobby.IsHost ? "Share the join code with invited players." : "Waiting for the host to start.";
+            lobbyHostHintLabel.text = IsActingHost(lobby)
+                ? "Share the join code with invited players."
+                : "Waiting for the host to start.";
 
+        bool actingHost = IsActingHost(lobby);
         if (startMatchButton != null)
-            startMatchButton.gameObject.SetActive(lobby.IsHost);
+            startMatchButton.gameObject.SetActive(actingHost);
         if (changeSetupButton != null)
-            changeSetupButton.gameObject.SetActive(lobby.IsHost);
+            changeSetupButton.gameObject.SetActive(actingHost);
         if (cancelLobbyButton != null)
-            cancelLobbyButton.gameObject.SetActive(lobby.IsHost);
+            cancelLobbyButton.gameObject.SetActive(actingHost);
         if (leaveLobbyButton != null)
         {
             Text leaveLabel = leaveLobbyButton.GetComponentInChildren<Text>();
             if (leaveLabel != null)
-                leaveLabel.text = lobby.IsHost ? "Cancel Lobby" : "Leave Lobby";
-            leaveLobbyButton.gameObject.SetActive(!lobby.IsHost);
+                leaveLabel.text = actingHost ? "Cancel Lobby" : "Leave Lobby";
+            leaveLobbyButton.gameObject.SetActive(!actingHost);
         }
 
         bool canStart = lobby.IsHost && !lobby.TryGetStartError(out _);
@@ -530,15 +595,26 @@ public class MatchMenuUI : MonoBehaviour
     private void RebuildPlayerRows(MatchLobby lobby)
     {
         IReadOnlyList<LobbyPlayerInfo> players = lobby.Players;
-        while (playerRows.Count < players.Count)
+        int slots = Mathf.Max(lobby.MaxPlayers, players.Count);
+        while (playerRows.Count < slots)
             playerRows.Add(LobbyPlayerRow.Create(playerContent));
 
         for (int i = 0; i < playerRows.Count; i++)
         {
-            bool active = i < players.Count;
-            playerRows[i].gameObject.SetActive(active);
-            if (active)
+            if (i < players.Count)
+            {
+                playerRows[i].gameObject.SetActive(true);
                 playerRows[i].Bind(players[i]);
+            }
+            else if (i < slots)
+            {
+                playerRows[i].gameObject.SetActive(true);
+                playerRows[i].BindWaiting();
+            }
+            else
+            {
+                playerRows[i].gameObject.SetActive(false);
+            }
         }
     }
 
@@ -602,17 +678,23 @@ public class MatchMenuUI : MonoBehaviour
         Selectable change = changeSetupButton != null && changeSetupButton.gameObject.activeSelf ? changeSetupButton : null;
         Selectable cancel = cancelLobbyButton != null && cancelLobbyButton.gameObject.activeSelf ? cancelLobbyButton : null;
         Selectable leave = leaveLobbyButton != null && leaveLobbyButton.gameObject.activeSelf ? leaveLobbyButton : null;
+        Selectable copy = copyJoinCodeButton != null && copyJoinCodeButton.gameObject.activeSelf ? copyJoinCodeButton : null;
 
         if (start != null && change != null && cancel != null)
         {
-            MenuUiFactory.SetNav(start, change, change, cancel, cancel);
-            MenuUiFactory.SetNav(change, start, start, cancel, cancel);
-            MenuUiFactory.SetNav(cancel, change, change, start, start);
+            Selectable upFromButtons = copy != null ? copy : change;
+            MenuUiFactory.SetNav(start, upFromButtons, change, cancel, copy != null ? copy : cancel);
+            MenuUiFactory.SetNav(change, start, start, cancel, copy != null ? copy : cancel);
+            MenuUiFactory.SetNav(cancel, upFromButtons, change, start, start);
+            if (copy != null)
+                MenuUiFactory.SetNav(copy, start, start, start, cancel);
             return;
         }
 
         if (leave != null)
-            MenuUiFactory.SetNav(leave, leave, leave, leave, leave);
+            MenuUiFactory.SetNav(leave, copy != null ? copy : leave, leave, leave, copy != null ? copy : leave);
+        if (copy != null && leave != null)
+            MenuUiFactory.SetNav(copy, leave, leave, leave, leave);
     }
 
     private void HandleCustomBack()
@@ -680,14 +762,56 @@ public class MatchMenuUI : MonoBehaviour
         return mode.IsAvailable ? mode.DisplayName : mode.DisplayName + " — Soon";
     }
 
+    private void RefreshJoinCode()
+    {
+        string joinCode = ResolveJoinCode();
+        bool generating = string.IsNullOrEmpty(joinCode) && IsActingHost(MatchLobby.Ensure());
+        if (lobbyJoinCodeHeading != null)
+            lobbyJoinCodeHeading.text = "JOIN CODE";
+        if (lobbyJoinCodeLabel != null)
+        {
+            if (!string.IsNullOrEmpty(joinCode))
+                lobbyJoinCodeLabel.text = joinCode;
+            else if (generating)
+                lobbyJoinCodeLabel.text = "Generating join code...";
+            else
+                lobbyJoinCodeLabel.text = string.Empty;
+        }
+
+        if (copyJoinCodeButton != null)
+            copyJoinCodeButton.gameObject.SetActive(!string.IsNullOrEmpty(joinCode));
+    }
+
+    private void CopyJoinCode()
+    {
+        string joinCode = ResolveJoinCode();
+        if (string.IsNullOrEmpty(joinCode))
+            return;
+
+        GUIUtility.systemCopyBuffer = joinCode;
+        joinCodeCopiedUntil = Time.unscaledTime + 1.6f;
+        if (lobbyJoinCodeCopiedLabel != null)
+            lobbyJoinCodeCopiedLabel.enabled = true;
+        MultiplayerLog.Info("Join code copied.");
+        PlaySelect();
+    }
+
+    private static bool IsActingHost(MatchLobby lobby)
+    {
+        if (lobby != null && lobby.IsHost)
+            return true;
+        GameSessionCoordinator coordinator = GameSessionCoordinator.Instance;
+        return coordinator != null && coordinator.IsPendingHost;
+    }
+
     private static string ResolveJoinCode()
     {
+        GameSessionCoordinator coordinator = GameSessionCoordinator.Instance;
+        if (coordinator != null && !string.IsNullOrEmpty(coordinator.CurrentJoinCode))
+            return coordinator.CurrentJoinCode;
         MultiplayerSessionManager manager = MultiplayerSessionManager.Instance;
         if (manager != null && !string.IsNullOrEmpty(manager.JoinCode))
             return manager.JoinCode;
-        GameSessionCoordinator coordinator = GameSessionCoordinator.Instance;
-        if (coordinator != null && coordinator.ActiveSession != null)
-            return coordinator.ActiveSession.JoinCode;
         return null;
     }
 
