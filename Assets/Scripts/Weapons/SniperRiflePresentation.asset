@@ -70,8 +70,8 @@ MonoBehaviour:
   walkBobFrequency: 6.4
   useProceduralReload: 1
   reloadPresentationDuration: 0
-  reloadLowerLocalPosition: {x: 0.05, y: -0.09, z: -0.03}
-  reloadLowerLocalEuler: {x: -20, y: 8, z: 12}
+  reloadLowerLocalPosition: {x: 0.04, y: -0.82, z: 0.03}
+  reloadLowerLocalEuler: {x: 46, y: 6, z: 8}
   reloadActionLocalPosition: {x: 0.04, y: -0.15, z: -0.025}
   reloadActionLocalEuler: {x: -8, y: 14, z: 22}
   reloadCycleCount: 1

@@ -84,7 +84,7 @@ public class PlayerShoot : NetworkBehaviour
         if (playerHealth != null && playerHealth.IsDead)
             return;
 
-        if (playerMovement != null && playerMovement.BlocksCombat)
+        if (playerMovement != null && playerMovement.BlocksWeaponUse)
             return;
 
         if (LocalPlayerMenuState.IsOpen(this))
@@ -627,7 +627,7 @@ public class PlayerShoot : NetworkBehaviour
 
     private bool CanFire()
     {
-        if (playerMovement != null && playerMovement.BlocksCombat)
+        if (playerMovement != null && playerMovement.BlocksWeaponUse)
             return false;
 
         if (weaponController != null && weaponController.BlocksFiring)

@@ -50,6 +50,7 @@ public class PlayerWeaponInventory : NetworkBehaviour
 
     private WeaponPresentationCoordinator coordinator;
     private PlayerHealth playerHealth;
+    private PlayerMovement playerMovement;
     private Coroutine reloadRoutine;
     private Coroutine switchRoutine;
     private float localBusyUntil;
@@ -90,6 +91,7 @@ public class PlayerWeaponInventory : NetworkBehaviour
     {
         coordinator = GetComponent<WeaponPresentationCoordinator>();
         playerHealth = GetComponent<PlayerHealth>();
+        playerMovement = GetComponent<PlayerMovement>();
     }
 
     public override void OnNetworkSpawn()
@@ -130,12 +132,18 @@ public class PlayerWeaponInventory : NetworkBehaviour
         if (LocalPlayerMenuState.IsOpen(this))
             return false;
 
+        if (playerMovement != null && playerMovement.IsClimbing)
+            return false;
+
         return HasTemporaryWeapon && !IsLocallyBusy;
     }
 
     public bool CanFireActive()
     {
         if (IsLocallyBusy || (playerHealth != null && playerHealth.IsDead))
+            return false;
+
+        if (playerMovement != null && playerMovement.IsClimbing)
             return false;
 
         WeaponRuntimeState state = ActiveState;
@@ -145,6 +153,9 @@ public class PlayerWeaponInventory : NetworkBehaviour
     public bool CanReloadActive()
     {
         if (IsBusy || (playerHealth != null && playerHealth.IsDead))
+            return false;
+
+        if (playerMovement != null && playerMovement.IsClimbing)
             return false;
 
         WeaponRuntimeState state = ActiveState;
@@ -175,24 +186,23 @@ public class PlayerWeaponInventory : NetworkBehaviour
         if (IsLocallyBusy)
             return;
 
-        if (TryGetComponent(out PlayerMovement movement) && movement.BlocksCombat)
+        if (playerMovement != null && playerMovement.BlocksWeaponUse)
             return;
 
         if (!CanReloadActive())
             return;
 
-        WeaponDefinition definition = ActiveDefinition;
-        MarkLocalBusy(definition != null ? definition.ReloadTime : 1f);
-        coordinator?.NotifyReload();
+        PlayLocalReloadPresentation();
         ReloadServerRpc();
     }
 
-    public void InterruptReloadForDive()
+    public void InterruptReload()
     {
         if (!IsSpawned || !IsOwner)
             return;
 
         localBusyUntil = 0f;
+        coordinator?.NotifyReloadInterrupted();
         InterruptReloadServerRpc();
     }
 
@@ -255,6 +265,9 @@ public class PlayerWeaponInventory : NetworkBehaviour
         if (playerHealth != null && playerHealth.IsDead)
             return;
 
+        if (playerMovement != null && playerMovement.IsClimbing)
+            return;
+
         StopInventoryRoutines();
         switchRoutine = StartCoroutine(SwitchRoutine());
     }
@@ -262,7 +275,15 @@ public class PlayerWeaponInventory : NetworkBehaviour
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
     private void ReloadServerRpc()
     {
-        StartReload();
+        if (!StartReload())
+            CancelReloadPresentationOwnerRpc();
+    }
+
+    [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
+    private void CancelReloadPresentationOwnerRpc()
+    {
+        localBusyUntil = 0f;
+        coordinator?.NotifyReloadInterrupted();
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
@@ -452,6 +473,8 @@ public class PlayerWeaponInventory : NetworkBehaviour
         WeaponDefinition definition = ActiveDefinition;
         MarkLocalBusy(definition != null ? definition.ReloadTime : 1f);
         coordinator?.NotifyReload();
+        if (TryGetComponent(out PlayerAimZoom aimZoom))
+            aimZoom.CancelAimForReload();
     }
 
     private void CheckTemporaryExhaustion()

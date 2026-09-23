@@ -138,7 +138,7 @@ public static class WeaponShotAudioSetup
         SerializedObject so = new SerializedObject(settings);
         so.FindProperty("impactEnabled").boolValue = true;
         AssignClips(so.FindProperty("impactClips"), impactClips);
-        so.FindProperty("impactVolume").floatValue = 1f;
+        so.FindProperty("impactVolume").floatValue = 0.5f;
         so.FindProperty("impactPitchVariation").floatValue = 0.05f;
         so.FindProperty("impactVolumeVariation").floatValue = 0.1f;
         so.FindProperty("maxImpactSoundsPerShot").intValue = 3;

@@ -18,7 +18,7 @@ public class PlayerNetworkSetup : NetworkBehaviour
         if (IsOwner)
         {
             LocalOwnedCamera = playerCamera;
-            HideLocalBodyFromFirstPersonCamera();
+            ShowLocalBodyOnFirstPersonCamera();
             return;
         }
 
@@ -72,7 +72,7 @@ public class PlayerNetworkSetup : NetworkBehaviour
             playerCamera.cullingMask &= ~(1 << layer);
     }
 
-    private void HideLocalBodyFromFirstPersonCamera()
+    private void ShowLocalBodyOnFirstPersonCamera()
     {
         Transform body = visualRoot;
         if (body == null)
@@ -83,20 +83,12 @@ public class PlayerNetworkSetup : NetworkBehaviour
             return;
 
         int layer = LayerMask.NameToLayer(LocalPlayerBodyLayerName);
-        if (layer >= 0)
-        {
-            ApplyLayerRecursively(body.gameObject, layer);
-            if (playerCamera != null)
-                playerCamera.cullingMask &= ~(1 << layer);
+        if (layer < 0)
             return;
-        }
 
-        Renderer[] renderers = body.GetComponentsInChildren<Renderer>(true);
-        for (int i = 0; i < renderers.Length; i++)
-        {
-            if (renderers[i] != null)
-                renderers[i].enabled = false;
-        }
+        ApplyLayerRecursively(body.gameObject, layer);
+        if (playerCamera != null)
+            playerCamera.cullingMask |= 1 << layer;
     }
 
     private static void ApplyLayerRecursively(GameObject root, int layer)

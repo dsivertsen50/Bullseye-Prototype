@@ -89,7 +89,7 @@ public class PlayerGrenadeThrower : NetworkBehaviour
         if (playerHealth != null && playerHealth.IsDead)
             return;
 
-        if (TryGetComponent(out PlayerMovement movement) && movement.BlocksCombat)
+        if (TryGetComponent(out PlayerMovement movement) && movement.BlocksWeaponUse)
             return;
 
         if (LocalPlayerMenuState.IsOpen(this))
@@ -138,7 +138,7 @@ public class PlayerGrenadeThrower : NetworkBehaviour
         if (playerHealth != null && playerHealth.IsDead)
             return;
 
-        if (TryGetComponent(out PlayerMovement movement) && movement.BlocksCombat)
+        if (TryGetComponent(out PlayerMovement movement) && movement.BlocksWeaponUse)
             return;
 
         GrenadeType type = SanitizeType(reportedType);

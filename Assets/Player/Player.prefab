@@ -1059,6 +1059,8 @@ GameObject:
   - component: {fileID: 5362047303465229750}
   - component: {fileID: 5772720093656849776}
   - component: {fileID: 1030418971794520970}
+  - component: {fileID: 75260226244382341}
+  - component: {fileID: 8688861077745700694}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1146,7 +1148,7 @@ MonoBehaviour:
   canRunBackwards: 0
   canRunSideways: 1
   canRunWhileShooting: 0
-  jumpForce: 20
+  jumpForce: 24.4949
   jumpCooldown: 0.25
   canCoyote: 0
   coyoteJumpTime: 0.1
@@ -1641,6 +1643,9 @@ MonoBehaviour:
   proneLocalEuler: {x: 6, y: 0, z: 0}
   diveLocalPosition: {x: 0.02, y: -0.12, z: -0.06}
   diveLocalEuler: {x: 18, y: 8, z: -12}
+  jumpLiftAmount: 0.02
+  landLocalOffset: {x: 0, y: -0.03, z: 0.012}
+  landPitch: 5.5
 --- !u!54 &3350134984236796855
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2810,6 +2815,56 @@ MonoBehaviour:
   pixelSize: 28
   glitchStrength: 0.35
   scanLineStrength: 0.55
+--- !u!114 &75260226244382341
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c0f799c889c6d24b8788fe41ac078c2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FirstPersonBodyView
+  ShowTopMostFoldoutHeaderGroup: 1
+  visualRoot: {fileID: 4740219154652216648}
+  cameraRoot: {fileID: 4666323477069106714}
+  playerCamera: {fileID: 6286195477711956745}
+  bodyAnimator: {fileID: 2360264708694736603}
+  fpBodyPrefab: {fileID: 919132149155446097, guid: c2d9a3426f92ea94d9b2bb80bb8b1ff3, type: 3}
+  fpBodyPositionOffset: {x: 0, y: -0.03, z: -0.5}
+  fpBodyRotationOffset: {x: 0, y: 0, z: 0}
+  eyeHeightOffset: 0.12
+  eyeForwardOffset: 0.06
+  followSharpness: 16
+  wallProbeRadius: 0.07
+  wallPadding: 0.08
+--- !u!114 &8688861077745700694
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3deb6397475b6444c8a78e6a1cb3733b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FirstPersonHandIk
+  ShowTopMostFoldoutHeaderGroup: 1
+  presentation: {fileID: 451532193065686183}
+  inventory: {fileID: 468255037840781085}
+  fpArmsPrefab: {fileID: 919132149155446097, guid: 85dd9ba89f81d1142a05cbe9de44f2ed, type: 3}
+  blendDuration: 0.12
+  fpArmsPositionOffset: {x: -0.05, y: -0.4, z: -0.5}
+  fpArmsRotationOffset: {x: 0, y: 20, z: 0}
+  rightHandGripOffset: {x: 0, y: 0, z: 0}
+  leftHandGripOffset: {x: 0, y: 0, z: 0}
+  rightHandEulerOffset: {x: 0, y: 0, z: -10}
+  leftHandEulerOffset: {x: 50, y: 180, z: -25}
+  elbowOut: 0.22
+  elbowDown: 0.28
 --- !u!1 &3625492656395199349
 GameObject:
   m_ObjectHideFlags: 0

@@ -20,6 +20,7 @@ public class MatchLobby : MonoBehaviour
     private MatchState state;
     private bool eventsBound;
     private bool networkCallbacksBound;
+    private bool refreshingRoster;
     private MatchLobbyNetwork networkState;
     private GameObject lobbyStatePrefab;
 
@@ -512,16 +513,29 @@ public class MatchLobby : MonoBehaviour
 
     private void RefreshRoster()
     {
-        roster.Clear();
-        if (UsesSessionRoster())
-            BuildSessionRoster();
-        else
-            BuildNetworkRoster();
+        // Publishing the roster raises the network-list event, which calls back
+        // into this method. Ignore that echo or the host overflows the stack.
+        if (refreshingRoster)
+            return;
 
-        if (IsHost)
-            PushNetworkState();
+        refreshingRoster = true;
+        try
+        {
+            roster.Clear();
+            if (UsesSessionRoster())
+                BuildSessionRoster();
+            else
+                BuildNetworkRoster();
 
-        Changed?.Invoke();
+            if (IsHost)
+                PushNetworkState();
+
+            Changed?.Invoke();
+        }
+        finally
+        {
+            refreshingRoster = false;
+        }
     }
 
     private void BuildSessionRoster()

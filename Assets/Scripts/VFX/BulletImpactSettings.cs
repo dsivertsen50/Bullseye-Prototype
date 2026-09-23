@@ -17,7 +17,7 @@ public class BulletImpactSettings : ScriptableObject
     private float baseSize = 0.12f;
 
     [Header("Lifetime")]
-    [SerializeField, Min(0.1f)] private float lifetime = 45f;
+    [SerializeField, Min(0.1f)] private float lifetime = 15f;
     [SerializeField, Min(0f), Tooltip("Fade during the last N seconds of lifetime. 0 removes instantly.")]
     private float fadeDuration = 5f;
 

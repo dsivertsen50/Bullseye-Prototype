@@ -31,6 +31,10 @@ public class WeaponDefinition : ScriptableObject
     [SerializeField] private float fireRate = 0.15f;
     [SerializeField] private bool automatic;
     [SerializeField] private float reloadTime = 1.4f;
+    [SerializeField, Min(0.01f), Tooltip("Seconds the first-person weapon takes to drop below the camera. Designers can tune this per weapon.")]
+    private float reloadLowerDuration = 0.18f;
+    [SerializeField, Min(0.01f), Tooltip("Seconds the first-person weapon takes to rise back after the off-screen reload. The weapon stays down for whatever time remains in Reload Time.")]
+    private float reloadRaiseDuration = 0.22f;
     [SerializeField, Tooltip("When enabled, hitscan bullets can reflect from RicochetSurface colliders.")]
     private bool canRicochet = true;
 
@@ -157,6 +161,28 @@ public class WeaponDefinition : ScriptableObject
     public float FireRate => Mathf.Max(0.01f, fireRate);
     public bool Automatic => automatic;
     public float ReloadTime => Mathf.Max(0.05f, reloadTime);
+    public float ReloadLowerDuration => Mathf.Max(0.01f, reloadLowerDuration);
+    public float ReloadRaiseDuration => Mathf.Max(0.01f, reloadRaiseDuration);
+
+    /// <summary>
+    /// Splits Reload Time into lower, off-screen hold, and raise. Lower and raise
+    /// shrink to fit when they would run longer than the reload itself.
+    /// </summary>
+    public void ResolveReloadPhases(out float lower, out float hold, out float raise)
+    {
+        float total = ReloadTime;
+        lower = ReloadLowerDuration;
+        raise = ReloadRaiseDuration;
+        float motion = lower + raise;
+        if (motion > total)
+        {
+            float scale = total / motion;
+            lower *= scale;
+            raise *= scale;
+        }
+
+        hold = Mathf.Max(0f, total - lower - raise);
+    }
     public bool CanRicochet => canRicochet;
     public WeaponDamageSettings DamageSettings => damageSettings ??= new WeaponDamageSettings();
     public WeaponAccuracySettings Accuracy => accuracy ??= new WeaponAccuracySettings();
@@ -250,6 +276,8 @@ public class WeaponDefinition : ScriptableObject
         startingReserveAmmo = Mathf.Clamp(startingReserveAmmo, 0, maximumReserveAmmo);
         fireRate = Mathf.Max(0.01f, fireRate);
         reloadTime = Mathf.Max(0.05f, reloadTime);
+        reloadLowerDuration = Mathf.Max(0.01f, reloadLowerDuration);
+        reloadRaiseDuration = Mathf.Max(0.01f, reloadRaiseDuration);
         damageSettings ??= new WeaponDamageSettings();
         damageSettings.Validate();
         projectileSettings ??= new WeaponProjectileSettings();

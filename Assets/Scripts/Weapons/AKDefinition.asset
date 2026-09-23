@@ -27,6 +27,8 @@ MonoBehaviour:
   fireRate: 0.1
   automatic: 1
   reloadTime: 2.1
+  reloadLowerDuration: 0.18
+  reloadRaiseDuration: 0.22
   damageSettings:
     hitscanMode: 0
     pelletCount: 1
