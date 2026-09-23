@@ -10,7 +10,7 @@ public class WeaponShotAudioSettings : ScriptableObject
     [Header("Bullet Impact Audio")]
     [SerializeField] private bool impactEnabled = true;
     [SerializeField] private AudioClip[] impactClips;
-    [SerializeField, Range(0f, 2f)] private float impactVolume = 1f;
+    [SerializeField, Range(0f, 2f)] private float impactVolume = 0.5f;
     [SerializeField, Range(0f, 0.25f), Tooltip("Pitch is randomized ± this amount around 1.")]
     private float impactPitchVariation = 0.05f;
     [SerializeField, Range(0f, 0.25f), Tooltip("Volume is randomized down from Impact Volume by this fraction.")]

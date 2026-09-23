@@ -27,6 +27,11 @@ public class WeaponPresentationController : NetworkBehaviour
     [SerializeField] private Vector3 diveLocalPosition = new Vector3(0.02f, -0.12f, -0.06f);
     [SerializeField] private Vector3 diveLocalEuler = new Vector3(18f, 8f, -12f);
 
+    [Header("Jump / Landing")]
+    [SerializeField] private float jumpLiftAmount = 0.02f;
+    [SerializeField] private Vector3 landLocalOffset = new Vector3(0f, -0.03f, 0.012f);
+    [SerializeField] private float landPitch = 5.5f;
+
     private static readonly int IsProneHash = Animator.StringToHash("IsProne");
     private static readonly int IsDolphinDivingHash = Animator.StringToHash("IsDolphinDiving");
 
@@ -37,8 +42,15 @@ public class WeaponPresentationController : NetworkBehaviour
     private Coroutine kickRoutine;
     private Coroutine reloadRoutine;
     private bool isReloadPresenting;
+    private float reloadLowerDuration;
+    private float reloadHoldDuration;
+    private float reloadRaiseDuration;
     private Vector3 reloadPositionOffset;
     private Vector3 reloadEulerOffset;
+    private float jumpLift;
+    private float landKick;
+    private Transform rightHandGrip;
+    private Transform leftHandGrip;
     private float sprintTime;
     private bool isMoving;
     private string currentPlayedState;
@@ -90,6 +102,10 @@ public class WeaponPresentationController : NetworkBehaviour
     public float CurrentBobMultiplier => Mathf.Lerp(1f, config != null ? config.AdsBobMultiplier : 1f, aimBlend);
     public float HolsterDuration => config != null && config.HolsterDuration > 0.01f ? config.HolsterDuration : 0.16f;
     public float UnholsterDuration => config != null && config.UnholsterDuration > 0.01f ? config.UnholsterDuration : 0.2f;
+    public bool IsReloadPresenting => isReloadPresenting;
+    public Transform RightHandGrip => rightHandGrip;
+    public Transform LeftHandGrip => leftHandGrip;
+    public bool WantsSupportHand => appliedDefinition == null || appliedDefinition.UseLeftHandGrip;
 
     private void Awake()
     {
@@ -100,6 +116,12 @@ public class WeaponPresentationController : NetworkBehaviour
         playerMovement = GetComponent<PlayerMovement>();
         playerLook = GetComponent<PlayerLook>();
         coordinator = GetComponent<WeaponPresentationCoordinator>();
+        if (playerMovement != null)
+        {
+            playerMovement.Jumped += HandleJumped;
+            playerMovement.Landed += HandleLanded;
+            playerMovement.DolphinDiveLanded += HandleDiveLanded;
+        }
 
         ResolveHierarchyFallbacks();
         CacheRestPoses();
@@ -108,6 +130,16 @@ public class WeaponPresentationController : NetworkBehaviour
         PrepareAudioSource();
         previousYaw = playerLook != null ? playerLook.Yaw : transform.eulerAngles.y;
         previousPitch = playerLook != null ? playerLook.Pitch : 0f;
+    }
+
+    private void OnDestroy()
+    {
+        if (playerMovement == null)
+            return;
+
+        playerMovement.Jumped -= HandleJumped;
+        playerMovement.Landed -= HandleLanded;
+        playerMovement.DolphinDiveLanded -= HandleDiveLanded;
     }
 
     public override void OnNetworkSpawn()
@@ -207,13 +239,16 @@ public class WeaponPresentationController : NetworkBehaviour
         if (!CanPresent() || isReloadPresenting)
             return;
 
-        float gameplayDuration = appliedDefinition != null ? appliedDefinition.ReloadTime : 1.2f;
-        float duration = config != null ? config.ResolveReloadDuration(gameplayDuration) : Mathf.Max(0.05f, gameplayDuration);
-        float animSpeed = config != null ? config.ResolveReloadAnimatorSpeed(duration) : 1f;
-        PlayAnimationState(config != null ? config.ReloadAnimationState : "Reload", animSpeed);
+        ResolveReloadTiming(out float lower, out float hold, out float raise);
+        float duration = lower + hold + raise;
         PlayClip(config != null ? config.ReloadSfx : null, config != null ? config.FireSfxVolume : 1f);
         locomotionLockUntil = Time.time + duration;
-        StartReloadPresentation(duration);
+        StartReloadPresentation(lower, hold, raise);
+    }
+
+    public void CancelReloadPresentation()
+    {
+        StopReloadPresentation();
     }
 
     public void PlayHolsterPresentation()
@@ -269,6 +304,8 @@ public class WeaponPresentationController : NetworkBehaviour
         ClearKickChildren(weaponKick);
         aimPoint = null;
         muzzlePoint = null;
+        rightHandGrip = null;
+        leftHandGrip = null;
         weaponAnimator = null;
 
         if (definition == null || definition.FirstPersonPrefab == null)
@@ -283,6 +320,10 @@ public class WeaponPresentationController : NetworkBehaviour
 
         aimPoint = FindChildByName(instance.transform, "AimPoint");
         muzzlePoint = FindChildByName(instance.transform, "MuzzlePoint");
+        bool supportHand = definition == null || definition.UseLeftHandGrip;
+        FirstPersonGripPoints.Ensure(instance.transform, aimPoint, muzzlePoint, supportHand);
+        rightHandGrip = FirstPersonGripPoints.FindRight(instance.transform);
+        leftHandGrip = FirstPersonGripPoints.FindLeft(instance.transform);
         weaponAnimator = instance.GetComponentInChildren<Animator>(true);
         ApplyConfiguredAnimator();
         RefreshPostureParameterCache();
@@ -446,12 +487,25 @@ public class WeaponPresentationController : NetworkBehaviour
         Vector3 holsterEuler = config != null ? config.HolsterLocalEuler : new Vector3(42f, 16f, -20f);
         SampleSprintSway(sprintT, deltaTime, out Vector3 sprintSwayPos, out Vector3 sprintSwayEuler);
 
+        float airWeight = isReloadPresenting ? 0f : 1f;
+        jumpLift = Mathf.MoveTowards(jumpLift, 0f, deltaTime * 2.4f);
+        landKick = Mathf.MoveTowards(landKick, 0f, deltaTime * 3.4f);
+        float fall = 0f;
+        if (playerMovement != null && !playerMovement.Grounded)
+            fall = Mathf.Clamp01(-playerMovement.VerticalVelocity / 10f);
+        Vector3 airPosition = new Vector3(
+            0f,
+            jumpLiftAmount * jumpLift - jumpLiftAmount * 0.65f * fall,
+            -jumpLiftAmount * 0.4f * jumpLift);
+        Vector3 landPosition = landLocalOffset * landKick;
+
         weaponMount.localPosition = mountRestLocalPosition
             + sprintPos * sprintT
             + sprintSwayPos
             + holsterPos * holsterT
             + proneLocalPosition * proneT
             + diveLocalPosition * diveT
+            + (airPosition + landPosition) * airWeight
             + reloadPositionOffset;
         weaponMount.localRotation = mountRestLocalRotation
             * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(sprintEuler), sprintT)
@@ -459,6 +513,7 @@ public class WeaponPresentationController : NetworkBehaviour
             * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(holsterEuler), holsterT)
             * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(proneLocalEuler), proneT)
             * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(diveLocalEuler), diveT)
+            * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(landPitch * landKick, 0f, 0f), airWeight)
             * Quaternion.Euler(reloadEulerOffset);
 
         ApplyFirstPersonPostureParameters(prone, diving);
@@ -686,15 +741,15 @@ public class WeaponPresentationController : NetworkBehaviour
         kickRoutine = null;
     }
 
-    private void StartReloadPresentation(float duration)
+    private void StartReloadPresentation(float lower, float hold, float raise)
     {
-        if (config == null || !config.UseProceduralReload)
-            return;
-
         if (reloadRoutine != null)
             StopCoroutine(reloadRoutine);
 
-        reloadRoutine = StartCoroutine(ReloadPresentationRoutine(duration));
+        reloadLowerDuration = lower;
+        reloadHoldDuration = hold;
+        reloadRaiseDuration = raise;
+        reloadRoutine = StartCoroutine(ReloadPresentationRoutine());
     }
 
     private void StopReloadPresentation()
@@ -710,15 +765,18 @@ public class WeaponPresentationController : NetworkBehaviour
         reloadEulerOffset = Vector3.zero;
     }
 
-    private IEnumerator ReloadPresentationRoutine(float duration)
+    private IEnumerator ReloadPresentationRoutine()
     {
         isReloadPresenting = true;
-        duration = Mathf.Max(0.05f, duration);
+        float lower = Mathf.Max(0.01f, reloadLowerDuration);
+        float hold = Mathf.Max(0f, reloadHoldDuration);
+        float raise = Mathf.Max(0.01f, reloadRaiseDuration);
+        float duration = lower + hold + raise;
         float elapsed = 0f;
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
-            EvaluateReloadPose(Mathf.Clamp01(elapsed / duration));
+            EvaluateReloadPose(elapsed, lower, hold, raise);
             yield return null;
         }
 
@@ -728,45 +786,57 @@ public class WeaponPresentationController : NetworkBehaviour
         reloadRoutine = null;
     }
 
-    private void EvaluateReloadPose(float t)
+    private void ResolveReloadTiming(out float lower, out float hold, out float raise)
     {
-        if (config == null)
+        if (appliedDefinition != null)
         {
-            reloadPositionOffset = Vector3.zero;
-            reloadEulerOffset = Vector3.zero;
+            appliedDefinition.ResolveReloadPhases(out lower, out hold, out raise);
             return;
         }
 
-        Vector3 lowerPos = config.ReloadLowerLocalPosition;
-        Vector3 lowerEuler = config.ReloadLowerLocalEuler;
-        Vector3 actionPos = config.ReloadActionLocalPosition;
-        Vector3 actionEuler = config.ReloadActionLocalEuler;
-        const float introEnd = 0.22f;
-        const float outroStart = 0.78f;
+        lower = 0.18f;
+        raise = 0.22f;
+        hold = 0.8f;
+    }
 
-        if (t < introEnd)
+    private void EvaluateReloadPose(float elapsed, float lower, float hold, float raise)
+    {
+        Vector3 lowerPos = config != null ? config.ReloadLowerLocalPosition : new Vector3(0.04f, -0.78f, 0.02f);
+        Vector3 lowerEuler = config != null ? config.ReloadLowerLocalEuler : new Vector3(42f, 12f, 8f);
+
+        if (elapsed < lower)
         {
-            float u = Smooth01(t / introEnd);
+            float u = Smooth01(elapsed / Mathf.Max(0.01f, lower));
             reloadPositionOffset = Vector3.Lerp(Vector3.zero, lowerPos, u);
             reloadEulerOffset = Vector3.Lerp(Vector3.zero, lowerEuler, u);
             return;
         }
 
-        if (t < outroStart)
+        if (elapsed < lower + hold)
         {
-            float mid = (t - introEnd) / (outroStart - introEnd);
-            float cycles = config.ReloadCycleCount;
-            float cycleT = Mathf.Repeat(mid * cycles, 1f);
-            float pulse = cycleT < 0.5f ? cycleT * 2f : (1f - cycleT) * 2f;
-            pulse = Smooth01(pulse);
-            reloadPositionOffset = Vector3.Lerp(lowerPos, actionPos, pulse);
-            reloadEulerOffset = Vector3.Lerp(lowerEuler, actionEuler, pulse);
+            reloadPositionOffset = lowerPos;
+            reloadEulerOffset = lowerEuler;
             return;
         }
 
-        float outro = Smooth01((t - outroStart) / Mathf.Max(0.0001f, 1f - outroStart));
+        float outro = Smooth01((elapsed - lower - hold) / Mathf.Max(0.01f, raise));
         reloadPositionOffset = Vector3.Lerp(lowerPos, Vector3.zero, outro);
         reloadEulerOffset = Vector3.Lerp(lowerEuler, Vector3.zero, outro);
+    }
+
+    private void HandleJumped()
+    {
+        jumpLift = 1f;
+    }
+
+    private void HandleLanded(float downwardSpeed)
+    {
+        landKick = Mathf.Max(landKick, Mathf.InverseLerp(1.2f, 8f, downwardSpeed));
+    }
+
+    private void HandleDiveLanded()
+    {
+        landKick = 1f;
     }
 
     private void SampleSprintSway(float sprintT, float deltaTime, out Vector3 position, out Vector3 euler)
@@ -905,6 +975,8 @@ public class WeaponPresentationController : NetworkBehaviour
         locomotionLockUntil = 0f;
         swayPosition = Vector3.zero;
         swayEuler = Vector3.zero;
+        jumpLift = 0f;
+        landKick = 0f;
         reloadPositionOffset = Vector3.zero;
         reloadEulerOffset = Vector3.zero;
     }

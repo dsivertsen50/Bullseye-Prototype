@@ -100,6 +100,12 @@ public class WeaponPresentationCoordinator : NetworkBehaviour
         ReloadPresentationRpc();
     }
 
+    public void NotifyReloadInterrupted()
+    {
+        if (firstPersonWeapon != null)
+            firstPersonWeapon.CancelReloadPresentation();
+    }
+
     public void NotifyAimChanged(bool isAiming)
     {
         AimChanged?.Invoke(isAiming);

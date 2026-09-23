@@ -1,3 +1,4 @@
+using Unity.Netcode;
 using UnityEngine;
 
 /// <summary>
@@ -288,6 +289,8 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     {
         if (!enableHeadLook || dead || thirdPersonAnimator == null || !thirdPersonAnimator.enabled)
             return;
+        if (IsLocalOwner())
+            return;
         if (animationState != null && (animationState.IsProne || animationState.IsDolphinDiving))
             return;
 
@@ -401,6 +404,12 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
             layer = thirdPersonAnimator.GetLayerIndex(ThirdPersonWeaponPoseBinder.LegacyLayerName);
         if (layer >= 0)
             thirdPersonAnimator.SetLayerWeight(layer, 0f);
+    }
+
+    private bool IsLocalOwner()
+    {
+        NetworkObject networkObject = GetComponent<NetworkObject>();
+        return networkObject != null && networkObject.IsSpawned && networkObject.IsOwner;
     }
 
     private Animator FindThirdPersonAnimator()

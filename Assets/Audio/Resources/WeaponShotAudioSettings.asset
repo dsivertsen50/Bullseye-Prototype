@@ -19,7 +19,7 @@ MonoBehaviour:
   - {fileID: 8300000, guid: be08b5a06deea3f428d6c8702a893160, type: 3}
   - {fileID: 8300000, guid: e5bf089d887e33a42a390fe3a7440b70, type: 3}
   - {fileID: 8300000, guid: 10f856cda2630184aa78f91262207b7a, type: 3}
-  impactVolume: 1
+  impactVolume: 0.5
   impactPitchVariation: 0.05
   impactVolumeVariation: 0.1
   maxImpactSoundsPerShot: 3

@@ -85,10 +85,12 @@ public class WeaponPresentationConfig : ScriptableObject
 
     [Header("Procedural Reload")]
     [SerializeField] private bool useProceduralReload = true;
-    [SerializeField, Tooltip("If greater than 0, overrides WeaponDefinition reload time for the visual reload. Leave 0 to match gameplay reload duration.")]
+    [SerializeField, Tooltip("Unused by the off-screen reload. Gameplay Reload Time on the weapon definition drives the visual.")]
     private float reloadPresentationDuration;
-    [SerializeField] private Vector3 reloadLowerLocalPosition = new(0.04f, -0.08f, -0.02f);
-    [SerializeField] private Vector3 reloadLowerLocalEuler = new(-16f, 10f, 8f);
+    [SerializeField, Tooltip("Local offset while the weapon is fully below the camera. Negative Y drops it down.")]
+    private Vector3 reloadLowerLocalPosition = new(0.04f, -0.78f, 0.02f);
+    [SerializeField, Tooltip("Slight tip as the weapon leaves the screen. Positive X pitches the muzzle down.")]
+    private Vector3 reloadLowerLocalEuler = new(42f, 12f, 8f);
     [SerializeField] private Vector3 reloadActionLocalPosition = new(0.05f, -0.12f, -0.02f);
     [SerializeField] private Vector3 reloadActionLocalEuler = new(-8f, 16f, 12f);
     [SerializeField, Min(1)] private int reloadCycleCount = 1;

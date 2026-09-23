@@ -284,7 +284,7 @@ public static class BulletImpactSetup
         so.FindProperty("decalPrefab").objectReferenceValue = prefab;
         so.FindProperty("defaultVariantSet").objectReferenceValue = set;
         so.FindProperty("baseSize").floatValue = 0.12f;
-        so.FindProperty("lifetime").floatValue = 45f;
+        so.FindProperty("lifetime").floatValue = 15f;
         so.FindProperty("fadeDuration").floatValue = 5f;
         so.FindProperty("maxActiveDecals").intValue = 200;
         so.FindProperty("prewarmCount").intValue = 32;

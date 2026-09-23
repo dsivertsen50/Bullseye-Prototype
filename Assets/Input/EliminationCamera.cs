@@ -27,6 +27,7 @@ public class EliminationCamera : MonoBehaviour
     private PlayerHealth playerHealth;
     private PlayerLook playerLook;
     private PlayerNetworkSetup networkSetup;
+    private FirstPersonBodyView bodyView;
     private bool active;
     private bool restoredCulling;
     private float yaw;
@@ -74,6 +75,7 @@ public class EliminationCamera : MonoBehaviour
         playerHealth = GetComponent<PlayerHealth>();
         playerLook = GetComponent<PlayerLook>();
         networkSetup = GetComponent<PlayerNetworkSetup>();
+        bodyView = GetComponent<FirstPersonBodyView>();
         ResolveCamera();
     }
 
@@ -235,6 +237,14 @@ public class EliminationCamera : MonoBehaviour
 
     private void ShowLocalBody(bool visible)
     {
+        if (bodyView == null)
+            bodyView = GetComponent<FirstPersonBodyView>();
+        if (bodyView != null)
+        {
+            bodyView.SetEliminationPresentation(visible);
+            return;
+        }
+
         if (networkSetup != null)
         {
             networkSetup.SetLocalBodyVisibleToCamera(visible);

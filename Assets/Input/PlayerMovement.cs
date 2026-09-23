@@ -38,7 +38,7 @@ public partial class PlayerMovement : NetworkBehaviour
     [SerializeField] private bool canRunWhileShooting;
 
     [Header("Jump")]
-    [SerializeField] private float jumpForce = 20f;
+    [SerializeField] private float jumpForce = 24.4949f;
     [SerializeField] private float jumpCooldown = 0.25f;
     [SerializeField] private bool canCoyote;
     [SerializeField, Range(0f, 0.3f)] private float coyoteJumpTime = 0.1f;
@@ -241,6 +241,7 @@ public partial class PlayerMovement : NetworkBehaviour
     public bool IsDolphinDiving => dolphinDiving.Value;
     public bool IsDiveRecovering => diveRecoveryRemaining > 0f;
     public bool BlocksCombat => dolphinDiving.Value || diveRecoveryRemaining > 0f;
+    public bool BlocksWeaponUse => BlocksCombat || IsClimbing;
     public Transform BodyVisual => bodyVisual;
     public bool Grounded => grounded;
     public bool IsSliding => sliding;
@@ -1199,7 +1200,7 @@ public partial class PlayerMovement : NetworkBehaviour
         hasJumped = false;
         onSlope = false;
 
-        weaponInventory?.InterruptReloadForDive();
+        weaponInventory?.InterruptReload();
         DolphinDiveStarted?.Invoke();
         LogMovement("Sprint + crouch hold detected — dolphin dive.");
         LogMovement("Dolphin dive launched.");

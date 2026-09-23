@@ -15,7 +15,7 @@ MonoBehaviour:
   decalPrefab: {fileID: 371307386564731358, guid: 53822bddc9b46b14d947864a58cb3d8b, type: 3}
   defaultVariantSet: {fileID: 11400000, guid: 9c3c2a69750a19844be02cba316aa04b, type: 2}
   baseSize: 0.12
-  lifetime: 45
+  lifetime: 15
   fadeDuration: 5
   maxActiveDecals: 200
   prewarmCount: 32

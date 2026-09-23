@@ -168,6 +168,7 @@ public partial class PlayerMovement
         EndSlide();
         EndWallRun();
         CancelDolphinDive(false);
+        weaponInventory?.InterruptReload();
         IsSprinting = false;
         sprintToggledOn = false;
         hasJumped = false;

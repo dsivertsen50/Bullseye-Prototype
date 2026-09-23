@@ -32,6 +32,8 @@ public class PlayerAimZoom : MonoBehaviour
 
     public bool IsAiming { get; private set; }
 
+    private bool cancelAimUntilReloadEnds;
+
     public float BaseFov => defaultFov;
 
     public float CurrentFov => currentFov;
@@ -197,12 +199,13 @@ public class PlayerAimZoom : MonoBehaviour
         bool sprinting = playerMovement != null && playerMovement.IsSprinting;
         bool wallRunning = playerMovement != null && playerMovement.IsWallRunning;
         bool diving = playerMovement != null && playerMovement.IsDolphinDiving;
+        bool climbing = playerMovement != null && playerMovement.IsClimbing;
         bool airborne = IsUnsafeAirborneForScopedLock();
         WeaponDefinition definition = ActiveDefinition;
         SyncRuntimeZoomDefinition(definition);
 
         bool wantAim = false;
-        if (wallRunning || diving)
+        if (wallRunning || diving || climbing || IsReloadCancellingAim())
         {
             ClearAimState();
         }
@@ -361,6 +364,30 @@ public class PlayerAimZoom : MonoBehaviour
     {
         InputControl control = aimAction.action.activeControl;
         return control != null && control.device is Gamepad;
+    }
+
+    public void CancelAimForReload()
+    {
+        cancelAimUntilReloadEnds = true;
+        ClearAimState();
+    }
+
+    private bool IsReloadCancellingAim()
+    {
+        if (inventory != null && inventory.IsReloading)
+        {
+            cancelAimUntilReloadEnds = true;
+            return true;
+        }
+
+        if (!cancelAimUntilReloadEnds)
+            return false;
+
+        if (inventory != null && inventory.IsLocallyBusy)
+            return true;
+
+        cancelAimUntilReloadEnds = false;
+        return false;
     }
 
     private void ClearAimState()

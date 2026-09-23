@@ -27,6 +27,8 @@ MonoBehaviour:
   fireRate: 1.25
   automatic: 0
   reloadTime: 2.6
+  reloadLowerDuration: 0.24
+  reloadRaiseDuration: 0.3
   canRicochet: 1
   damageSettings:
     hitscanMode: 0
