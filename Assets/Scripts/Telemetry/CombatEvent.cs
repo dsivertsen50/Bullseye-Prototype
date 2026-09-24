@@ -20,6 +20,10 @@ public sealed class CombatEvent
     public float Distance;
     public Vector3 WorldPosition;
     public int Amount;
+    public bool WasRicochet;
+    public int RicochetCount;
+    public string RicochetSurfaceId;
+    public float ProjectilePathDistance;
 
     public string Format()
     {
@@ -32,11 +36,11 @@ public sealed class CombatEvent
             case CombatEventType.BullseyeHit:
                 return $"{time} — Client {ActorClientId} hit Client {TargetClientId} bullseye ({weapon}, {Distance:0.0}m)";
             case CombatEventType.BullseyeDamaged:
-                return $"{time} — Client {ActorClientId} damaged Client {TargetClientId} for {Amount}";
+                return $"{time} — Client {ActorClientId} damaged Client {TargetClientId} for {Amount}{FormatRicochet()}";
             case CombatEventType.BullseyeDetached:
                 return $"{time} — Client {ActorClientId} detached Client {TargetClientId} bullseye ({DetachMethod})";
             case CombatEventType.Elimination:
-                return $"{time} — Client {ActorClientId} eliminated Client {TargetClientId} ({SourceType}, {weapon}, {BullseyeState}, {Distance:0.0}m)";
+                return $"{time} — Client {ActorClientId} eliminated Client {TargetClientId} ({SourceType}, {weapon}, {BullseyeState}, {Distance:0.0}m{FormatRicochet()})";
             case CombatEventType.AssistAwarded:
                 return $"{time} — Client {ActorClientId} assist on Client {TargetClientId}";
             case CombatEventType.PlayerDeath:
@@ -44,5 +48,14 @@ public sealed class CombatEvent
             default:
                 return $"{time} — {Type}";
         }
+    }
+
+    private string FormatRicochet()
+    {
+        if (!WasRicochet && RicochetCount <= 0)
+            return "";
+
+        string surface = string.IsNullOrEmpty(RicochetSurfaceId) ? "" : $", {RicochetSurfaceId}";
+        return $", ricochet x{Mathf.Max(RicochetCount, 1)}{surface}";
     }
 }

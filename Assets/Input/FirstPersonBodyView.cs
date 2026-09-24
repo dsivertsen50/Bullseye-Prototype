@@ -26,14 +26,18 @@ public class FirstPersonBodyView : NetworkBehaviour
     [SerializeField] private float followSharpness = 16f;
     [SerializeField] private float wallProbeRadius = 0.07f;
     [SerializeField] private float wallPadding = 0.08f;
+    [SerializeField, Tooltip("First-person legs while climbing, in camera-root space. X shifts left/right, Y is down from the camera, Z is forward.")]
+    private Vector3 climbLegsCameraOffset = new Vector3(0f, -0.42f, 0.08f);
 
     private PlayerHealth playerHealth;
+    private PlayerMovement movement;
     private readonly List<RendererState> worldRenderers = new();
     private readonly List<BoneLink> boneLinks = new();
     private GameObject fpBodyRoot;
     private bool ownerActive;
     private bool eliminationPresentation;
     private bool hasSmoothedCamera;
+    private bool holdClimbCamera;
     private Vector3 smoothedCameraLocal;
     private Vector3 cameraLocalVelocity;
     private readonly RaycastHit[] wallProbeHits = new RaycastHit[16];
@@ -44,6 +48,7 @@ public class FirstPersonBodyView : NetworkBehaviour
     private void Awake()
     {
         playerHealth = GetComponent<PlayerHealth>();
+        movement = GetComponent<PlayerMovement>();
         ResolveReferences();
     }
 
@@ -104,7 +109,10 @@ public class FirstPersonBodyView : NetworkBehaviour
         }
 
         HideWorldBody();
-        FollowEyes();
+        if (movement != null && movement.IsClimbing)
+            HoldClimbCamera();
+        else
+            FollowEyes();
         PoseDedicatedBody();
     }
 
@@ -125,7 +133,7 @@ public class FirstPersonBodyView : NetworkBehaviour
         GameObject instance = Instantiate(prefab, fpBodyRoot.transform, false);
         instance.name = "SM_StickMan_FPBody";
         DisableForeignAnimators(instance);
-        ConfigurePresentationRenderers(instance, LocalPlayerBodyLayerName, castShadows: true);
+        ConfigurePresentationRenderers(instance, LocalPlayerBodyLayerName, castShadows: false);
         CacheBoneLinks(instance.transform);
         PoseDedicatedBody();
     }
@@ -147,10 +155,32 @@ public class FirstPersonBodyView : NetworkBehaviour
             return;
 
         Transform root = fpBodyRoot.transform;
+        bool climbing = movement != null && movement.IsClimbing;
+        if (climbing && cameraRoot != null)
+        {
+            if (root.parent != cameraRoot)
+                root.SetParent(cameraRoot, false);
+
+            root.localRotation = Quaternion.Euler(fpBodyRotationOffset.x, fpBodyRotationOffset.y + 180f, fpBodyRotationOffset.z);
+            root.localPosition = climbLegsCameraOffset;
+            CopyBodyBones();
+            CenterClimbBodyOnCamera();
+            return;
+        }
+
+        if (root.parent != transform)
+            root.SetParent(transform, false);
+
         root.localPosition = fpBodyPositionOffset;
         root.localRotation = Quaternion.Euler(fpBodyRotationOffset);
         root.localScale = Vector3.one;
+        CopyBodyBones();
+    }
 
+    private void CopyBodyBones()
+    {
+        Transform root = fpBodyRoot.transform;
+        root.localScale = Vector3.one;
         for (int i = 0; i < boneLinks.Count; i++)
         {
             BoneLink link = boneLinks[i];
@@ -160,6 +190,25 @@ public class FirstPersonBodyView : NetworkBehaviour
             link.Destination.localPosition = link.Source.localPosition;
             link.Destination.localRotation = link.Source.localRotation;
         }
+    }
+
+    private void CenterClimbBodyOnCamera()
+    {
+        Transform hips = null;
+        for (int i = 0; i < boneLinks.Count; i++)
+        {
+            if (boneLinks[i].Destination != null && boneLinks[i].Destination.name == "mixamorig:Hips")
+            {
+                hips = boneLinks[i].Destination;
+                break;
+            }
+        }
+
+        if (hips == null || cameraRoot == null)
+            return;
+
+        Vector3 local = cameraRoot.InverseTransformPoint(hips.position);
+        fpBodyRoot.transform.localPosition -= new Vector3(local.x, 0f, local.z - climbLegsCameraOffset.z);
     }
 
     private void CacheBoneLinks(Transform dedicatedRoot)
@@ -216,10 +265,16 @@ public class FirstPersonBodyView : NetworkBehaviour
             if (renderer == null || renderer is ParticleSystemRenderer)
                 continue;
 
+            bool updateWhenOffscreen = false;
+            if (renderer is SkinnedMeshRenderer skinned)
+                updateWhenOffscreen = skinned.updateWhenOffscreen;
+
             worldRenderers.Add(new RendererState
             {
                 Renderer = renderer,
-                OriginallyEnabled = renderer.enabled
+                OriginallyEnabled = renderer.enabled,
+                OriginalShadowMode = renderer.shadowCastingMode,
+                OriginalUpdateWhenOffscreen = updateWhenOffscreen
             });
         }
     }
@@ -229,13 +284,44 @@ public class FirstPersonBodyView : NetworkBehaviour
         for (int i = 0; i < worldRenderers.Count; i++)
         {
             RendererState state = worldRenderers[i];
-            if (state.Renderer == null)
+            Renderer renderer = state.Renderer;
+            if (renderer == null)
                 continue;
 
-            bool enabled = visible && state.OriginallyEnabled;
-            if (state.Renderer.enabled != enabled)
-                state.Renderer.enabled = enabled;
+            if (visible)
+            {
+                renderer.enabled = state.OriginallyEnabled;
+                renderer.shadowCastingMode = state.OriginalShadowMode;
+                if (renderer is SkinnedMeshRenderer shown)
+                    shown.updateWhenOffscreen = state.OriginalUpdateWhenOffscreen;
+                continue;
+            }
+
+            if (IsOwnerWorldBody(renderer) && state.OriginallyEnabled)
+            {
+                renderer.enabled = true;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+                if (renderer is SkinnedMeshRenderer hidden)
+                    hidden.updateWhenOffscreen = true;
+                continue;
+            }
+
+            if (renderer.enabled)
+                renderer.enabled = false;
         }
+    }
+
+    private static bool IsOwnerWorldBody(Renderer renderer)
+    {
+        if (renderer is not SkinnedMeshRenderer)
+            return false;
+
+        string name = renderer.gameObject.name;
+        if (name == "StampOverlay")
+            return false;
+        if (name.IndexOf("Bullseye", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return false;
+        return true;
     }
 
     private void IncludeBodyOnOwnerCamera()
@@ -248,8 +334,27 @@ public class FirstPersonBodyView : NetworkBehaviour
             playerCamera.cullingMask |= 1 << layer;
     }
 
+    private void HoldClimbCamera()
+    {
+        if (cameraRoot == null)
+            return;
+
+        if (!holdClimbCamera)
+        {
+            if (!hasSmoothedCamera)
+                smoothedCameraLocal = cameraRoot.localPosition;
+            smoothedCameraLocal.x = 0f;
+            smoothedCameraLocal.z = eyeForwardOffset;
+            holdClimbCamera = true;
+            hasSmoothedCamera = true;
+        }
+
+        cameraRoot.localPosition = smoothedCameraLocal;
+    }
+
     private void FollowEyes()
     {
+        holdClimbCamera = false;
         if (cameraRoot == null || bodyAnimator == null || !bodyAnimator.isHuman)
             return;
 
@@ -379,6 +484,8 @@ public class FirstPersonBodyView : NetworkBehaviour
     {
         public Renderer Renderer;
         public bool OriginallyEnabled;
+        public UnityEngine.Rendering.ShadowCastingMode OriginalShadowMode;
+        public bool OriginalUpdateWhenOffscreen;
     }
 
     private struct BoneLink

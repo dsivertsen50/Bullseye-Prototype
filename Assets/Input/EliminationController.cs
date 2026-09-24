@@ -54,6 +54,7 @@ public class EliminationController : NetworkBehaviour
 
     private PlayerHealth playerHealth;
     private PlayerMovement playerMovement;
+    private BullseyeShatterController shatterController;
     private PlayerThirdPersonAnimator thirdPersonAnimator;
     private EliminationCamera eliminationCamera;
     private DigitalDespawnPresenter despawnPresenter;
@@ -81,6 +82,7 @@ public class EliminationController : NetworkBehaviour
     {
         playerHealth = GetComponent<PlayerHealth>();
         playerMovement = GetComponent<PlayerMovement>();
+        shatterController = GetComponent<BullseyeShatterController>();
         thirdPersonAnimator = GetComponent<PlayerThirdPersonAnimator>();
         eliminationCamera = GetComponent<EliminationCamera>();
         despawnPresenter = GetComponent<DigitalDespawnPresenter>();
@@ -148,6 +150,7 @@ public class EliminationController : NetworkBehaviour
         reportedPose = false;
 
         ApplyInspectorToHelpers();
+        shatterController?.PlayEliminationShatter();
         FreezeGameplay();
         DisableGameplayCollision();
         ReportOwnerPose();
@@ -215,6 +218,7 @@ public class EliminationController : NetworkBehaviour
         despawnSoundPlayed = false;
         reportedPose = false;
 
+        shatterController?.RestoreBullseyeAfterElimination();
         despawnPresenter?.Restore();
         eliminationCamera?.Restore();
         RestoreAnimators();

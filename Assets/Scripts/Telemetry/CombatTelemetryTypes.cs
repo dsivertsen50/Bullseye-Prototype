@@ -43,5 +43,6 @@ public enum BullseyeDetachMethod
     CombustionGrenade = 0,
     MagnetismGrenade = 1,
     Other = 2,
-    RocketExplosion = 3
+    RocketExplosion = 3,
+    FallImpact = 4
 }

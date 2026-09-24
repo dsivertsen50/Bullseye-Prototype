@@ -18,11 +18,13 @@ public class PlayerLook : MonoBehaviour
     private float yaw;
     private float pitch;
     private float currentSensitivityMultiplier = 1f;
+    private bool ladderLookActive;
     private Rigidbody rb;
     private PlayerHealth playerHealth;
     private PlayerAimZoom playerAimZoom;
     private WeaponPresentationController weaponPresentation;
     private PlayerWeaponInventory inventory;
+    private PlayerMovement movement;
 
     public float Yaw => yaw;
     public float Pitch => pitch;
@@ -48,6 +50,7 @@ public class PlayerLook : MonoBehaviour
         playerAimZoom = GetComponent<PlayerAimZoom>();
         weaponPresentation = GetComponent<WeaponPresentationController>();
         inventory = GetComponent<PlayerWeaponInventory>();
+        movement = GetComponent<PlayerMovement>();
         yaw = transform.eulerAngles.y;
         ApplyPersistedSettings();
     }
@@ -112,7 +115,18 @@ public class PlayerLook : MonoBehaviour
 
         yaw += yawDelta * sensitivityMultiplier;
         pitch -= pitchDelta * sensitivityMultiplier * invert;
-        pitch = Mathf.Clamp(pitch, -maxCameraAngle, maxCameraAngle);
+
+        bool climbing = movement != null && movement.IsClimbing;
+        if (climbing)
+        {
+            float up = movement.LadderLookUpLimit;
+            float down = movement.LadderLookDownLimit;
+            pitch = Mathf.Clamp(pitch, -down, up);
+        }
+        else
+        {
+            pitch = Mathf.Clamp(pitch, -maxCameraAngle, maxCameraAngle);
+        }
 
         ApplyRotation();
     }
@@ -156,18 +170,58 @@ public class PlayerLook : MonoBehaviour
     {
         pitch -= recoilPitch;
         yaw += recoilYaw;
-        pitch = Mathf.Clamp(pitch, -maxCameraAngle, maxCameraAngle);
+        bool climbing = movement != null && movement.IsClimbing;
+        if (climbing)
+            pitch = Mathf.Clamp(pitch, -movement.LadderLookDownLimit, movement.LadderLookUpLimit);
+        else
+            pitch = Mathf.Clamp(pitch, -maxCameraAngle, maxCameraAngle);
         ApplyRotation();
     }
 
     private void ApplyRotation()
     {
+        bool climbing = movement != null && movement.IsClimbing;
+        if (climbing)
+        {
+            ApplyLadderCamera();
+            return;
+        }
+
+        if (ladderLookActive)
+            ReleaseLadderCamera();
+
         Quaternion yawRotation = Quaternion.Euler(0f, yaw, 0f);
         transform.rotation = yawRotation;
 
         if (rb != null && !rb.isKinematic)
             rb.MoveRotation(yawRotation);
 
+        if (playerCamera != null)
+            playerCamera.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+    }
+
+    private void ApplyLadderCamera()
+    {
+        float bodyYaw = movement.LadderBodyYaw;
+        float relative = Mathf.DeltaAngle(bodyYaw, yaw);
+        relative = Mathf.Clamp(relative, -movement.LadderMaxCameraYaw, movement.LadderMaxCameraYaw);
+        yaw = bodyYaw + relative;
+        ladderLookActive = true;
+        movement.SetLadderLook(relative, pitch);
+
+        if (playerCamera != null)
+        {
+            float rootYaw = transform.eulerAngles.y;
+            float localYaw = Mathf.DeltaAngle(rootYaw, yaw);
+            playerCamera.localRotation = Quaternion.Euler(pitch, localYaw, 0f);
+        }
+    }
+
+    private void ReleaseLadderCamera()
+    {
+        ladderLookActive = false;
+        if (movement != null)
+            movement.SetLadderLook(0f, pitch);
         if (playerCamera != null)
             playerCamera.localRotation = Quaternion.Euler(pitch, 0f, 0f);
     }

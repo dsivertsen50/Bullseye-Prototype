@@ -26,6 +26,7 @@ public class RocketProjectile : NetworkBehaviour
     private bool armed;
     private bool exploded;
     private int bounceCount;
+    private string ricochetSurfaceId;
     private Collider lastRicochetCollider;
     private float ignoreRicochetUntil;
     private string researchShotId = "";
@@ -240,6 +241,13 @@ public class RocketProjectile : NetworkBehaviour
             return false;
 
         bounceCount++;
+        if (string.IsNullOrEmpty(ricochetSurfaceId))
+        {
+            ricochetSurfaceId = RicochetSurface.TryGetEnabled(hitCollider, out RicochetSurface surface) && surface != null
+                ? surface.gameObject.name
+                : hitCollider != null ? hitCollider.name : null;
+        }
+
         travelDirection = direction;
         lastRicochetCollider = hitCollider;
         ignoreRicochetUntil = Time.time + 0.08f;
@@ -300,7 +308,14 @@ public class RocketProjectile : NetworkBehaviour
             damage = settings.ResolveExplosionDamage(directVictim, distance, true);
         }
 
-        ExplosionDamage.Apply(origin, settings, weapon, shooterClientId, directVictim);
+        ExplosionDamage.Apply(
+            origin,
+            settings,
+            weapon,
+            shooterClientId,
+            directVictim,
+            bounceCount,
+            ricochetSurfaceId);
         bool lethal = directVictim != null && directVictim.IsDead;
         NotifyResearchImpact(
             origin,

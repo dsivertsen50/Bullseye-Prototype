@@ -254,6 +254,7 @@ public static class PlayerLocomotionAnimatorBuilder
         AddBool(controller, "IsTurningLeft");
         AddBool(controller, "IsTurningRight");
         AddBool(controller, "IsAirborne");
+        AddBool(controller, "IsFalling");
         AddBool(controller, "JumpFromSprint");
         controller.AddParameter("Jump", AnimatorControllerParameterType.Trigger);
     }
@@ -318,7 +319,10 @@ public static class PlayerLocomotionAnimatorBuilder
         graph.IdleToJump = AddState(root, "Idle to Jump", clips["IdleToJumpTakeoff"], new Vector3(760f, 40f, 0f));
         graph.SprintToJump = AddState(root, "Sprint to Jump", clips["SprintToJumpTakeoff"], new Vector3(760f, 140f, 0f));
         graph.Airborne = AddState(root, "Airborne (pending)", clips["StandingIdle"], new Vector3(980f, 90f, 0f));
-        AddState(root, "Falling (pending)", clips["StandingIdle"], new Vector3(980f, 170f, 0f));
+        graph.Falling = AddState(root, "Falling", clips["Falling"], new Vector3(980f, 170f, 0f));
+        graph.LadderClimbing = AddState(root, "Ladder Climbing", clips["LadderClimbing"], new Vector3(760f, 260f, 0f));
+        graph.LadderClimbing.speedParameterActive = true;
+        graph.LadderClimbing.speedParameter = "ClimbSpeed";
         AddState(root, "Landing (pending)", clips["StandingIdle"], new Vector3(980f, 250f, 0f));
 
         root.defaultState = graph.StandingIdle;
@@ -457,6 +461,7 @@ public static class PlayerLocomotionAnimatorBuilder
 
         WireJumpLanding(graph.IdleToJump, graph, 0.35f);
         WireJumpLanding(graph.SprintToJump, graph, 0.35f);
+        WireFallAndClimb(root, graph);
     }
 
     private static AnimationClip CreateTakeoffClip(AnimationClip source, string path, float endNormalized)
@@ -531,6 +536,215 @@ public static class PlayerLocomotionAnimatorBuilder
         AnimatorStateTransition toCrouchWalk = AddBoolTransition(from, graph.CrouchingLocomotion, 0.1f, waitForTakeoff, "IsGrounded", true, usedExit);
         With(toCrouchWalk, AnimatorConditionMode.If, 0, "IsCrouching");
         With(toCrouchWalk, AnimatorConditionMode.If, 0, "IsMoving");
+    }
+
+    private const float FallingEnterDuration = 0.12f;
+    private const float FallingExitDuration = 0.12f;
+    private const float LadderEnterDuration = 0.08f;
+    private const float LadderExitDuration = 0.1f;
+
+    public static string IntegrateReq073()
+    {
+        Avatar sourceAvatar = LoadAvatar(TPosePath);
+        if (sourceAvatar == null || !sourceAvatar.isValid || !sourceAvatar.isHuman)
+            return "FAILED: T-Pose Humanoid Avatar missing or invalid.";
+
+        string importLog = ConfigureClipImports(sourceAvatar, new[] { "Falling.fbx", "Climbing Ladder.fbx" });
+        AnimationClip fallingClip = LoadClip("Falling.fbx");
+        AnimationClip climbClip = LoadClip("Climbing Ladder.fbx");
+        if (fallingClip == null || climbClip == null)
+            return "FAILED: missing Falling or Climbing Ladder clip.\n" + importLog;
+
+        AnimatorController controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
+        if (controller == null)
+            return "FAILED: animator controller missing.";
+
+        EnsureBoolParameter(controller, "IsFalling");
+        EnsureBoolParameter(controller, "IsClimbing");
+        EnsureFloatParameter(controller, "ClimbSpeed");
+
+        AnimatorStateMachine root = controller.layers[0].stateMachine;
+        AnimatorState falling = FindState(root, "Falling") ?? FindState(root, "Falling (pending)");
+        if (falling == null)
+            falling = AddState(root, "Falling", fallingClip, new Vector3(980f, 170f, 0f));
+        falling.name = "Falling";
+        falling.motion = fallingClip;
+        falling.speedParameterActive = false;
+        falling.speed = 1f;
+
+        AnimatorState climbing = FindState(root, "Ladder Climbing");
+        if (climbing == null)
+            climbing = AddState(root, "Ladder Climbing", climbClip, new Vector3(760f, 260f, 0f));
+        climbing.motion = climbClip;
+        climbing.speedParameterActive = true;
+        climbing.speedParameter = "ClimbSpeed";
+        climbing.speed = 1f;
+
+        var graph = new LocomotionGraph
+        {
+            Falling = falling,
+            LadderClimbing = climbing,
+            StandingIdle = FindState(root, "Standing Idle"),
+            StandingLocomotion = FindState(root, "Standing Locomotion"),
+            Sprint = FindState(root, "Sprint Locomotion"),
+            CrouchingIdle = FindState(root, "Crouching Idle"),
+            CrouchingLocomotion = FindState(root, "Crouching Locomotion"),
+            Airborne = FindState(root, "Airborne (pending)")
+        };
+
+        if (graph.StandingIdle == null || graph.StandingLocomotion == null || graph.Sprint == null)
+            return "FAILED: locomotion states missing from controller.";
+
+        StripTransitions(root, falling);
+        StripTransitions(root, climbing);
+        WireFallAndClimb(root, graph);
+
+        EditorUtility.SetDirty(controller);
+        AssetDatabase.SaveAssets();
+        return "REQ-073 animator integrated.\n" + importLog +
+            "\nFalling length=" + fallingClip.length.ToString("0.00") +
+            " loop=" + fallingClip.isLooping +
+            "\nLadder length=" + climbClip.length.ToString("0.00") +
+            " loop=" + climbClip.isLooping;
+    }
+
+    private static void WireFallAndClimb(AnimatorStateMachine root, LocomotionGraph graph)
+    {
+        AnimatorStateTransition anyClimb = root.AddAnyStateTransition(graph.LadderClimbing);
+        Configure(anyClimb, LadderEnterDuration, false);
+        anyClimb.canTransitionToSelf = false;
+        anyClimb.AddCondition(AnimatorConditionMode.If, 0, "IsClimbing");
+
+        AnimatorStateTransition anyFall = root.AddAnyStateTransition(graph.Falling);
+        Configure(anyFall, FallingEnterDuration, false);
+        anyFall.canTransitionToSelf = false;
+        anyFall.AddCondition(AnimatorConditionMode.If, 0, "IsFalling");
+        anyFall.AddCondition(AnimatorConditionMode.IfNot, 0, "IsClimbing");
+        anyFall.AddCondition(AnimatorConditionMode.IfNot, 0, "IsDolphinDiving");
+
+        WireGroundedExit(graph.Falling, graph, FallingExitDuration);
+        if (graph.Airborne != null)
+        {
+            AnimatorStateTransition fallToAir = AddBoolTransition(graph.Falling, graph.Airborne, FallingExitDuration, false, "IsFalling", false);
+            fallToAir.AddCondition(AnimatorConditionMode.IfNot, 0, "IsGrounded");
+            fallToAir.AddCondition(AnimatorConditionMode.IfNot, 0, "IsClimbing");
+        }
+
+        WireGroundedExit(graph.LadderClimbing, graph, LadderExitDuration);
+        if (graph.Airborne != null)
+        {
+            AnimatorStateTransition climbToAir = AddBoolTransition(
+                graph.LadderClimbing, graph.Airborne, LadderExitDuration, false, "IsClimbing", false);
+            climbToAir.AddCondition(AnimatorConditionMode.IfNot, 0, "IsGrounded");
+        }
+    }
+
+    private static void WireGroundedExit(AnimatorState from, LocomotionGraph graph, float duration)
+    {
+        if (from == null || graph.StandingIdle == null)
+            return;
+
+        AnimatorStateTransition toIdle = AddBoolTransition(from, graph.StandingIdle, duration, false, "IsGrounded", true);
+        With(toIdle, AnimatorConditionMode.IfNot, 0, "IsMoving");
+        With(toIdle, AnimatorConditionMode.IfNot, 0, "IsCrouching");
+        With(toIdle, AnimatorConditionMode.IfNot, 0, "IsProne");
+        With(toIdle, AnimatorConditionMode.IfNot, 0, "IsClimbing");
+        if (from == graph.Falling)
+            With(toIdle, AnimatorConditionMode.IfNot, 0, "IsFalling");
+
+        AnimatorStateTransition toWalk = AddBoolTransition(from, graph.StandingLocomotion, duration, false, "IsGrounded", true);
+        With(toWalk, AnimatorConditionMode.If, 0, "IsMoving");
+        With(toWalk, AnimatorConditionMode.IfNot, 0, "IsSprinting");
+        With(toWalk, AnimatorConditionMode.IfNot, 0, "IsCrouching");
+        With(toWalk, AnimatorConditionMode.IfNot, 0, "IsProne");
+        With(toWalk, AnimatorConditionMode.IfNot, 0, "IsClimbing");
+        if (from == graph.Falling)
+            With(toWalk, AnimatorConditionMode.IfNot, 0, "IsFalling");
+
+        AnimatorStateTransition toSprint = AddBoolTransition(from, graph.Sprint, duration, false, "IsGrounded", true);
+        With(toSprint, AnimatorConditionMode.If, 0, "IsSprinting");
+        With(toSprint, AnimatorConditionMode.If, 0, "IsMoving");
+        With(toSprint, AnimatorConditionMode.IfNot, 0, "IsCrouching");
+        With(toSprint, AnimatorConditionMode.IfNot, 0, "IsProne");
+        With(toSprint, AnimatorConditionMode.IfNot, 0, "IsClimbing");
+        if (from == graph.Falling)
+            With(toSprint, AnimatorConditionMode.IfNot, 0, "IsFalling");
+
+        if (graph.CrouchingIdle == null || graph.CrouchingLocomotion == null)
+            return;
+
+        AnimatorStateTransition toCrouchIdle = AddBoolTransition(from, graph.CrouchingIdle, duration, false, "IsGrounded", true);
+        With(toCrouchIdle, AnimatorConditionMode.If, 0, "IsCrouching");
+        With(toCrouchIdle, AnimatorConditionMode.IfNot, 0, "IsMoving");
+        With(toCrouchIdle, AnimatorConditionMode.IfNot, 0, "IsClimbing");
+
+        AnimatorStateTransition toCrouchWalk = AddBoolTransition(from, graph.CrouchingLocomotion, duration, false, "IsGrounded", true);
+        With(toCrouchWalk, AnimatorConditionMode.If, 0, "IsCrouching");
+        With(toCrouchWalk, AnimatorConditionMode.If, 0, "IsMoving");
+        With(toCrouchWalk, AnimatorConditionMode.IfNot, 0, "IsClimbing");
+    }
+
+    private static AnimationClip LoadClip(string fileName)
+    {
+        string path = AnimationFolder + "/" + fileName;
+        return AssetDatabase.LoadAllAssetsAtPath(path)
+            .OfType<AnimationClip>()
+            .FirstOrDefault(clip => !clip.name.StartsWith("__preview"));
+    }
+
+    private static AnimatorState FindState(AnimatorStateMachine machine, string stateName)
+    {
+        foreach (ChildAnimatorState child in machine.states)
+        {
+            if (child.state != null && child.state.name == stateName)
+                return child.state;
+        }
+
+        foreach (ChildAnimatorStateMachine child in machine.stateMachines)
+        {
+            AnimatorState found = FindState(child.stateMachine, stateName);
+            if (found != null)
+                return found;
+        }
+
+        return null;
+    }
+
+    private static void StripTransitions(AnimatorStateMachine root, AnimatorState state)
+    {
+        if (state == null)
+            return;
+
+        foreach (AnimatorStateTransition transition in state.transitions.ToArray())
+            state.RemoveTransition(transition);
+
+        foreach (AnimatorStateTransition transition in root.anyStateTransitions.ToArray())
+        {
+            if (transition.destinationState == state)
+                root.RemoveAnyStateTransition(transition);
+        }
+    }
+
+    private static void EnsureBoolParameter(AnimatorController controller, string name)
+    {
+        foreach (AnimatorControllerParameter parameter in controller.parameters)
+        {
+            if (parameter.name == name)
+                return;
+        }
+
+        AddBool(controller, name);
+    }
+
+    private static void EnsureFloatParameter(AnimatorController controller, string name)
+    {
+        foreach (AnimatorControllerParameter parameter in controller.parameters)
+        {
+            if (parameter.name == name)
+                return;
+        }
+
+        AddFloat(controller, name);
     }
 
     private static BlendTree CreateStandingLocomotionTree(Dictionary<string, AnimationClip> clips)
@@ -806,7 +1020,9 @@ public static class PlayerLocomotionAnimatorBuilder
         new ClipImport("Prone Right Turn.fbx", "ProneRightTurn", true),
         new ClipImport("Prone to Crouching.fbx", "ProneToCrouching", false),
         new ClipImport("Idle to Jump.fbx", "IdleToJump", false),
-        new ClipImport("Sprint to Jump.fbx", "SprintToJump", false)
+        new ClipImport("Sprint to Jump.fbx", "SprintToJump", false),
+        new ClipImport("Falling.fbx", "Falling", true),
+        new ClipImport("Climbing Ladder.fbx", "LadderClimbing", true)
     };
 
     private struct ClipImport
@@ -847,5 +1063,7 @@ public static class PlayerLocomotionAnimatorBuilder
         public AnimatorState IdleToJump;
         public AnimatorState SprintToJump;
         public AnimatorState Airborne;
+        public AnimatorState Falling;
+        public AnimatorState LadderClimbing;
     }
 }

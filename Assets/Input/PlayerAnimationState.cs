@@ -83,6 +83,9 @@ public class PlayerAnimationState : NetworkBehaviour
     [SerializeField] private bool debugIsCrouching;
     [SerializeField] private bool debugIsProne;
     [SerializeField] private bool debugIsGrounded;
+    [SerializeField] private bool debugIsFalling;
+    [SerializeField] private bool debugIsClimbing;
+    [SerializeField] private float debugClimbSpeed;
     [SerializeField] private float debugTurnSpeed;
     [SerializeField] private bool debugIsTurningLeft;
     [SerializeField] private bool debugIsTurningRight;
@@ -114,6 +117,7 @@ public class PlayerAnimationState : NetworkBehaviour
     public bool IsDolphinDiving => movement != null && movement.IsDolphinDiving;
     public bool IsClimbing => movement != null && movement.IsClimbing;
     public float ClimbSpeed => movement != null ? movement.ClimbSpeed : 0f;
+    public bool IsFalling => movement != null && movement.IsFalling;
     public float ProneMoveSpeed => IsProne ? Speed : 0f;
     public float TurnSpeed => turnSpeed.Value;
     public bool IsTurningLeft => !IsMoving && turnSpeed.Value <= -proneTurnThreshold;
@@ -260,6 +264,9 @@ public class PlayerAnimationState : NetworkBehaviour
         debugIsCrouching = IsCrouching;
         debugIsProne = IsProne;
         debugIsGrounded = IsGrounded;
+        debugIsFalling = IsFalling;
+        debugIsClimbing = IsClimbing;
+        debugClimbSpeed = ClimbSpeed;
         debugTurnSpeed = TurnSpeed;
         debugIsTurningLeft = IsTurningLeft;
         debugIsTurningRight = IsTurningRight;

@@ -33,6 +33,8 @@ public class BullseyeBodyHud : MonoBehaviour
     [SerializeField] private Rect bodyMapNormalized = BullseyeBodyHudPlaceholders.BodyMapNormalized;
 
     [Header("Layout")]
+    [Tooltip("The front/back diagram is retired. Enable only to compare it with the live body camera.")]
+    [SerializeField] private bool showDiagram;
     [SerializeField] private Vector2 panelSize = new Vector2(320f, 236f);
     [SerializeField] private Vector2 margin = new Vector2(20f, 20f);
     [SerializeField] private float markerSize = 28f;
@@ -95,6 +97,9 @@ public class BullseyeBodyHud : MonoBehaviour
     private bool ShouldDisplay()
     {
         ResolveSources();
+
+        if (!showDiagram)
+            return false;
 
         if (playerHealth == null || !playerHealth.IsSpawned || !playerHealth.IsOwner)
             return false;

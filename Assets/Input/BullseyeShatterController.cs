@@ -87,6 +87,29 @@ public class BullseyeShatterController : MonoBehaviour
         ScheduleCorpseHide();
     }
 
+    /// <summary>
+    /// Breaks the bullseye only. EliminationController owns the freeze and despawn.
+    /// </summary>
+    public void PlayEliminationShatter()
+    {
+        if (shatteredThisLife)
+            return;
+
+        shatteredThisLife = true;
+        corpseVisualsHidden = false;
+        CaptureBullseyePose(out Vector3 position, out Quaternion rotation, out Vector3 scale);
+        ShatterBullseye(position, rotation, scale);
+    }
+
+    public void RestoreBullseyeAfterElimination()
+    {
+        StopHideRoutine();
+        DestroyActiveShatter();
+        shatteredThisLife = false;
+        corpseVisualsHidden = false;
+        RestoreIntactBullseye();
+    }
+
     public void ShatterBullseye()
     {
         CaptureBullseyePose(out Vector3 position, out Quaternion rotation, out Vector3 scale);

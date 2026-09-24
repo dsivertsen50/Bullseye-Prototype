@@ -10,14 +10,30 @@ public partial class PlayerMovement
     private const float ClimbExitSnapLimit = 1.6f;
 
     [Header("Ladder Climb")]
-    [SerializeField] private float ladderRotationSpeed = 10f;
+    [SerializeField] private float ladderRotationSpeed = 720f;
     [SerializeField] private float ladderJumpAwayForce = 6.5f;
     [SerializeField] private float ladderJumpUpForce = 8f;
     [SerializeField] private float ladderReattachCooldown = 0.4f;
+    [SerializeField, Tooltip("Moves the climb mesh left of the ladder. Applied in the character's local space so looking around cannot orbit the body.")]
+    private float climbMeshLeftOffset = 0.14f;
+    [SerializeField, Tooltip("Pulls the climb mesh back out of the ladder. Applied in the character's local space.")]
+    private float climbMeshBackOffset = 0.22f;
+    [SerializeField] private float ladderMaxCameraYaw = 70f;
+    [SerializeField] private float ladderLookUpLimit = 60f;
+    [SerializeField] private float ladderLookDownLimit = 50f;
+    [SerializeField] private float headYawLimit = 45f;
+    [SerializeField] private float headLookUpLimit = 35f;
+    [SerializeField] private float headLookDownLimit = 30f;
+    [SerializeField] private float headLookSmoothSpeed = 10f;
 
     [Header("Ladder Climb / Debug")]
     [SerializeField] private bool debugIsClimbing;
+    [SerializeField] private bool debugLadderLook;
     [SerializeField] private string debugClimbStatus = string.Empty;
+    [SerializeField] private float debugLadderBodyYaw;
+    [SerializeField] private float debugLadderCameraYaw;
+    [SerializeField] private float debugHeadYaw;
+    [SerializeField] private float debugHeadPitch;
 
     private readonly NetworkVariable<bool> climbing = new(
         false,
@@ -25,6 +41,21 @@ public partial class PlayerMovement
         NetworkVariableWritePermission.Owner);
 
     private readonly NetworkVariable<float> climbFacingYaw = new(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Owner);
+
+    private readonly NetworkVariable<float> climbLookYaw = new(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Owner);
+
+    private readonly NetworkVariable<float> climbLookPitch = new(
+        0f,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Owner);
+
+    private readonly NetworkVariable<float> networkedClimbSpeed = new(
         0f,
         NetworkVariableReadPermission.Everyone,
         NetworkVariableWritePermission.Owner);
@@ -42,7 +73,17 @@ public partial class PlayerMovement
 
     public bool IsClimbing => climbing.Value;
     public LadderClimbable CurrentLadder => currentLadder;
-    public float ClimbSpeed => climbInputSpeed;
+    public float ClimbSpeed => IsSpawned && !IsOwner ? networkedClimbSpeed.Value : climbInputSpeed;
+    public float LadderBodyYaw => climbFacingYaw.Value;
+    public float LadderLookYaw => climbLookYaw.Value;
+    public float LadderLookPitch => climbLookPitch.Value;
+    public float LadderMaxCameraYaw => Mathf.Clamp(ladderMaxCameraYaw, 0f, 89f);
+    public float LadderLookUpLimit => Mathf.Clamp(ladderLookUpLimit, 0f, 89f);
+    public float LadderLookDownLimit => Mathf.Clamp(ladderLookDownLimit, 0f, 89f);
+    public float HeadYawLimit => Mathf.Clamp(headYawLimit, 0f, 80f);
+    public float HeadLookUpLimit => Mathf.Clamp(headLookUpLimit, 0f, 80f);
+    public float HeadLookDownLimit => Mathf.Clamp(headLookDownLimit, 0f, 80f);
+    public float HeadLookSmoothSpeed => Mathf.Max(0.5f, headLookSmoothSpeed);
 
     private void TickClimbLifecycle()
     {
@@ -173,6 +214,7 @@ public partial class PlayerMovement
         sprintToggledOn = false;
         hasJumped = false;
         LastJumpFromSprint = false;
+        ClearFallTracking();
 
         if (IsSpawned && IsOwner)
         {
@@ -224,7 +266,7 @@ public partial class PlayerMovement
         Vector3 velocity = (target - rb.position) / Mathf.Max(0.0001f, dt);
         rb.linearVelocity = velocity;
 
-        WriteClimbFacing(currentLadder);
+        PublishClimbSpeed();
     }
 
     private void TickClimbExits()
@@ -353,6 +395,8 @@ public partial class PlayerMovement
         currentLadder = null;
         climbLostTimer = 0f;
         climbInputSpeed = 0f;
+        PublishClimbSpeed();
+        SetLadderLook(0f, 0f);
         SetClimbingNetworked(false);
         lastLadder = used;
         ladderReattachRemaining = Mathf.Max(0.05f, ladderReattachCooldown);
@@ -371,6 +415,8 @@ public partial class PlayerMovement
         lastLadder = null;
         climbLostTimer = 0f;
         climbInputSpeed = 0f;
+        PublishClimbSpeed();
+        SetLadderLook(0f, 0f);
         ladderReattachRemaining = 0f;
         SetClimbingNetworked(false);
         RestoreClimbVisual();
@@ -380,25 +426,72 @@ public partial class PlayerMovement
 
     private void TickClimbVisual()
     {
+        if (climbing.Value && IsMovementOwner)
+            AlignBodyToLadder();
+
         if (bodyVisual == null)
             return;
 
         if (climbing.Value)
         {
-            float targetYaw = climbFacingYaw.Value;
-            float playerYaw = transform.eulerAngles.y;
-            float localYaw = Mathf.DeltaAngle(playerYaw, targetYaw);
-            Quaternion target = Quaternion.Euler(0f, localYaw, 0f);
-            float speed = Mathf.Max(0.1f, ladderRotationSpeed);
-            bodyVisual.localRotation = Quaternion.Slerp(
-                bodyVisual.localRotation,
-                target,
-                1f - Mathf.Exp(-speed * Time.deltaTime));
+            Vector3 local = standingBodyPosition + new Vector3(-climbMeshLeftOffset, 0f, -climbMeshBackOffset);
+            bodyVisual.localPosition = local;
+            bodyVisual.localRotation = standingBodyRotation;
+            PlantClimbFeet();
             climbVisualApplied = true;
+            DrawLadderDebug();
             return;
         }
 
         RestoreClimbVisual();
+    }
+
+    private void AlignBodyToLadder()
+    {
+        if (currentLadder != null)
+            WriteClimbFacing(currentLadder);
+
+        Vector3 facing = LadderFacingDirection();
+        if (facing.sqrMagnitude < 0.0001f)
+            return;
+
+        Quaternion target = Quaternion.LookRotation(facing, Vector3.up);
+        float step = Mathf.Max(1f, ladderRotationSpeed) * Time.deltaTime;
+        Quaternion next = Quaternion.RotateTowards(transform.rotation, target, step);
+        Quaternion cameraWorld = playerCamera != null ? playerCamera.rotation : Quaternion.identity;
+        transform.rotation = next;
+        if (playerCamera != null)
+            playerCamera.rotation = cameraWorld;
+        if (rb != null && !rb.isKinematic)
+        {
+            rb.rotation = next;
+            rb.angularVelocity = Vector3.zero;
+        }
+    }
+
+    private Vector3 LadderFacingDirection()
+    {
+        if (currentLadder != null)
+        {
+            Vector3 toward = Vector3.ProjectOnPlane(-currentLadder.FaceNormal, Vector3.up);
+            if (toward.sqrMagnitude > 0.0001f)
+                return toward.normalized;
+        }
+
+        return Quaternion.Euler(0f, climbFacingYaw.Value, 0f) * Vector3.forward;
+    }
+
+    public void SetLadderLook(float relativeYaw, float pitch)
+    {
+        debugLadderCameraYaw = relativeYaw;
+        debugHeadPitch = pitch;
+        if (!IsSpawned || !IsOwner)
+            return;
+
+        if (Mathf.Abs(Mathf.DeltaAngle(climbLookYaw.Value, relativeYaw)) >= 0.5f)
+            climbLookYaw.Value = relativeYaw;
+        if (Mathf.Abs(climbLookPitch.Value - pitch) >= 0.5f)
+            climbLookPitch.Value = pitch;
     }
 
     private void RestoreClimbVisual()
@@ -408,6 +501,28 @@ public partial class PlayerMovement
 
         RestoreBodyVisualPose();
         climbVisualApplied = false;
+    }
+
+    private void PlantClimbFeet()
+    {
+        Animator animator = bodyVisual.GetComponentInChildren<Animator>();
+        if (animator == null || playerCapsule == null)
+            return;
+
+        Transform leftFoot = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+        Transform rightFoot = animator.GetBoneTransform(HumanBodyBones.RightFoot);
+        if (leftFoot == null || rightFoot == null)
+            return;
+
+        float footY = Mathf.Min(leftFoot.position.y, rightFoot.position.y);
+        Vector3 center = transform.TransformPoint(playerCapsule.center);
+        float scaleY = Mathf.Abs(transform.lossyScale.y);
+        float height = playerCapsule.height * scaleY;
+        float radius = playerCapsule.radius * Mathf.Max(
+            Mathf.Abs(transform.lossyScale.x),
+            Mathf.Abs(transform.lossyScale.z));
+        float floorY = center.y - Mathf.Max(0f, height * 0.5f - radius);
+        bodyVisual.position += Vector3.up * (floorY - footY);
     }
 
     private void WriteClimbFacing(LadderClimbable ladder)
@@ -420,10 +535,41 @@ public partial class PlayerMovement
             return;
 
         float yaw = Quaternion.LookRotation(look.normalized, Vector3.up).eulerAngles.y;
-        if (Mathf.Abs(Mathf.DeltaAngle(climbFacingYaw.Value, yaw)) < 1f)
+        debugLadderBodyYaw = yaw;
+        if (Mathf.Abs(Mathf.DeltaAngle(climbFacingYaw.Value, yaw)) < 0.5f)
             return;
 
         climbFacingYaw.Value = yaw;
+    }
+
+    private void DrawLadderDebug()
+    {
+        if (!debugLadderLook && !Debug.isDebugBuild)
+            return;
+        if (!debugLadderLook)
+            return;
+
+        Vector3 origin = transform.position + Vector3.up * 1.4f;
+        Vector3 ladderForward = LadderFacingDirection();
+        Debug.DrawRay(origin, ladderForward * 1.2f, Color.red);
+        Debug.DrawRay(origin, transform.forward * 1.2f, Color.blue);
+        if (playerCamera != null)
+            Debug.DrawRay(playerCamera.position, playerCamera.forward * 1.2f, Color.green);
+
+        debugLadderBodyYaw = transform.eulerAngles.y;
+        debugHeadYaw = climbLookYaw.Value;
+    }
+
+    private void PublishClimbSpeed()
+    {
+        if (!IsSpawned || !IsOwner)
+            return;
+
+        float value = Mathf.Abs(climbInputSpeed) < 0.08f ? 0f : climbInputSpeed;
+        if (Mathf.Abs(value - networkedClimbSpeed.Value) < 0.05f)
+            return;
+
+        networkedClimbSpeed.Value = value;
     }
 
     private void SetClimbingNetworked(bool value)
@@ -494,6 +640,13 @@ public partial class PlayerMovement
     private bool IsCurrentLadderCollider(Collider collider)
     {
         return currentLadder != null && currentLadder.OwnsCollider(collider);
+    }
+
+    private static bool IsLadderGroundHit(Collider collider)
+    {
+        if (!LadderClimbable.TryGet(collider, out _))
+            return false;
+        return collider.gameObject.name != "TopPlatform";
     }
 
     private void OnTriggerEnter(Collider other)

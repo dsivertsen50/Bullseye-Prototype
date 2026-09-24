@@ -136,14 +136,22 @@ public class PlayerHealth : NetworkBehaviour
 
     public void RegisterBullseyeHits(float[] distances)
     {
+        RegisterBullseyeHits(distances, null, null);
+    }
+
+    public void RegisterBullseyeHits(float[] distances, int[] ricochetCounts, string ricochetSurfaceId)
+    {
         if (!IsSpawned)
             return;
 
-        HitServerRpc(distances ?? System.Array.Empty<float>());
+        HitServerRpc(
+            distances ?? System.Array.Empty<float>(),
+            ricochetCounts ?? System.Array.Empty<int>(),
+            ricochetSurfaceId ?? "");
     }
 
     [Rpc(SendTo.Server)]
-    private void HitServerRpc(float[] hitDistances, RpcParams rpcParams = default)
+    private void HitServerRpc(float[] hitDistances, int[] ricochetCounts, string ricochetSurfaceId, RpcParams rpcParams = default)
     {
         ulong attackerId = rpcParams.Receive.SenderClientId;
         if (attackerId == OwnerClientId)
@@ -168,6 +176,7 @@ public class PlayerHealth : NetworkBehaviour
         float totalDistance = 0f;
         float totalBeforeFalloff = 0f;
         int appliedHits = 0;
+        int ricochetCount = 0;
 
         for (int i = 0; i < hitsToApply; i++)
         {
@@ -175,6 +184,10 @@ public class PlayerHealth : NetworkBehaviour
                 break;
 
             float distance = ResolveHitDistance(hitDistances, i, attackerId);
+            int pelletRicochets = ResolveRicochetCount(ricochetCounts, i);
+            if (pelletRicochets > ricochetCount)
+                ricochetCount = pelletRicochets;
+
             DamageInfo info = WeaponDamageCalculator.Evaluate(
                 settings,
                 weapon,
@@ -197,13 +210,17 @@ public class PlayerHealth : NetworkBehaviour
 
         float averageDistance = appliedHits > 0 ? totalDistance / appliedHits : 0f;
         string weaponId = weapon != null ? weapon.WeaponId : "unknown";
+        float pathDistance = appliedHits > 0 ? totalDistance / appliedHits : 0f;
         CombatTelemetryManager.Ensure().RecordBullseyeHit(
             attackerId,
             OwnerClientId,
             weaponId,
             averageDistance,
             CombatTelemetryManager.ResolveBullseyeState(detachController),
-            totalDamage);
+            totalDamage,
+            ricochetCount,
+            ricochetCount > 0 ? ricochetSurfaceId : null,
+            pathDistance);
 
         if (totalDamage <= 0)
             return;
@@ -213,7 +230,10 @@ public class PlayerHealth : NetworkBehaviour
             OwnerClientId,
             totalDamage,
             weaponId,
-            averageDistance));
+            averageDistance,
+            ricochetCount,
+            ricochetCount > 0 ? ricochetSurfaceId : null,
+            pathDistance));
 
         LogResolvedDamage(
             weapon,
@@ -241,6 +261,7 @@ public class PlayerHealth : NetworkBehaviour
         if (amount <= 0)
             return;
 
+        BullseyeCombatState bullseyeState = CombatTelemetryManager.ResolveBullseyeState(detachController);
         SetHealth(currentHealth.Value - amount);
         if (context.HasAttacker && context.AttackerClientId != OwnerClientId)
             RegisterAssistContributor(context.AttackerClientId);
@@ -249,8 +270,29 @@ public class PlayerHealth : NetworkBehaviour
         PlayDamageRumbleOwnerRpc();
         FlashBullseyeRpc();
 
-        if (currentHealth.Value <= 0)
+        bool elimination = currentHealth.Value <= 0;
+        if (elimination)
             HandleDeath(context);
+
+        NotifyAttackerFeedback(context, amount, elimination, bullseyeState);
+    }
+
+    private void NotifyAttackerFeedback(
+        DamageContext context,
+        int amount,
+        bool elimination,
+        BullseyeCombatState bullseyeState)
+    {
+        if (!context.HasAttacker || context.AttackerClientId == OwnerClientId)
+            return;
+
+        CombatFeedbackRelay relay = GetComponent<CombatFeedbackRelay>();
+        if (relay == null)
+            return;
+
+        relay.NotifyAttacker(
+            context.AttackerClientId,
+            CombatFeedbackEvent.FromResolvedDamage(context, amount, elimination, bullseyeState));
     }
 
     [Rpc(SendTo.Owner, InvokePermission = RpcInvokePermission.Server)]
@@ -323,7 +365,9 @@ public class PlayerHealth : NetworkBehaviour
                 SourceType = context.SourceType.ToString(),
                 BullseyeState = CombatTelemetryManager.ResolveBullseyeState(detachController).ToString(),
                 Distance = Mathf.Max(0f, context.Distance),
-                BullseyeWorldPosition = ResearchVec3.From(GetBullseyeWorldPosition())
+                BullseyeWorldPosition = ResearchVec3.From(GetBullseyeWorldPosition()),
+                WasRicochet = context.WasRicochet,
+                RicochetCount = context.RicochetCount
             });
         }
     }
@@ -629,6 +673,14 @@ public class PlayerHealth : NetworkBehaviour
             point = bullseye.position;
         }
         return Vector3.Distance(attackerObject.transform.position, point);
+    }
+
+    private static int ResolveRicochetCount(int[] ricochetCounts, int index)
+    {
+        if (ricochetCounts == null || index < 0 || index >= ricochetCounts.Length)
+            return 0;
+
+        return ricochetCounts[index] > 0 ? ricochetCounts[index] : 0;
     }
 
     private void LogResolvedDamage(

@@ -12,7 +12,9 @@ public static class ExplosionDamage
         WeaponProjectileSettings settings,
         WeaponDefinition weapon,
         ulong shooterClientId,
-        PlayerHealth directHitVictim)
+        PlayerHealth directHitVictim,
+        int ricochetCount = 0,
+        string ricochetSurfaceId = null)
     {
         settings ??= WeaponProjectileSettings.Fallback;
         string weaponId = weapon != null ? weapon.WeaponId : "unknown";
@@ -61,7 +63,9 @@ public static class ExplosionDamage
                     weaponId,
                     distance,
                     CombatTelemetryManager.ResolveBullseyeState(detach),
-                    amount);
+                    amount,
+                    ricochetCount,
+                    ricochetSurfaceId);
             }
             else
             {
@@ -70,7 +74,9 @@ public static class ExplosionDamage
                     health.OwnerClientId,
                     weaponId,
                     distance,
-                    amount);
+                    amount,
+                    ricochetCount,
+                    ricochetSurfaceId);
             }
 
             if (amount > 0)
@@ -80,7 +86,9 @@ public static class ExplosionDamage
                     health.OwnerClientId,
                     amount,
                     weaponId,
-                    distance));
+                    distance,
+                    ricochetCount,
+                    ricochetSurfaceId));
             }
         }
 

@@ -398,6 +398,7 @@ public partial class PlayerMovement : NetworkBehaviour
         {
             ClearWallRunState();
             ClearClimbState();
+            ClearFallTracking();
             FreezeDeadBody();
             TickWallRunDebug();
             return;
@@ -419,6 +420,7 @@ public partial class PlayerMovement : NetworkBehaviour
         }
 
         TickStanceTransition();
+        TickFallTracking();
         TickWallRunDebug();
     }
 
@@ -551,6 +553,7 @@ public partial class PlayerMovement : NetworkBehaviour
     {
         ClearWallRunState();
         ClearClimbState();
+        ClearFallTracking();
         CancelDolphinDive(false);
         FreezeDeadBody();
     }
@@ -583,6 +586,7 @@ public partial class PlayerMovement : NetworkBehaviour
         CancelDolphinDive(false);
         ClearWallRunState();
         ClearClimbState();
+        ClearFallTracking();
 
         if (IsSpawned && IsOwner)
         {
@@ -1692,7 +1696,7 @@ public partial class PlayerMovement : NetworkBehaviour
             RaycastHit candidate = groundHits[i];
             if (candidate.collider == null || IsOwnCollider(candidate.collider))
                 continue;
-            if (IsClimbing && IsCurrentLadderCollider(candidate.collider))
+            if (IsLadderGroundHit(candidate.collider))
                 continue;
             if (!IsFloor(candidate.normal))
                 continue;
@@ -1724,7 +1728,11 @@ public partial class PlayerMovement : NetworkBehaviour
 
     private bool IsOwnCollider(Collider collider)
     {
-        return collider != null && collider.transform.IsChildOf(transform);
+        if (collider == null)
+            return false;
+        if (collider == playerCapsule || collider.transform == transform)
+            return true;
+        return collider.transform.IsChildOf(transform);
     }
 
     private void OnCrouchedChanged(bool previous, bool next)

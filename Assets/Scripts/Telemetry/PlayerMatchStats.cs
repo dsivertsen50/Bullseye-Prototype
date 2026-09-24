@@ -15,6 +15,8 @@ public sealed class PlayerMatchStats
     public int AttachedBullseyeEliminations;
     public int DetachedBullseyeEliminations;
     public int BodySlamEliminations;
+    public int RicochetEliminations;
+    public int RicochetDamage;
     public int BullseyesDetached;
     public int ShotsFired;
     public int BullseyeHits;
@@ -77,6 +79,8 @@ public sealed class PlayerMatchStats
         AttachedBullseyeEliminations = 0;
         DetachedBullseyeEliminations = 0;
         BodySlamEliminations = 0;
+        RicochetEliminations = 0;
+        RicochetDamage = 0;
         BullseyesDetached = 0;
         ShotsFired = 0;
         BullseyeHits = 0;
