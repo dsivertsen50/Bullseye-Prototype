@@ -1061,6 +1061,10 @@ GameObject:
   - component: {fileID: 1030418971794520970}
   - component: {fileID: 75260226244382341}
   - component: {fileID: 8688861077745700694}
+  - component: {fileID: 1686821752218596615}
+  - component: {fileID: 6550453847682205813}
+  - component: {fileID: 3668762009074202169}
+  - component: {fileID: 6595404324382178545}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1131,7 +1135,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMovement
   ShowTopMostFoldoutHeaderGroup: 1
-  ladderRotationSpeed: 10
+  ladderRotationSpeed: 720
   ladderJumpAwayForce: 6.5
   ladderJumpUpForce: 8
   ladderReattachCooldown: 0.4
@@ -2159,6 +2163,7 @@ MonoBehaviour:
     y: 0.07
     width: 0.52
     height: 0.86
+  showDiagram: 0
   panelSize: {x: 320, y: 236}
   margin: {x: 20, y: 20}
   markerSize: 28
@@ -2865,6 +2870,102 @@ MonoBehaviour:
   leftHandEulerOffset: {x: 50, y: 180, z: -25}
   elbowOut: 0.22
   elbowDown: 0.28
+--- !u!114 &1686821752218596615
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c8025c01e077f484fb9ae181ad33604d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CombatFeedbackHud
+  damageTextDuration: 0.7
+  awardTextDuration: 1.15
+  fadeDuration: 0.35
+  reticleOffset: {x: 40, y: 0}
+  verticalOffset: 18
+  stackSpacing: 28
+  maximumSimultaneousMessages: 4
+  rapidHitAccumulationWindow: 0.2
+  fontSize: 22
+  outlineWidth: 1.15
+  bullseyeRed: {r: 1, g: 0.034782607, b: 0.034782607, a: 1}
+  eliminationLabel: ELIMINATION
+  awardLabels:
+  - Award: 2
+    Text: DOLPHIN DIVE
+  - Award: 3
+    Text: DETACHED BULLSEYE
+  - Award: 4
+    Text: RICOCHET
+--- !u!114 &6550453847682205813
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7bf89434bd7c7643ac3ddc19f8b3af7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CombatFeedbackRelay
+  ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &3668762009074202169
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 514bfbba72af06145a4615bcdbb6de13, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BullseyeTrackingCamera
+  ShowTopMostFoldoutHeaderGroup: 1
+  monitorEnabled: 1
+  trackingDistance: 0.6
+  minimumDistance: 0.18
+  fieldOfView: 46
+  attachedFarClip: 4.5
+  detachedFarClip: 8
+  bodyContext: 0.22
+  positionSmoothTime: 0.14
+  rotationSmoothSpeed: 5.5
+  normalSmoothSpeed: 6
+  maximumCameraSpeed: 2.75
+  collisionRadius: 0.07
+  collisionPadding: 0.04
+  renderWidth: 256
+  renderHeight: 320
+  targetFramesPerSecond: 20
+  fixedExposure: 12.5
+  contrast: 6
+  saturation: -8
+  grainIntensity: 0.12
+  fillLightIntensity: 220
+  backgroundColor: {r: 0.035, g: 0.04, b: 0.045, a: 1}
+  debugVisualization: 0
+--- !u!114 &6595404324382178545
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3422818454917793740}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f2d02754c2df474438098451c9b589b8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BullseyeCameraHud
+  monitorSize: {x: 270, y: 300}
+  margin: {x: 24, y: 24}
+  borderThickness: 3
+  showCenterBrackets: 0
 --- !u!1 &3625492656395199349
 GameObject:
   m_ObjectHideFlags: 0

@@ -74,6 +74,7 @@ public class WeaponPresentationController : NetworkBehaviour
     private float holsterTarget;
     private float proneWeight;
     private float diveWeight;
+    private float climbLowerWeight;
     private float previousYaw;
     private float previousPitch;
     private Vector3 swayPosition;
@@ -473,18 +474,26 @@ public class WeaponPresentationController : NetworkBehaviour
 
         bool diving = playerMovement != null && playerMovement.BlocksCombat;
         bool prone = playerMovement != null && playerMovement.IsProne && !diving;
+        bool climbing = playerMovement != null && playerMovement.IsClimbing;
         proneWeight = Mathf.MoveTowards(proneWeight, prone ? 1f : 0f, deltaTime / 0.18f);
         diveWeight = Mathf.MoveTowards(diveWeight, diving ? 1f : 0f, deltaTime / 0.12f);
+        float climbDuration = appliedDefinition != null
+            ? appliedDefinition.ReloadLowerDuration
+            : 0.18f;
+        climbLowerWeight = Mathf.MoveTowards(climbLowerWeight, climbing ? 1f : 0f, deltaTime / climbDuration);
 
         float sprintT = sprintWeight * sprintWeight * (3f - 2f * sprintWeight) * (1f - aimBlend);
         float holsterT = holsterWeight * holsterWeight * (3f - 2f * holsterWeight);
         float proneT = proneWeight * proneWeight * (3f - 2f * proneWeight) * (1f - diveWeight);
         float diveT = diveWeight * diveWeight * (3f - 2f * diveWeight);
+        float climbT = climbLowerWeight * climbLowerWeight * (3f - 2f * climbLowerWeight);
 
         Vector3 sprintPos = config != null ? config.SprintLocalPosition : Vector3.zero;
         Vector3 sprintEuler = config != null ? config.SprintLocalEuler : Vector3.zero;
         Vector3 holsterPos = config != null ? config.HolsterLocalPosition : new Vector3(0.03f, -0.3f, -0.1f);
         Vector3 holsterEuler = config != null ? config.HolsterLocalEuler : new Vector3(42f, 16f, -20f);
+        Vector3 climbPos = config != null ? config.ReloadLowerLocalPosition : new Vector3(0.04f, -0.78f, 0.02f);
+        Vector3 climbEuler = config != null ? config.ReloadLowerLocalEuler : new Vector3(42f, 12f, 8f);
         SampleSprintSway(sprintT, deltaTime, out Vector3 sprintSwayPos, out Vector3 sprintSwayEuler);
 
         float airWeight = isReloadPresenting ? 0f : 1f;
@@ -505,16 +514,18 @@ public class WeaponPresentationController : NetworkBehaviour
             + holsterPos * holsterT
             + proneLocalPosition * proneT
             + diveLocalPosition * diveT
-            + (airPosition + landPosition) * airWeight
-            + reloadPositionOffset;
+            + (airPosition + landPosition) * airWeight * (1f - climbT)
+            + climbPos * climbT
+            + reloadPositionOffset * (1f - climbT);
         weaponMount.localRotation = mountRestLocalRotation
             * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(sprintEuler), sprintT)
             * Quaternion.Euler(sprintSwayEuler)
             * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(holsterEuler), holsterT)
             * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(proneLocalEuler), proneT)
             * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(diveLocalEuler), diveT)
-            * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(landPitch * landKick, 0f, 0f), airWeight)
-            * Quaternion.Euler(reloadEulerOffset);
+            * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(landPitch * landKick, 0f, 0f), airWeight * (1f - climbT))
+            * Quaternion.Slerp(Quaternion.identity, Quaternion.Euler(climbEuler), climbT)
+            * Quaternion.Euler(reloadEulerOffset * (1f - climbT));
 
         ApplyFirstPersonPostureParameters(prone, diving);
     }
@@ -970,6 +981,7 @@ public class WeaponPresentationController : NetworkBehaviour
         holsterTarget = 0f;
         proneWeight = 0f;
         diveWeight = 0f;
+        climbLowerWeight = 0f;
         isMoving = false;
         currentPlayedState = null;
         locomotionLockUntil = 0f;

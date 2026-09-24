@@ -68,6 +68,15 @@ public class BullseyeTarget : MonoBehaviour
 
     public bool TryRegisterHits(ulong shooterClientId, float[] distances)
     {
+        return TryRegisterHits(shooterClientId, distances, null, null);
+    }
+
+    public bool TryRegisterHits(
+        ulong shooterClientId,
+        float[] distances,
+        int[] ricochetCounts,
+        string ricochetSurfaceId)
+    {
         if (distances == null || distances.Length == 0)
             return false;
 
@@ -80,7 +89,7 @@ public class BullseyeTarget : MonoBehaviour
         if (playerHealth.IsDead || playerHealth.CurrentHealth <= 0)
             return false;
 
-        playerHealth.RegisterBullseyeHits(distances);
+        playerHealth.RegisterBullseyeHits(distances, ricochetCounts, ricochetSurfaceId);
         return true;
     }
 

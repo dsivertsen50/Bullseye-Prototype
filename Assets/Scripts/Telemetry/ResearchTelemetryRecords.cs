@@ -232,6 +232,8 @@ public class ResearchEliminationRecord
     public string BullseyeState;
     public float Distance;
     public ResearchVec3 BullseyeWorldPosition;
+    public bool WasRicochet;
+    public int RicochetCount;
 }
 
 [Serializable]

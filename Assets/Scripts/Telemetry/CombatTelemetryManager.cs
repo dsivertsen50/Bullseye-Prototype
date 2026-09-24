@@ -186,12 +186,15 @@ public class CombatTelemetryManager : MonoBehaviour
         ulong victimClientId,
         string weaponId,
         float distance,
-        int damageAmount)
+        int damageAmount,
+        int ricochetCount = 0,
+        string ricochetSurfaceId = null,
+        float projectilePathDistance = 0f)
     {
         if (!BeginRecord() || damageAmount <= 0)
             return;
 
-        AddEvent(new CombatEvent
+        var damaged = new CombatEvent
         {
             Type = CombatEventType.BullseyeDamaged,
             ActorClientId = attackerClientId,
@@ -200,7 +203,12 @@ public class CombatTelemetryManager : MonoBehaviour
             WeaponId = NormalizeWeaponId(weaponId),
             Distance = Mathf.Max(0f, distance),
             Amount = damageAmount
-        });
+        };
+        StampRicochet(damaged, ricochetCount, ricochetSurfaceId, projectilePathDistance);
+        if (damaged.WasRicochet)
+            GetOrCreateStats(attackerClientId).RicochetDamage += damageAmount;
+
+        AddEvent(damaged);
     }
 
     public void RecordBullseyeHit(
@@ -209,7 +217,10 @@ public class CombatTelemetryManager : MonoBehaviour
         string weaponId,
         float distance,
         BullseyeCombatState bullseyeState,
-        int damageAmount)
+        int damageAmount,
+        int ricochetCount = 0,
+        string ricochetSurfaceId = null,
+        float projectilePathDistance = 0f)
     {
         if (!BeginRecord())
             return;
@@ -217,7 +228,7 @@ public class CombatTelemetryManager : MonoBehaviour
         PlayerMatchStats stats = GetOrCreateStats(attackerClientId);
         stats.BullseyeHits++;
 
-        AddEvent(new CombatEvent
+        var hit = new CombatEvent
         {
             Type = CombatEventType.BullseyeHit,
             ActorClientId = attackerClientId,
@@ -227,11 +238,13 @@ public class CombatTelemetryManager : MonoBehaviour
             Distance = Mathf.Max(0f, distance),
             BullseyeState = bullseyeState,
             Amount = Mathf.Max(0, damageAmount)
-        });
+        };
+        StampRicochet(hit, ricochetCount, ricochetSurfaceId, projectilePathDistance);
+        AddEvent(hit);
 
         if (damageAmount > 0)
         {
-            AddEvent(new CombatEvent
+            var damaged = new CombatEvent
             {
                 Type = CombatEventType.BullseyeDamaged,
                 ActorClientId = attackerClientId,
@@ -241,7 +254,12 @@ public class CombatTelemetryManager : MonoBehaviour
                 Distance = Mathf.Max(0f, distance),
                 BullseyeState = bullseyeState,
                 Amount = damageAmount
-            });
+            };
+            StampRicochet(damaged, ricochetCount, ricochetSurfaceId, projectilePathDistance);
+            if (damaged.WasRicochet)
+                stats.RicochetDamage += damageAmount;
+
+            AddEvent(damaged);
         }
     }
 
@@ -254,7 +272,13 @@ public class CombatTelemetryManager : MonoBehaviour
         if (!BeginRecord())
             return;
 
-        if (causerClientId != DamageContext.NoAttackerId)
+        if (method == BullseyeDetachMethod.FallImpact)
+        {
+            PlayerMatchStats victim = GetOrCreateStats(victimClientId);
+            if (!victim.DetachmentsByMethod.TryAdd(method, 1))
+                victim.DetachmentsByMethod[method]++;
+        }
+        else if (causerClientId != DamageContext.NoAttackerId)
         {
             PlayerMatchStats causer = GetOrCreateStats(causerClientId);
             causer.BullseyesDetached++;
@@ -289,7 +313,7 @@ public class CombatTelemetryManager : MonoBehaviour
         if (victimNetworkStats != null)
             victimNetworkStats.AddDeath();
 
-        AddEvent(new CombatEvent
+        var death = new CombatEvent
         {
             Type = CombatEventType.PlayerDeath,
             TargetClientId = victimClientId,
@@ -298,7 +322,9 @@ public class CombatTelemetryManager : MonoBehaviour
             BullseyeState = bullseyeState,
             Distance = Mathf.Max(0f, context.Distance),
             WorldPosition = bullseyePosition
-        });
+        };
+        StampRicochet(death, context);
+        AddEvent(death);
 
         ulong attackerId = context.HasAttacker ? context.AttackerClientId : DamageContext.NoAttackerId;
         bool creditElimination = context.HasAttacker && attackerId != victimClientId;
@@ -312,6 +338,9 @@ public class CombatTelemetryManager : MonoBehaviour
                 attacker.DetachedBullseyeEliminations++;
             else
                 attacker.AttachedBullseyeEliminations++;
+
+            if (context.WasRicochet)
+                attacker.RicochetEliminations++;
 
             if (context.SourceType == DamageSourceType.BodySlam)
             {
@@ -335,7 +364,7 @@ public class CombatTelemetryManager : MonoBehaviour
             }
         }
 
-        AddEvent(new CombatEvent
+        var elimination = new CombatEvent
         {
             Type = CombatEventType.Elimination,
             ActorClientId = creditElimination ? attackerId : DamageContext.NoAttackerId,
@@ -347,7 +376,9 @@ public class CombatTelemetryManager : MonoBehaviour
             BullseyeState = bullseyeState,
             Distance = Mathf.Max(0f, context.Distance),
             WorldPosition = bullseyePosition
-        });
+        };
+        StampRicochet(elimination, context);
+        AddEvent(elimination);
 
         AwardAssists(victimClientId, attackerId, assistContributors);
     }
@@ -463,6 +494,28 @@ public class CombatTelemetryManager : MonoBehaviour
             counts[key]++;
     }
 
+    private static void StampRicochet(
+        CombatEvent combatEvent,
+        int ricochetCount,
+        string ricochetSurfaceId,
+        float projectilePathDistance)
+    {
+        int bounces = ricochetCount > 0 ? ricochetCount : 0;
+        combatEvent.RicochetCount = bounces;
+        combatEvent.WasRicochet = bounces > 0;
+        combatEvent.RicochetSurfaceId = bounces > 0 ? ricochetSurfaceId : null;
+        combatEvent.ProjectilePathDistance = Mathf.Max(0f, projectilePathDistance);
+    }
+
+    private static void StampRicochet(CombatEvent combatEvent, DamageContext context)
+    {
+        StampRicochet(
+            combatEvent,
+            context.RicochetCount,
+            context.RicochetSurfaceId,
+            context.ProjectilePathDistance);
+    }
+
     private static string NormalizeWeaponId(string weaponId)
     {
         return string.IsNullOrWhiteSpace(weaponId) ? CombatEvent.NoWeaponId : weaponId;
@@ -542,7 +595,7 @@ public class CombatTelemetryManager : MonoBehaviour
         GUILayout.Label(
             $"Client {stats.ClientId}  Elim:{stats.Eliminations}  Ast:{stats.Assists}  Dth:{stats.Deaths}  " +
             $"Att:{stats.AttachedBullseyeEliminations}  DetElim:{stats.DetachedBullseyeEliminations}  " +
-            $"Slam:{stats.BodySlamEliminations}  Detach:{stats.BullseyesDetached}  " +
+            $"Slam:{stats.BodySlamEliminations}  RicoElim:{stats.RicochetEliminations}  RicoDmg:{stats.RicochetDamage}  Detach:{stats.BullseyesDetached}  " +
             $"Shots:{stats.ShotsFired}  Hits:{stats.BullseyeHits}  " +
             $"Hit%:{stats.BullseyeHitPercentage:P0}  AvgDist:{stats.AverageFirearmEliminationDistance:0.0}  " +
             $"Long:{stats.LongestFirearmEliminationDistance:0.0}",

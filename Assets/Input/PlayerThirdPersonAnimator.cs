@@ -40,6 +40,7 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     private static readonly int IsTurningLeftHash = Animator.StringToHash("IsTurningLeft");
     private static readonly int IsTurningRightHash = Animator.StringToHash("IsTurningRight");
     private static readonly int IsAirborneHash = Animator.StringToHash("IsAirborne");
+    private static readonly int IsFallingHash = Animator.StringToHash("IsFalling");
     private static readonly int JumpFromSprintHash = Animator.StringToHash("JumpFromSprint");
     private static readonly int JumpTriggerHash = Animator.StringToHash("Jump");
     private static readonly int AimWeightHash = Animator.StringToHash("AimWeight");
@@ -60,6 +61,10 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     [SerializeField] private float crouchReferenceSpeed = 2.2f;
     [SerializeField] private Vector2 locomotionPlaySpeedRange = new Vector2(0.8f, 2.2f);
 
+    [Header("Fall And Climb")]
+    [SerializeField] private float climbReferenceSpeed = 3f;
+    [SerializeField] private float climbAnimationSpeedMultiplier = 1f;
+
     [Header("Head Look")]
     [SerializeField] private bool enableHeadLook = true;
     [SerializeField, Range(0.1f, 0.7f)] private float headPitchScale = 0.38f;
@@ -78,6 +83,9 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     [SerializeField] private bool debugIsProne;
     [SerializeField] private float debugTurnSpeed;
     [SerializeField] private string debugJump;
+    [SerializeField] private bool debugIsFalling;
+    [SerializeField] private bool debugIsClimbing;
+    [SerializeField] private float debugClimbPlayback;
 
     private bool appliedDead;
     private bool wasDolphinDiving;
@@ -227,7 +235,9 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         if (HasParameter(IsClimbingHash))
             thirdPersonAnimator.SetBool(IsClimbingHash, animationState.IsClimbing);
         if (HasParameter(ClimbSpeedHash))
-            thirdPersonAnimator.SetFloat(ClimbSpeedHash, animationState.ClimbSpeed);
+            thirdPersonAnimator.SetFloat(ClimbSpeedHash, ResolveClimbPlayback());
+        if (HasParameter(IsFallingHash))
+            thirdPersonAnimator.SetBool(IsFallingHash, animationState.IsFalling);
         thirdPersonAnimator.SetFloat(ProneMoveSpeedHash, animationState.ProneMoveSpeed);
         thirdPersonAnimator.SetFloat(TurnSpeedHash, animationState.TurnSpeed, damp, Time.deltaTime);
         thirdPersonAnimator.SetBool(IsTurningLeftHash, animationState.IsTurningLeft);
@@ -268,6 +278,15 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         WriteDebug();
     }
 
+    private float ResolveClimbPlayback()
+    {
+        if (animationState == null || !animationState.IsClimbing)
+            return 0f;
+
+        float reference = Mathf.Max(0.1f, climbReferenceSpeed);
+        return (animationState.ClimbSpeed / reference) * climbAnimationSpeedMultiplier;
+    }
+
     private float ResolveLocomotionPlaySpeed()
     {
         float reference = walkReferenceSpeed;
@@ -289,46 +308,79 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
     {
         if (!enableHeadLook || dead || thirdPersonAnimator == null || !thirdPersonAnimator.enabled)
             return;
-        if (IsLocalOwner())
+
+        bool climbing = animationState != null && animationState.IsClimbing;
+        if (IsLocalOwner() && !climbing)
             return;
-        if (animationState != null && (animationState.IsProne || animationState.IsDolphinDiving))
+        if (!climbing && animationState != null &&
+            (animationState.IsProne || animationState.IsDolphinDiving || animationState.IsFalling))
             return;
 
         Transform head = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.Head);
         if (head == null)
             return;
 
+        TryGetComponent(out PlayerMovement movement);
         float bodyYaw = transform.eulerAngles.y;
+        float lookYaw = bodyYaw;
+        float pitchLimit = maxHeadPitch;
+        float yawLimit = maxHeadYaw;
+        float downLimit = maxHeadPitch;
+        float targetPitch = 0f;
+
+        if (climbing && movement != null)
+        {
+            bodyYaw = movement.LadderBodyYaw;
+            lookYaw = bodyYaw + movement.LadderLookYaw;
+            yawLimit = movement.HeadYawLimit;
+            pitchLimit = movement.HeadLookUpLimit;
+            downLimit = movement.HeadLookDownLimit;
+            targetPitch = Mathf.Clamp(movement.LadderLookPitch, -downLimit, pitchLimit);
+        }
+        else if (animationState != null)
+        {
+            targetPitch = Mathf.Clamp(animationState.AimPitch * headPitchScale, -pitchLimit, pitchLimit);
+            if (animationState.IsCrouching)
+                targetPitch *= 0.55f;
+        }
+
         if (!hasLaggedLookYaw)
         {
-            laggedLookYaw = bodyYaw;
+            laggedLookYaw = lookYaw;
             hasLaggedLookYaw = true;
         }
 
-        float targetPitch = 0f;
-        if (animationState != null)
-            targetPitch = Mathf.Clamp(animationState.AimPitch * headPitchScale, -maxHeadPitch, maxHeadPitch);
-        if (animationState != null && animationState.IsCrouching)
-            targetPitch *= 0.55f;
-
-        float smooth = Mathf.Max(0.04f, headLookSmoothTime);
+        float smooth = climbing && movement != null
+            ? 1f / movement.HeadLookSmoothSpeed
+            : Mathf.Max(0.04f, headLookSmoothTime);
         laggedPitch = Mathf.SmoothDamp(laggedPitch, targetPitch, ref pitchLookVelocity, smooth);
-        laggedLookYaw = Mathf.SmoothDampAngle(laggedLookYaw, bodyYaw, ref yawLookVelocity, smooth);
-        float extraYaw = Mathf.Clamp(Mathf.DeltaAngle(bodyYaw, laggedLookYaw), -maxHeadYaw, maxHeadYaw);
+        laggedLookYaw = Mathf.SmoothDampAngle(laggedLookYaw, lookYaw, ref yawLookVelocity, smooth);
+        float extraYaw = Mathf.Clamp(Mathf.DeltaAngle(bodyYaw, laggedLookYaw), -yawLimit, yawLimit);
+        float extraPitch = Mathf.Clamp(laggedPitch, -downLimit, pitchLimit);
 
         Vector3 pitchAxis = transform.right;
         Vector3 yawAxis = Vector3.up;
-        Transform neck = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.Neck);
-        if (neck != null && neckShare > 0.01f)
+        float chestShare = climbing ? 0.28f : 0f;
+        Transform chest = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.UpperChest);
+        if (chest != null && chestShare > 0.01f)
         {
-            neck.rotation = Quaternion.AngleAxis(extraYaw * neckShare, yawAxis) *
-                Quaternion.AngleAxis(laggedPitch * neckShare, pitchAxis) *
+            chest.rotation = Quaternion.AngleAxis(extraYaw * chestShare, yawAxis) *
+                Quaternion.AngleAxis(extraPitch * chestShare, pitchAxis) *
+                chest.rotation;
+        }
+
+        float neckPortion = Mathf.Clamp01(neckShare) * (1f - chestShare);
+        Transform neck = thirdPersonAnimator.GetBoneTransform(HumanBodyBones.Neck);
+        if (neck != null && neckPortion > 0.01f)
+        {
+            neck.rotation = Quaternion.AngleAxis(extraYaw * neckPortion, yawAxis) *
+                Quaternion.AngleAxis(extraPitch * neckPortion, pitchAxis) *
                 neck.rotation;
         }
 
-        float headShare = 1f - Mathf.Clamp01(neckShare);
+        float headShare = Mathf.Max(0.05f, 1f - chestShare - neckPortion);
         head.rotation = Quaternion.AngleAxis(extraYaw * headShare, yawAxis) *
-            Quaternion.AngleAxis(laggedPitch * headShare, pitchAxis) *
+            Quaternion.AngleAxis(extraPitch * headShare, pitchAxis) *
             head.rotation;
     }
 
@@ -342,6 +394,9 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         debugIsProne = animationState.IsProne;
         debugTurnSpeed = animationState.TurnSpeed;
         debugJump = animationState.JumpFromSprint ? "sprint" : "idle";
+        debugIsFalling = animationState.IsFalling;
+        debugIsClimbing = animationState.IsClimbing;
+        debugClimbPlayback = ResolveClimbPlayback();
 
         if (thirdPersonAnimator == null || !thirdPersonAnimator.isActiveAndEnabled)
         {
@@ -373,6 +428,8 @@ public class PlayerThirdPersonAnimator : MonoBehaviour
         if (info.IsName("Prone to Crouching")) return "Prone to Crouching";
         if (info.IsName("Idle to Jump")) return "Idle to Jump";
         if (info.IsName("Sprint to Jump")) return "Sprint to Jump";
+        if (info.IsName("Falling")) return "Falling";
+        if (info.IsName("Ladder Climbing")) return "Ladder Climbing";
         if (info.IsName("Airborne Slack")) return "Airborne (pending)";
         if (info.IsName("Airborne (pending)")) return "Airborne (pending)";
         if (info.IsName("Dolphin Dive (pending)")) return "Dolphin Dive (pending)";

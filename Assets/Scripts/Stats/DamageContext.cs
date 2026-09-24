@@ -1,3 +1,5 @@
+using UnityEngine;
+
 /// <summary>
 /// Identifies where a damage event came from. Additional sources can be
 /// added later without changing elimination-tracking call sites.
@@ -26,16 +28,29 @@ public struct DamageContext
     public DamageSourceType SourceType;
     public string SourceId;
     public float Distance;
+    public int RicochetCount;
+    public string RicochetSurfaceId;
+    public float ProjectilePathDistance;
 
     public bool HasAttacker => AttackerClientId != NoAttackerId;
+
+    /// <summary>
+    /// True when this shot bounced at least once. Kept consistent with
+    /// <see cref="RicochetCount"/> so a positive count cannot be recorded as a direct hit.
+    /// </summary>
+    public bool WasRicochet => RicochetCount > 0;
 
     public static DamageContext FromFirearm(
         ulong attackerClientId,
         ulong victimClientId,
         int amount,
         string weaponId,
-        float distance = 0f)
+        float distance = 0f,
+        int ricochetCount = 0,
+        string ricochetSurfaceId = null,
+        float projectilePathDistance = 0f)
     {
+        int bounces = ricochetCount > 0 ? ricochetCount : 0;
         return new DamageContext
         {
             AttackerClientId = attackerClientId,
@@ -43,7 +58,10 @@ public struct DamageContext
             Amount = amount,
             SourceType = DamageSourceType.Firearm,
             SourceId = string.IsNullOrEmpty(weaponId) ? "unknown" : weaponId,
-            Distance = distance
+            Distance = distance,
+            RicochetCount = bounces,
+            RicochetSurfaceId = bounces > 0 ? ricochetSurfaceId : null,
+            ProjectilePathDistance = Mathf.Max(0f, projectilePathDistance)
         };
     }
 

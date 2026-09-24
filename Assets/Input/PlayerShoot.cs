@@ -11,7 +11,7 @@ public class PlayerShoot : NetworkBehaviour
     [SerializeField] private bool showRicochetDebug;
 
     private readonly RaycastHit[] hits = new RaycastHit[32];
-    private readonly List<(BullseyeTarget target, float distance)> pelletHits = new(16);
+    private readonly List<PelletHit> pelletHits = new(16);
     private readonly List<Vector3> impactPoints = new(16);
     private readonly List<Vector3> impactNormals = new(16);
     private readonly List<float> impactDelays = new(16);
@@ -228,7 +228,13 @@ public class PlayerShoot : NetworkBehaviour
 
             if (HitscanRicochet.TryGetBullseyeTarget(hit.collider, out BullseyeTarget target))
             {
-                pelletHits.Add((target, trace.totalDistance));
+                pelletHits.Add(new PelletHit
+                {
+                    Target = target,
+                    Distance = trace.totalDistance,
+                    RicochetCount = trace.bounceCount,
+                    SurfaceId = ResolveRicochetSurfaceId(trace)
+                });
                 lastHitscanHitBullseye = true;
                 lastHitscanHitHealth = target.OwnerHealth;
                 lastHitscanImpactPoint = hit.point;
@@ -542,30 +548,41 @@ public class PlayerShoot : NetworkBehaviour
 
         for (int i = 0; i < pelletHits.Count; i++)
         {
-            BullseyeTarget target = pelletHits[i].target;
+            BullseyeTarget target = pelletHits[i].Target;
             if (target == null)
                 continue;
 
             int count = 0;
             for (int j = 0; j < pelletHits.Count; j++)
             {
-                if (pelletHits[j].target == target)
+                if (pelletHits[j].Target == target)
                     count++;
             }
 
             var distances = new float[count];
+            var ricochetCounts = new int[count];
+            int highestRicochet = 0;
+            string surfaceId = null;
             int write = 0;
             for (int j = 0; j < pelletHits.Count; j++)
             {
-                if (pelletHits[j].target != target)
+                if (pelletHits[j].Target != target)
                     continue;
 
-                distances[write++] = pelletHits[j].distance;
+                distances[write] = pelletHits[j].Distance;
+                ricochetCounts[write] = pelletHits[j].RicochetCount;
+                if (pelletHits[j].RicochetCount > highestRicochet)
+                {
+                    highestRicochet = pelletHits[j].RicochetCount;
+                    surfaceId = pelletHits[j].SurfaceId;
+                }
+
+                write++;
                 if (j != i)
                     pelletHits[j] = default;
             }
 
-            if (target.TryRegisterHits(OwnerClientId, distances))
+            if (target.TryRegisterHits(OwnerClientId, distances, ricochetCounts, surfaceId))
                 scoredHit = true;
 
             pelletHits[i] = default;
@@ -595,7 +612,7 @@ public class PlayerShoot : NetworkBehaviour
 
         for (int i = 0; i < pelletHits.Count; i++)
         {
-            float distance = pelletHits[i].distance;
+            float distance = pelletHits[i].Distance;
             totalDistance += distance;
             damageBeforeFalloff += settings.ProjectileDamage;
             damageAfterFalloff += WeaponDamageCalculator.EvaluateProjectileDamage(settings, distance);
@@ -672,5 +689,24 @@ public class PlayerShoot : NetworkBehaviour
             NetworkObject,
             hits,
             out result);
+    }
+
+    private static string ResolveRicochetSurfaceId(in HitscanRicochet.TraceResult trace)
+    {
+        if (trace.bounceCount <= 0 || !trace.TryGetBounce(0, out HitscanRicochet.BounceRecord bounce))
+            return null;
+
+        if (RicochetSurface.TryGetEnabled(bounce.hit.collider, out RicochetSurface surface) && surface != null)
+            return surface.gameObject.name;
+
+        return bounce.hit.collider != null ? bounce.hit.collider.name : null;
+    }
+
+    private struct PelletHit
+    {
+        public BullseyeTarget Target;
+        public float Distance;
+        public int RicochetCount;
+        public string SurfaceId;
     }
 }

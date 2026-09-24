@@ -213,6 +213,21 @@ public class BullseyeDetachController : NetworkBehaviour
         return true;
     }
 
+    public bool TryDetachFromFallImpact()
+    {
+        if (!IsServer || !IsSpawned || bullseye == null)
+            return false;
+        if (playerHealth != null && playerHealth.IsDead)
+            return false;
+        if (!IsAttached)
+            return false;
+
+        BeginDetachWithoutImpulse(DamageContext.NoAttackerId, BullseyeDetachMethod.FallImpact);
+        if (physicsBody != null && !physicsBody.isKinematic)
+            physicsBody.linearVelocity = transform.forward * 1.4f + Vector3.up * 1.6f;
+        return true;
+    }
+
     public void ApplySuctionAttraction(
         Vector3 attractorPosition,
         Vector3 attractorVelocity,

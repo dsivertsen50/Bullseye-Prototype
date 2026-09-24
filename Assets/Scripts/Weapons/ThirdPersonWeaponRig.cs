@@ -202,6 +202,12 @@ public class ThirdPersonWeaponRig : MonoBehaviour
         worldWeapon?.SnapToHand(hand);
     }
 
+    private void Update()
+    {
+        if (animationState != null && animationState.IsClimbing)
+            ApplyRigWeights(0f, 0f, 0f, 0f, 0f);
+    }
+
     private void LateUpdate()
     {
         if (playerHealth != null && playerHealth.IsDead && !poseOnceForElimination)
@@ -336,17 +342,11 @@ public class ThirdPersonWeaponRig : MonoBehaviour
     {
         if (IsEditorPreview)
             return true;
-        if (networkObject != null && networkObject.IsSpawned && networkObject.IsOwner && !poseOnceForElimination)
-        {
-            EliminationController elimination = playerHealth != null
-                ? playerHealth.GetComponent<EliminationController>()
-                : GetComponent<EliminationController>();
-            if (elimination == null || !elimination.ShowOwnerWorldWeapon)
-                return false;
-        }
         if (playerHealth != null && playerHealth.AreDeathVisualsHidden)
             return false;
-        if (worldWeapon != null && !worldWeapon.IsRemotePresentationActive && !poseOnceForElimination)
+
+        bool owner = networkObject != null && networkObject.IsSpawned && networkObject.IsOwner;
+        if (!owner && worldWeapon != null && !worldWeapon.IsRemotePresentationActive && !poseOnceForElimination)
             return false;
         return true;
     }
@@ -359,6 +359,8 @@ public class ThirdPersonWeaponRig : MonoBehaviour
             return 0f;
         if (animationState == null)
             return 1f;
+        if (animationState.IsClimbing)
+            return 0f;
         if (animationState.IsDolphinDiving)
             return 0.12f;
         return 1f;
@@ -393,6 +395,12 @@ public class ThirdPersonWeaponRig : MonoBehaviour
         if (weaponAnchor == null || upperChest == null)
             return;
 
+        if (animationState != null && animationState.IsClimbing)
+        {
+            PlaceBackStrap(upperChest);
+            return;
+        }
+
         float pitch = ResolveLookPitch();
         float pitchScale = Mathf.Lerp(1f, 0.35f, proneBlend);
         Quaternion pitchRot = Quaternion.AngleAxis(pitch * pitchScale, transform.right);
@@ -400,6 +408,14 @@ public class ThirdPersonWeaponRig : MonoBehaviour
         Vector3 worldPosition = upperChest.position + pitchRot * (chestRotation * blendedPose.weaponAnchorLocalPosition);
         Quaternion worldRotation = pitchRot * chestRotation * Quaternion.Euler(blendedPose.weaponAnchorLocalEuler);
         weaponAnchor.SetPositionAndRotation(worldPosition, worldRotation);
+    }
+
+    private void PlaceBackStrap(Transform chest)
+    {
+        Vector3 back = -transform.forward;
+        Vector3 position = chest.position + back * 0.2f + transform.up * 0.02f + transform.right * 0.06f;
+        Quaternion rotation = transform.rotation * Quaternion.Euler(78f, 168f, 18f);
+        weaponAnchor.SetPositionAndRotation(position, rotation);
     }
 
     private float ResolveLookPitch()

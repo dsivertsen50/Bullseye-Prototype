@@ -106,6 +106,7 @@ public static class FinalizedMatchStatsFactory
                 match.GetDetachments(BullseyeDetachMethod.CombustionGrenade) +
                 match.GetDetachments(BullseyeDetachMethod.MagnetismGrenade),
             BodySlamEliminations = match.BodySlamEliminations,
+            RicochetEliminations = match.RicochetEliminations,
             LongestEliminationDistance = match.LongestFirearmEliminationDistance
         };
 

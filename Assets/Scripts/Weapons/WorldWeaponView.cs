@@ -10,6 +10,7 @@ using UnityEngine;
 public class WorldWeaponView : NetworkBehaviour
 {
     private const string WorldWeaponLayerName = "WorldWeapon";
+    private const string LocalPlayerBodyLayerName = "LocalPlayerBody";
 
     [SerializeField] private WeaponDefinition definition;
     [SerializeField] private Transform weaponSocket;
@@ -35,6 +36,7 @@ public class WorldWeaponView : NetworkBehaviour
     private AudioSource[] fireSfxVoices;
     private int nextFireSfxVoice;
     private bool ownerEliminationPresentation;
+    private bool ownerShadowOnly;
     private float frozenAnimatorSpeed = 1f;
     private bool weaponAnimatorFrozen;
 
@@ -79,8 +81,7 @@ public class WorldWeaponView : NetworkBehaviour
         remotePresentationEnabled = !IsOwner;
         if (!remotePresentationEnabled)
         {
-            SetWorldWeaponActive(false);
-            enabled = false;
+            BeginOwnerShadow();
             return;
         }
 
@@ -131,6 +132,16 @@ public class WorldWeaponView : NetworkBehaviour
     {
         bool sameWeapon = definition == next && currentVisual != null;
         definition = next;
+        if (IsSpawned && IsOwner && !ownerEliminationPresentation)
+        {
+            if (!sameWeapon)
+                RebuildWorldModel(next);
+            PresentOwnerShadow();
+            if (!sameWeapon)
+                thirdPersonRig?.NotifyWeaponChanged();
+            return;
+        }
+
         if (IsSpawned && IsOwner)
             return;
         if (sameWeapon)
@@ -237,7 +248,10 @@ public class WorldWeaponView : NetworkBehaviour
     {
         RestoreWeaponAnimator();
         ResetPresentation();
-        SetWorldWeaponActive(!IsOwner);
+        if (IsOwner)
+            BeginOwnerShadow();
+        else
+            SetWorldWeaponActive(true);
         thirdPersonRig?.ResetAfterRespawn();
         thirdPersonRig?.NotifyWeaponChanged();
     }
@@ -252,8 +266,10 @@ public class WorldWeaponView : NetworkBehaviour
             definition = inventory.ActiveDefinition;
 
         ownerEliminationPresentation = true;
+        ownerShadowOnly = false;
         remotePresentationEnabled = true;
         enabled = true;
+        RestoreWeaponShadowCasting();
         if (weaponKick != null && weaponKick.childCount == 0 && definition != null)
             RebuildWorldModel(definition);
 
@@ -286,8 +302,7 @@ public class WorldWeaponView : NetworkBehaviour
             return;
 
         remotePresentationEnabled = false;
-        SetWorldWeaponActive(false);
-        enabled = false;
+        BeginOwnerShadow();
     }
 
     public void FreezeWeaponAnimator()
@@ -336,7 +351,7 @@ public class WorldWeaponView : NetworkBehaviour
 
     public void AttachToAnchor()
     {
-        if (IsSpawned && IsOwner && !ownerEliminationPresentation)
+        if (IsSpawned && IsOwner && !ownerEliminationPresentation && !ownerShadowOnly)
             return;
 
         ResolveHierarchyFallbacks();
@@ -428,6 +443,78 @@ public class WorldWeaponView : NetworkBehaviour
     {
         bool hidden = playerHealth != null && playerHealth.AreDeathVisualsHidden;
         SetWorldWeaponActive(!hidden);
+    }
+
+    private void BeginOwnerShadow()
+    {
+        ownerShadowOnly = true;
+        remotePresentationEnabled = false;
+        enabled = false;
+        PresentOwnerShadow();
+    }
+
+    private void PresentOwnerShadow()
+    {
+        if (!IsOwner || ownerEliminationPresentation)
+            return;
+
+        ownerShadowOnly = true;
+        SetWorldWeaponActive(true);
+        ApplyWeaponShadowMode(UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly);
+        IncludeWeaponLayerOnOwnerCamera();
+        BindThirdPersonVisual();
+    }
+
+    private void RestoreWeaponShadowCasting()
+    {
+        ApplyWeaponShadowMode(UnityEngine.Rendering.ShadowCastingMode.On);
+    }
+
+    private void ApplyWeaponShadowMode(UnityEngine.Rendering.ShadowCastingMode mode)
+    {
+        if (worldWeaponRoot == null)
+            ResolveHierarchyFallbacks();
+        if (worldWeaponRoot == null)
+            return;
+
+        bool shadowOnly = mode == UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+        int shadowLayer = LayerMask.NameToLayer(LocalPlayerBodyLayerName);
+        int worldLayer = LayerMask.NameToLayer(WorldWeaponLayerName);
+        Renderer[] renderers = worldWeaponRoot.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer == null || renderer is ParticleSystemRenderer)
+                continue;
+
+            renderer.shadowCastingMode = mode;
+            renderer.receiveShadows = !shadowOnly;
+            if (shadowOnly && shadowLayer >= 0)
+                renderer.gameObject.layer = shadowLayer;
+            else if (worldLayer >= 0)
+                renderer.gameObject.layer = worldLayer;
+
+            if (renderer is SkinnedMeshRenderer skinned && shadowOnly)
+                skinned.updateWhenOffscreen = true;
+        }
+    }
+
+    private void IncludeWeaponLayerOnOwnerCamera()
+    {
+        int layer = LayerMask.NameToLayer(WorldWeaponLayerName);
+        if (layer < 0)
+            return;
+
+        Camera camera = PlayerNetworkSetup.LocalOwnedCamera;
+        if (camera == null)
+        {
+            Transform cameraTransform = transform.Find("CameraRoot/CameraEffectsRoot/Camera");
+            if (cameraTransform != null)
+                camera = cameraTransform.GetComponent<Camera>();
+        }
+
+        if (camera != null)
+            camera.cullingMask |= 1 << layer;
     }
 
     private void SetWorldWeaponActive(bool active)

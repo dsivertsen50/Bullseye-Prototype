@@ -496,7 +496,7 @@ public static class BullseyeSurfaceSetup
         if (material.HasProperty("_Opacity"))
             material.SetFloat("_Opacity", 1f);
         if (material.HasProperty("_ColorRed"))
-            material.SetColor("_ColorRed", new Color(1.15f, 0.04f, 0.04f, 1f));
+            material.SetColor("_ColorRed", BullseyeColors.StampRed);
         if (material.HasProperty("_ColorWhite"))
             material.SetColor("_ColorWhite", new Color(1.2f, 1.2f, 1.2f, 1f));
 

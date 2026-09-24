@@ -24,9 +24,15 @@ public class FirstPersonHandIk : NetworkBehaviour
     [SerializeField] private Vector3 leftHandEulerOffset = new Vector3(0f, 0f, -90f);
     [SerializeField] private float elbowOut = 0.22f;
     [SerializeField] private float elbowDown = 0.28f;
+    [SerializeField, Tooltip("First-person climb arms in camera space. X shifts left/right, Y is down from the lens, Z is distance in front of the camera. Lower Z brings the arms closer.")]
+    private Vector3 climbArmsCameraOffset = new Vector3(0f, -0.18f, 0.2f);
+    [SerializeField, Tooltip("Yaw added to the climb arms. 0 faces the camera. 180 turns the shoulder stumps toward the camera.")]
+    private float climbArmsYaw = 0f;
 
     private PlayerHealth playerHealth;
     private PlayerAimZoom aimZoom;
+    private PlayerMovement movement;
+    private PlayerThirdPersonAnimator thirdPersonAnimator;
     private FirstPersonArmRig armRig;
     private float weight;
 
@@ -36,6 +42,8 @@ public class FirstPersonHandIk : NetworkBehaviour
     {
         playerHealth = GetComponent<PlayerHealth>();
         aimZoom = GetComponent<PlayerAimZoom>();
+        movement = GetComponent<PlayerMovement>();
+        thirdPersonAnimator = GetComponent<PlayerThirdPersonAnimator>();
         if (presentation == null)
             presentation = GetComponent<WeaponPresentationController>();
         if (inventory == null)
@@ -65,6 +73,14 @@ public class FirstPersonHandIk : NetworkBehaviour
         if (!IsSpawned || !IsOwner || armRig == null)
             return;
 
+        if (movement != null && movement.IsClimbing)
+        {
+            armRig.RestoreWeaponParent();
+            armRig.SetVisible(false);
+            return;
+        }
+
+        armRig.RestoreWeaponParent();
         armRig.ApplyOffset(fpArmsPositionOffset, fpArmsRotationOffset);
 
         bool show = ShouldShowArms();
@@ -91,6 +107,20 @@ public class FirstPersonHandIk : NetworkBehaviour
             weight);
     }
 
+    private void PoseClimbingArms()
+    {
+        Animator world = thirdPersonAnimator != null ? thirdPersonAnimator.ThirdPersonAnimator : null;
+        if (world == null)
+        {
+            armRig.SetVisible(false);
+            return;
+        }
+
+        Transform view = ResolveViewCamera();
+        armRig.SetVisible(true);
+        armRig.PoseClimbInView(world, view != null ? view : transform, climbArmsCameraOffset, climbArmsYaw);
+    }
+
     private bool ShouldShowArms()
     {
         if (playerHealth != null && playerHealth.IsDead)
@@ -110,6 +140,22 @@ public class FirstPersonHandIk : NetworkBehaviour
         if (presentation != null && presentation.AimBlend > 0.25f)
             return true;
         return aimZoom != null && aimZoom.IsAiming;
+    }
+
+    private Transform ResolveViewCamera()
+    {
+        Transform camera = transform.Find("CameraRoot/CameraEffectsRoot/Camera");
+        if (camera != null)
+            return camera;
+
+        Camera[] cameras = GetComponentsInChildren<Camera>(true);
+        for (int i = 0; i < cameras.Length; i++)
+        {
+            if (cameras[i] != null && cameras[i].name != "FirstPersonWeaponCamera")
+                return cameras[i].transform;
+        }
+
+        return transform.Find("CameraRoot");
     }
 
     private void BuildArmRig()
@@ -202,6 +248,95 @@ public class FirstPersonArmRig : MonoBehaviour
     {
         if (armRenderer != null && armRenderer.enabled != visible)
             armRenderer.enabled = visible;
+        if (visible && armRenderer != null)
+            armRenderer.updateWhenOffscreen = true;
+    }
+
+    private Transform weaponMountParent;
+
+    public void PoseClimbInView(Animator worldAnimator, Transform view, Vector3 viewLocalOffset, float yawOffset)
+    {
+        if (worldAnimator == null || view == null)
+            return;
+
+        if (weaponMountParent == null)
+            weaponMountParent = transform.parent;
+
+        if (transform.parent != view)
+            transform.SetParent(view, false);
+
+        transform.localPosition = viewLocalOffset;
+        transform.localRotation = Quaternion.Euler(0f, yawOffset, 0f);
+        transform.localScale = Vector3.one;
+        CopyClimbLocal(worldAnimator, HumanBodyBones.RightUpperArm, rightUpper);
+        CopyClimbLocal(worldAnimator, HumanBodyBones.RightLowerArm, rightLower);
+        CopyClimbLocal(worldAnimator, HumanBodyBones.RightHand, rightHand);
+        CopyClimbLocal(worldAnimator, HumanBodyBones.LeftUpperArm, leftUpper);
+        CopyClimbLocal(worldAnimator, HumanBodyBones.LeftLowerArm, leftLower);
+        CopyClimbLocal(worldAnimator, HumanBodyBones.LeftHand, leftHand);
+
+        if (rightUpper == null || leftUpper == null)
+            return;
+
+        Vector3 shoulderMid = (rightUpper.position + leftUpper.position) * 0.5f;
+        Vector3 target = view.position + view.rotation * viewLocalOffset;
+        transform.position += target - shoulderMid;
+        SetLayerRecursively(gameObject, LayerMask.NameToLayer(FirstPersonWeaponLayerName));
+    }
+
+    public void RestoreWeaponParent()
+    {
+        if (weaponMountParent == null || transform.parent == weaponMountParent)
+            return;
+
+        transform.SetParent(weaponMountParent, false);
+    }
+
+    private static void CopyClimbLocal(Animator worldAnimator, HumanBodyBones bone, Transform destination)
+    {
+        if (destination == null)
+            return;
+
+        Transform source = worldAnimator.GetBoneTransform(bone);
+        if (source == null)
+            return;
+
+        destination.localPosition = source.localPosition;
+        destination.localRotation = source.localRotation;
+    }
+
+    public void PoseClimb(Animator worldAnimator, Transform visualRoot, Transform playerRoot, Vector3 viewOffset)
+    {
+        if (worldAnimator == null || visualRoot == null || playerRoot == null)
+            return;
+
+        CopyClimbBone(worldAnimator, HumanBodyBones.RightUpperArm, rightUpper, visualRoot, playerRoot, viewOffset);
+        CopyClimbBone(worldAnimator, HumanBodyBones.RightLowerArm, rightLower, visualRoot, playerRoot, viewOffset);
+        CopyClimbBone(worldAnimator, HumanBodyBones.RightHand, rightHand, visualRoot, playerRoot, viewOffset);
+        CopyClimbBone(worldAnimator, HumanBodyBones.LeftUpperArm, leftUpper, visualRoot, playerRoot, viewOffset);
+        CopyClimbBone(worldAnimator, HumanBodyBones.LeftLowerArm, leftLower, visualRoot, playerRoot, viewOffset);
+        CopyClimbBone(worldAnimator, HumanBodyBones.LeftHand, leftHand, visualRoot, playerRoot, viewOffset);
+    }
+
+    private static void CopyClimbBone(
+        Animator worldAnimator,
+        HumanBodyBones bone,
+        Transform destination,
+        Transform visualRoot,
+        Transform playerRoot,
+        Vector3 viewOffset)
+    {
+        if (destination == null)
+            return;
+
+        Transform source = worldAnimator.GetBoneTransform(bone);
+        if (source == null)
+            return;
+
+        Vector3 local = visualRoot.InverseTransformPoint(source.position) + viewOffset;
+        destination.SetPositionAndRotation(
+            playerRoot.TransformPoint(local),
+            playerRoot.rotation * (Quaternion.Inverse(visualRoot.rotation) * source.rotation));
     }
 
     public void PoseHands(
