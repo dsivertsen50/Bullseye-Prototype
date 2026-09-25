@@ -20,7 +20,6 @@ public class PlayerProfileUI : MonoBehaviour
         Bullseye = 2
     }
 
-    private const int DisplayNameLimit = 24;
     private const float MenuPanelAlpha = 0.78f;
     private static readonly Color PanelColor = new Color(0.07f, 0.08f, 0.11f, MenuPanelAlpha);
 
@@ -31,6 +30,9 @@ public class PlayerProfileUI : MonoBehaviour
     private Text displayNameLabel;
     private Text profileIdLabel;
     private InputField displayNameField;
+    private Text nameErrorLabel;
+    private DisplayNameKeyboardUI nameKeyboard;
+    private CanvasGroup profileGroup;
     private Button saveNameButton;
     private Button overviewTab;
     private Button weaponsTab;
@@ -92,6 +94,7 @@ public class PlayerProfileUI : MonoBehaviour
         panel.SetActive(false);
 
         PlayerProfileUI ui = panel.AddComponent<PlayerProfileUI>();
+        ui.profileGroup = panel.AddComponent<CanvasGroup>();
         ui.catalog = weaponCatalog;
         ui.menuAudio = audio;
         ui.onBack = backCallback;
@@ -103,6 +106,9 @@ public class PlayerProfileUI : MonoBehaviour
     {
         WeaponDisplayNames.SetCatalog(catalog);
         currentCategory = ProfileCategory.Overview;
+        SetProfileBlocked(false);
+        if (nameKeyboard != null)
+            nameKeyboard.Hide();
         RefreshProfileUI();
         ShowCategory(ProfileCategory.Overview, false);
     }
@@ -140,9 +146,15 @@ public class PlayerProfileUI : MonoBehaviour
 
         MenuUiFactory.CreateLabel(transform, "NameLabel", "Display Name", 18, new Vector2(-210f, 286f), new Vector2(200f, 24f), TextAnchor.MiddleLeft);
         displayNameField = MenuUiFactory.CreateInputField(transform, "DisplayNameField", "Display Name", new Vector2(-40f, 248f), new Vector2(420f, 50f));
-        displayNameField.characterLimit = DisplayNameLimit;
+        displayNameField.characterLimit = PlayerProfileConstants.MaxDisplayNameLength;
+        displayNameField.onValidateInput = DisplayNameRules.ValidateInput;
         displayNameField.onEndEdit.AddListener(HandleNameEndEdit);
+        if (displayNameField is NavigableInputField namedField)
+            namedField.GamepadSubmit += OpenNameKeyboard;
         saveNameButton = MenuUiFactory.CreateButton(transform, "SaveName", "Save", new Vector2(280f, 248f), SaveDisplayName, new Vector2(150f, 50f));
+        nameErrorLabel = MenuUiFactory.CreateLabel(transform, "NameError", string.Empty, 16, new Vector2(0f, 210f), new Vector2(860f, 22f));
+        nameErrorLabel.color = new Color(1f, 0.45f, 0.4f, 1f);
+        nameKeyboard = DisplayNameKeyboardUI.Create(transform.parent, (RectTransform)transform, menuAudio, CommitDisplayName, CloseNameKeyboard);
 
         overviewTab = MenuUiFactory.CreateButton(transform, "OverviewTab", "Overview", new Vector2(-250f, 178f), () => ShowCategory(ProfileCategory.Overview, true), new Vector2(220f, 50f));
         weaponsTab = MenuUiFactory.CreateButton(transform, "WeaponsTab", "Weapons", new Vector2(0f, 178f), () => ShowCategory(ProfileCategory.Weapons, true), new Vector2(220f, 50f));
@@ -324,6 +336,11 @@ public class PlayerProfileUI : MonoBehaviour
     private void HandleCategoryHotkeys()
     {
         Gamepad pad = Gamepad.current;
+        if (nameKeyboard != null && nameKeyboard.IsOpen)
+            return;
+        if (IsEditingName())
+            return;
+
         if (pad != null)
         {
             if (pad.leftShoulder.wasPressedThisFrame)
@@ -331,9 +348,6 @@ public class PlayerProfileUI : MonoBehaviour
             if (pad.rightShoulder.wasPressedThisFrame)
                 CycleCategory(1);
         }
-
-        if (IsEditingName())
-            return;
 
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null)
@@ -353,17 +367,83 @@ public class PlayerProfileUI : MonoBehaviour
         return EventSystem.current.currentSelectedGameObject == displayNameField.gameObject && displayNameField.isFocused;
     }
 
+    /// <summary>
+    /// Escape / B while naming. Returns true when the menu should stay on Profile.
+    /// </summary>
+    public bool TryHandleCancel()
+    {
+        if (nameKeyboard != null && nameKeyboard.IsOpen)
+        {
+            nameKeyboard.Cancel();
+            return true;
+        }
+
+        if (!IsEditingName())
+            return false;
+
+        suppressNameCallback = true;
+        displayNameField.DeactivateInputField();
+        suppressNameCallback = false;
+        RestoreNameField();
+        return true;
+    }
+
+    private void OpenNameKeyboard()
+    {
+        if (nameKeyboard == null || displayNameField == null)
+            return;
+
+        suppressNameCallback = true;
+        displayNameField.DeactivateInputField();
+        suppressNameCallback = false;
+        string seed = displayNameField.text;
+        if (string.IsNullOrWhiteSpace(seed))
+            seed = PlayerProfileManager.Ensure().DisplayName;
+        SetProfileBlocked(true);
+        nameKeyboard.Open(seed);
+    }
+
+    private void CloseNameKeyboard()
+    {
+        SetProfileBlocked(false);
+        RestoreNameField();
+        if (displayNameField != null && EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+            EventSystem.current.SetSelectedGameObject(displayNameField.gameObject);
+        }
+    }
+
+    private void SetProfileBlocked(bool blocked)
+    {
+        if (profileGroup == null)
+            return;
+
+        profileGroup.interactable = !blocked;
+        profileGroup.blocksRaycasts = !blocked;
+    }
+
     private void HandleNameEndEdit(string _)
     {
         if (suppressNameCallback)
             return;
 
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard != null &&
-            (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame))
+        SaveDisplayName();
+    }
+
+    private void CommitDisplayName(string raw)
+    {
+        if (!DisplayNameRules.TryNormalize(raw, out string normalized, out string error))
         {
-            SaveDisplayName();
+            if (nameKeyboard != null)
+                nameKeyboard.SetError(error);
+            return;
         }
+
+        ApplyDisplayName(normalized);
+        if (nameKeyboard != null)
+            nameKeyboard.Hide();
+        CloseNameKeyboard();
     }
 
     private void SaveDisplayName()
@@ -371,10 +451,37 @@ public class PlayerProfileUI : MonoBehaviour
         if (displayNameField == null)
             return;
 
-        PlayerProfileManager.Ensure().SetDisplayName(displayNameField.text);
+        if (!DisplayNameRules.TryNormalize(displayNameField.text, out string normalized, out string error))
+        {
+            SetNameError(error);
+            RestoreNameField();
+            return;
+        }
+
+        ApplyDisplayName(normalized);
+    }
+
+    private void ApplyDisplayName(string normalized)
+    {
+        PlayerProfileManager.Ensure().SetDisplayName(normalized);
+        SetNameError(null);
         if (menuAudio != null)
             menuAudio.PlaySelect();
         RefreshProfileUI();
+    }
+
+    private void RestoreNameField()
+    {
+        suppressNameCallback = true;
+        if (displayNameField != null)
+            displayNameField.text = PlayerProfileManager.Ensure().DisplayName;
+        suppressNameCallback = false;
+    }
+
+    private void SetNameError(string message)
+    {
+        if (nameErrorLabel != null)
+            nameErrorLabel.text = message ?? string.Empty;
     }
 
     private void WireNavigation()

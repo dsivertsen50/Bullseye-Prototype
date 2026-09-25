@@ -183,7 +183,7 @@ public static class MenuUiFactory
         textRect.offsetMin = new Vector2(16f, 0f);
         textRect.offsetMax = new Vector2(-16f, 0f);
 
-        InputField input = image.gameObject.AddComponent<InputField>();
+        InputField input = image.gameObject.AddComponent<NavigableInputField>();
         input.textComponent = text;
         input.placeholder = placeholderLabel;
         input.characterLimit = 32;
@@ -192,6 +192,7 @@ public static class MenuUiFactory
         input.colors = MenuColors(new Color(0.12f, 0.12f, 0.14f, 1f));
         input.shouldActivateOnSelect = false;
         input.gameObject.AddComponent<MenuInputFieldNavigation>();
+        input.gameObject.AddComponent<MenuInputFieldTyping>();
         WirePointerFocus(input);
         return input;
     }

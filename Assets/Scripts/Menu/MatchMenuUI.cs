@@ -53,13 +53,12 @@ public class MatchMenuUI : MonoBehaviour
     private Image lobbyPreviewImage;
     private Text lobbyJoinCodeHeading;
     private Text lobbyJoinCodeLabel;
-    private Text lobbyJoinCodeCopiedLabel;
+    private Text copyJoinCodeLabel;
     private Button copyJoinCodeButton;
     private Text lobbyPlayerCountLabel;
     private Text lobbyErrorLabel;
     private Text lobbyHostHintLabel;
     private float joinCodeCopiedUntil;
-    private ScrollRect playerScroll;
     private Transform playerContent;
     private string focusedMapId;
     private bool hostControlsVisible = true;
@@ -139,8 +138,7 @@ public class MatchMenuUI : MonoBehaviour
             return;
 
         RefreshJoinCode();
-        if (lobbyJoinCodeCopiedLabel != null)
-            lobbyJoinCodeCopiedLabel.enabled = Time.unscaledTime < joinCodeCopiedUntil;
+        UpdateCopyFeedback();
     }
 
     public void OpenCustomMatch()
@@ -209,12 +207,14 @@ public class MatchMenuUI : MonoBehaviour
     private void Build(float leftPadding)
     {
         customPanel = CreatePanel("CustomMatchPanel", new Vector2(1180f, 920f), leftPadding);
-        lobbyPanel = CreatePanel("MatchLobbyPanel", new Vector2(1180f, 920f), leftPadding);
+        lobbyPanel = CreatePanel("MatchLobbyPanel", new Vector2(1160f, 920f), leftPadding);
+        StretchLobbyPanel(lobbyPanel, leftPadding);
         customPanel.SetActive(false);
         lobbyPanel.SetActive(false);
         BuildCustomMatch();
         BuildLobby();
         WireNavigation();
+        WireLobbyNavigation();
     }
 
     private GameObject CreatePanel(string name, Vector2 size, float leftPadding)
@@ -262,63 +262,285 @@ public class MatchMenuUI : MonoBehaviour
         MenuUiFactory.CreateLabel(root, "Hint", "Hover or focus a map to preview. Select to choose it.", 16, new Vector2(0f, -330f), new Vector2(1000f, 24f)).color = ProfileUiFactory.MutedColor;
     }
 
+    private void StretchLobbyPanel(GameObject panel, float leftPadding)
+    {
+        RectTransform rect = panel.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 0f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 0.5f);
+        rect.offsetMin = new Vector2(leftPadding, 24f);
+        rect.offsetMax = new Vector2(leftPadding + 1160f, -24f);
+    }
+
     private void BuildLobby()
     {
-        Transform root = lobbyPanel.transform;
-        lobbyTitleLabel = MenuUiFactory.CreateLabel(root, "Title", "MATCH LOBBY", 40, new Vector2(0f, 410f), new Vector2(1100f, 52f));
-        lobbyModeLabel = MenuUiFactory.CreateLabel(root, "Mode", "Mode", 26, new Vector2(-280f, 345f), new Vector2(520f, 36f), TextAnchor.MiddleLeft);
-        lobbyModeDescriptionLabel = MenuUiFactory.CreateLabel(root, "ModeDescription", string.Empty, 16, new Vector2(-280f, 305f), new Vector2(520f, 40f), TextAnchor.MiddleLeft);
-        lobbyModeDescriptionLabel.color = ProfileUiFactory.MutedColor;
+        RectTransform columns = CreateStretchChild(lobbyPanel.transform, "Columns", 28f);
+        HorizontalLayoutGroup split = columns.gameObject.AddComponent<HorizontalLayoutGroup>();
+        split.spacing = 32f;
+        split.childAlignment = TextAnchor.UpperLeft;
+        split.childControlWidth = true;
+        split.childControlHeight = true;
+        split.childForceExpandWidth = true;
+        split.childForceExpandHeight = true;
 
-        lobbyPreviewImage = MenuUiFactory.CreateImage(root, "Preview", new Color(0.12f, 0.14f, 0.18f, 1f));
-        lobbyPreviewImage.rectTransform.sizeDelta = new Vector2(360f, 190f);
-        lobbyPreviewImage.rectTransform.anchoredPosition = new Vector2(340f, 300f);
+        RectTransform left = CreateLayoutColumn(columns, "LeftColumn", 1.2f, 520f);
+        RectTransform right = CreateLayoutColumn(columns, "RightColumn", 0.7f, 400f);
+        BuildLobbyLeftColumn(left);
+        BuildLobbyRightColumn(right);
+    }
+
+    private void BuildLobbyLeftColumn(RectTransform column)
+    {
+        VerticalLayoutGroup layout = AddVerticalStack(column, 8f);
+        layout.childAlignment = TextAnchor.UpperLeft;
+
+        lobbyTitleLabel = CreateStackLabel(column, "Visibility", "PRIVATE LOBBY", 18, 28f, TextAnchor.MiddleLeft);
+        lobbyTitleLabel.color = ProfileUiFactory.MutedColor;
+
+        lobbyPreviewImage = MenuUiFactory.CreateImage(column, "Preview", new Color(0.12f, 0.14f, 0.18f, 1f));
         lobbyPreviewImage.preserveAspect = true;
-        lobbyMapNameLabel = MenuUiFactory.CreateLabel(root, "MapName", "Map", 24, new Vector2(340f, 185f), new Vector2(380f, 32f));
-        lobbyMapDescriptionLabel = MenuUiFactory.CreateLabel(root, "MapDescription", string.Empty, 16, new Vector2(340f, 140f), new Vector2(380f, 56f));
+        SetLayoutHeight(lobbyPreviewImage.rectTransform, 200f, 200f);
+
+        lobbyMapNameLabel = CreateStackLabel(column, "MapName", "Map", 26, 36f, TextAnchor.MiddleLeft);
+        lobbyMapDescriptionLabel = CreateStackLabel(column, "MapDescription", string.Empty, 16, 72f, TextAnchor.UpperLeft);
         lobbyMapDescriptionLabel.color = ProfileUiFactory.MutedColor;
+        lobbyMapDescriptionLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
 
-        lobbyPlayerCountLabel = MenuUiFactory.CreateLabel(root, "PlayerCount", "PLAYERS", 20, new Vector2(-280f, 250f), new Vector2(520f, 28f), TextAnchor.MiddleLeft);
-        playerScroll = ProfileUiFactory.CreateScrollArea(root, "Players", new Vector2(-200f, 40f), new Vector2(680f, 280f));
-        playerContent = playerScroll.content;
+        CreateStackLabel(column, "ModeHeading", "GAME MODE", 16, 24f, TextAnchor.MiddleLeft).color = ProfileUiFactory.MutedColor;
+        lobbyModeLabel = CreateStackLabel(column, "Mode", "Mode", 26, 36f, TextAnchor.MiddleLeft);
+        lobbyModeDescriptionLabel = CreateStackLabel(column, "ModeDescription", string.Empty, 16, 64f, TextAnchor.UpperLeft);
+        lobbyModeDescriptionLabel.color = ProfileUiFactory.MutedColor;
+        lobbyModeDescriptionLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
 
-        lobbyJoinCodeHeading = MenuUiFactory.CreateLabel(root, "JoinCodeHeading", "JOIN CODE", 18, new Vector2(0f, -125f), new Vector2(900f, 24f));
-        lobbyJoinCodeLabel = MenuUiFactory.CreateLabel(root, "JoinCode", string.Empty, 42, new Vector2(-80f, -165f), new Vector2(620f, 52f));
-        copyJoinCodeButton = MenuUiFactory.CreateButton(root, "CopyCode", "Copy Code", new Vector2(320f, -165f), CopyJoinCode, new Vector2(180f, 44f));
-        Text copyLabel = copyJoinCodeButton.GetComponentInChildren<Text>();
-        if (copyLabel != null)
-            copyLabel.fontSize = 18;
-        lobbyJoinCodeCopiedLabel = MenuUiFactory.CreateLabel(root, "Copied", "Copied", 16, new Vector2(320f, -200f), new Vector2(180f, 22f));
-        lobbyJoinCodeCopiedLabel.enabled = false;
-        lobbyHostHintLabel = MenuUiFactory.CreateLabel(root, "HostHint", string.Empty, 16, new Vector2(0f, -210f), new Vector2(900f, 28f));
+        RectTransform joinRow = CreateLayoutColumn(column, "JoinRow", 1f, 400f);
+        HorizontalLayoutGroup joinLayout = joinRow.gameObject.AddComponent<HorizontalLayoutGroup>();
+        joinLayout.spacing = 14f;
+        joinLayout.padding = new RectOffset(0, 0, 0, 0);
+        joinLayout.childAlignment = TextAnchor.MiddleLeft;
+        joinLayout.childControlWidth = true;
+        joinLayout.childControlHeight = true;
+        joinLayout.childForceExpandWidth = false;
+        joinLayout.childForceExpandHeight = false;
+        SetLayoutHeight(joinRow, 32f, 400f);
+
+        lobbyJoinCodeHeading = CreateStackLabel(joinRow, "JoinCodeHeading", "JOIN CODE:", 16, 32f, TextAnchor.MiddleLeft);
+        lobbyJoinCodeHeading.color = ProfileUiFactory.MutedColor;
+        LayoutElement headingLayout = lobbyJoinCodeHeading.GetComponent<LayoutElement>();
+        headingLayout.minWidth = 108f;
+        headingLayout.preferredWidth = 118f;
+        headingLayout.flexibleWidth = 0f;
+
+        lobbyJoinCodeLabel = CreateStackLabel(joinRow, "JoinCode", string.Empty, 22, 32f, TextAnchor.MiddleLeft);
+        lobbyJoinCodeLabel.fontStyle = FontStyle.Bold;
+        LayoutElement codeLayout = lobbyJoinCodeLabel.GetComponent<LayoutElement>();
+        codeLayout.minWidth = 96f;
+        codeLayout.preferredWidth = 140f;
+        codeLayout.flexibleWidth = 1f;
+
+        copyJoinCodeButton = MenuUiFactory.CreateButton(joinRow, "CopyCode", "Copy Code", Vector2.zero, CopyJoinCode, new Vector2(148f, 32f));
+        SetLayoutHeight(copyJoinCodeButton.GetComponent<RectTransform>(), 32f, 148f);
+        LayoutElement copyLayout = copyJoinCodeButton.GetComponent<LayoutElement>();
+        copyLayout.minWidth = 148f;
+        copyLayout.preferredWidth = 148f;
+        copyLayout.flexibleWidth = 0f;
+        copyJoinCodeLabel = copyJoinCodeButton.GetComponentInChildren<Text>();
+        if (copyJoinCodeLabel != null)
+            copyJoinCodeLabel.fontSize = 16;
+        lobbyHostHintLabel = CreateStackLabel(column, "HostHint", string.Empty, 14, 22f, TextAnchor.MiddleLeft);
         lobbyHostHintLabel.color = ProfileUiFactory.MutedColor;
 
-        startMatchButton = MenuUiFactory.CreateButton(root, "StartMatch", "Start Match", new Vector2(220f, -270f), () => onStartMatch?.Invoke(), new Vector2(260f, 54f));
-        changeSetupButton = MenuUiFactory.CreateButton(root, "ChangeSetup", "Change Map / Mode", new Vector2(220f, -340f), HandleEditSetup, new Vector2(260f, 54f));
-        leaveLobbyButton = MenuUiFactory.CreateButton(root, "LeaveLobby", "Leave Lobby", new Vector2(-220f, -340f), () => onLeaveLobby?.Invoke(), new Vector2(260f, 54f));
-        cancelLobbyButton = MenuUiFactory.CreateButton(root, "CancelLobby", "Cancel Lobby", new Vector2(-220f, -270f), () => onCancelLobby?.Invoke(), new Vector2(260f, 54f));
-        lobbyErrorLabel = MenuUiFactory.CreateLabel(root, "Error", string.Empty, 20, new Vector2(0f, -400f), new Vector2(1000f, 40f));
+        cancelLobbyButton = MenuUiFactory.CreateButton(column, "CancelLobby", "Cancel Lobby", Vector2.zero, () => onCancelLobby?.Invoke(), new Vector2(280f, 54f));
+        SetLayoutHeight(cancelLobbyButton.GetComponent<RectTransform>(), 54f, 280f);
+        leaveLobbyButton = MenuUiFactory.CreateButton(column, "LeaveLobby", "Leave Lobby", Vector2.zero, () => onLeaveLobby?.Invoke(), new Vector2(280f, 54f));
+        SetLayoutHeight(leaveLobbyButton.GetComponent<RectTransform>(), 54f, 280f);
+
+        lobbyErrorLabel = CreateStackLabel(column, "Error", string.Empty, 18, 40f, TextAnchor.UpperLeft);
         lobbyErrorLabel.color = new Color(1f, 0.45f, 0.4f, 1f);
+        lobbyErrorLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
+    }
+
+    private void BuildLobbyRightColumn(RectTransform column)
+    {
+        AddVerticalStack(column, 10f);
+
+        lobbyPlayerCountLabel = CreateStackLabel(column, "PlayerCount", "PLAYERS", 20, 28f, TextAnchor.MiddleLeft);
+        playerContent = CreateRosterArea(column);
+
+        changeSetupButton = MenuUiFactory.CreateButton(column, "ChangeSetup", "Change Map / Mode", Vector2.zero, HandleEditSetup, new Vector2(320f, 48f));
+        SetLayoutHeight(changeSetupButton.GetComponent<RectTransform>(), 48f, 320f);
+
+        startMatchButton = MenuUiFactory.CreateButton(column, "StartMatch", "Start Match", Vector2.zero, () => onStartMatch?.Invoke(), new Vector2(320f, 88f));
+        SetLayoutHeight(startMatchButton.GetComponent<RectTransform>(), 88f, 320f);
+        Text startLabel = startMatchButton.GetComponentInChildren<Text>();
+        if (startLabel != null)
+            startLabel.fontSize = 28;
+        ColorBlock colors = startMatchButton.colors;
+        colors.normalColor = new Color(0.16f, 0.55f, 0.26f, 1f);
+        colors.highlightedColor = new Color(0.24f, 0.78f, 0.36f, 1f);
+        colors.selectedColor = new Color(0.24f, 0.78f, 0.36f, 1f);
+        colors.pressedColor = new Color(0.12f, 0.42f, 0.2f, 1f);
+        startMatchButton.colors = colors;
+    }
+
+    private static RectTransform CreateStretchChild(Transform parent, string name, float padding)
+    {
+        RectTransform rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
+        rect.SetParent(parent, false);
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = new Vector2(padding, padding);
+        rect.offsetMax = new Vector2(-padding, -padding);
+        return rect;
+    }
+
+    private static RectTransform CreateLayoutColumn(Transform parent, string name, float flexibleWidth, float preferredWidth)
+    {
+        RectTransform rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
+        rect.SetParent(parent, false);
+        LayoutElement layout = rect.gameObject.AddComponent<LayoutElement>();
+        layout.flexibleWidth = flexibleWidth;
+        layout.preferredWidth = preferredWidth;
+        layout.minWidth = preferredWidth > 160f ? preferredWidth * 0.75f : preferredWidth;
+        return rect;
+    }
+
+    private static VerticalLayoutGroup AddVerticalStack(RectTransform column, float spacing)
+    {
+        VerticalLayoutGroup layout = column.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.spacing = spacing;
+        layout.padding = new RectOffset(4, 4, 4, 4);
+        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        return layout;
+    }
+
+    private static Text CreateStackLabel(Transform parent, string name, string text, int size, float height, TextAnchor alignment)
+    {
+        Text label = MenuUiFactory.CreateLabel(parent, name, text, size, Vector2.zero, new Vector2(100f, height), alignment);
+        label.horizontalOverflow = HorizontalWrapMode.Wrap;
+        label.verticalOverflow = VerticalWrapMode.Truncate;
+        SetLayoutHeight(label.rectTransform, height, 40f);
+        return label;
+    }
+
+    private static void SetLayoutHeight(RectTransform rect, float height, float preferredWidth)
+    {
+        LayoutElement layout = rect.GetComponent<LayoutElement>();
+        if (layout == null)
+            layout = rect.gameObject.AddComponent<LayoutElement>();
+        layout.minHeight = height;
+        layout.preferredHeight = height;
+        if (preferredWidth > 0f)
+        {
+            layout.minWidth = Mathf.Min(preferredWidth, 120f);
+            layout.preferredWidth = preferredWidth;
+        }
+    }
+
+    private static Transform CreateRosterArea(Transform parent)
+    {
+        const float rowHeight = 36f;
+        const float rowSpacing = 4f;
+        const float headerHeight = 26f;
+        const int visibleSlots = 8;
+        float rowsHeight = visibleSlots * rowHeight + (visibleSlots - 1) * rowSpacing;
+        float height = headerHeight + rowsHeight + 20f;
+
+        Image root = MenuUiFactory.CreateImage(parent, "Players", new Color(0.04f, 0.05f, 0.07f, 0.4f));
+        SetLayoutHeight(root.rectTransform, height, 360f);
+        LayoutElement rootLayout = root.GetComponent<LayoutElement>();
+        rootLayout.flexibleHeight = 0f;
+        rootLayout.flexibleWidth = 1f;
+
+        VerticalLayoutGroup stack = root.gameObject.AddComponent<VerticalLayoutGroup>();
+        stack.spacing = 4f;
+        stack.padding = new RectOffset(12, 12, 8, 8);
+        stack.childAlignment = TextAnchor.UpperLeft;
+        stack.childControlWidth = true;
+        stack.childControlHeight = true;
+        stack.childForceExpandWidth = true;
+        stack.childForceExpandHeight = false;
+
+        RectTransform header = new GameObject("Header", typeof(RectTransform)).GetComponent<RectTransform>();
+        header.SetParent(root.transform, false);
+        HorizontalLayoutGroup headerRow = header.gameObject.AddComponent<HorizontalLayoutGroup>();
+        headerRow.childAlignment = TextAnchor.MiddleLeft;
+        headerRow.childControlWidth = true;
+        headerRow.childControlHeight = true;
+        headerRow.childForceExpandWidth = false;
+        headerRow.childForceExpandHeight = true;
+        LayoutElement headerLayout = header.gameObject.AddComponent<LayoutElement>();
+        headerLayout.minHeight = headerHeight;
+        headerLayout.preferredHeight = headerHeight;
+        headerLayout.flexibleWidth = 1f;
+
+        Text playerHeader = MenuUiFactory.CreateLabel(header, "PlayerHeader", "Player", 14, Vector2.zero, new Vector2(160f, headerHeight), TextAnchor.MiddleLeft);
+        playerHeader.color = ProfileUiFactory.MutedColor;
+        playerHeader.horizontalOverflow = HorizontalWrapMode.Overflow;
+        LayoutElement playerHeaderLayout = playerHeader.gameObject.AddComponent<LayoutElement>();
+        playerHeaderLayout.minWidth = 80f;
+        playerHeaderLayout.flexibleWidth = 1f;
+        playerHeaderLayout.preferredHeight = headerHeight;
+
+        Text statusHeader = MenuUiFactory.CreateLabel(header, "StatusHeader", "Status", 14, Vector2.zero, new Vector2(88f, headerHeight), TextAnchor.MiddleRight);
+        statusHeader.color = ProfileUiFactory.MutedColor;
+        statusHeader.horizontalOverflow = HorizontalWrapMode.Overflow;
+        LayoutElement statusHeaderLayout = statusHeader.gameObject.AddComponent<LayoutElement>();
+        statusHeaderLayout.minWidth = 72f;
+        statusHeaderLayout.preferredWidth = 88f;
+        statusHeaderLayout.preferredHeight = headerHeight;
+
+        RectTransform content = new GameObject("Content", typeof(RectTransform)).GetComponent<RectTransform>();
+        content.SetParent(root.transform, false);
+        VerticalLayoutGroup rows = content.gameObject.AddComponent<VerticalLayoutGroup>();
+        rows.spacing = rowSpacing;
+        rows.padding = new RectOffset(0, 0, 0, 0);
+        rows.childAlignment = TextAnchor.UpperLeft;
+        rows.childControlWidth = true;
+        rows.childControlHeight = true;
+        rows.childForceExpandWidth = true;
+        rows.childForceExpandHeight = false;
+        LayoutElement contentLayout = content.gameObject.AddComponent<LayoutElement>();
+        contentLayout.minHeight = rowsHeight;
+        contentLayout.preferredHeight = rowsHeight;
+        contentLayout.flexibleWidth = 1f;
+        contentLayout.flexibleHeight = 0f;
+        return content;
     }
 
     private void BuildModeButtons(Transform parent, float y)
     {
         modeButtons.Clear();
         int count = modeCatalog != null ? modeCatalog.Count : 0;
-        float startX = -390f;
+        const float buttonWidth = 210f;
+        const float step = 220f;
+        float startX = count > 0 ? -((count - 1) * step) * 0.5f : 0f;
         for (int i = 0; i < count; i++)
         {
             GameModeDefinition mode = modeCatalog.Get(i);
             if (mode == null)
                 continue;
-            int index = i;
             Button button = MenuUiFactory.CreateButton(
                 parent,
                 mode.GameModeId,
                 ModeButtonLabel(mode),
-                new Vector2(startX + i * 200f, y),
+                new Vector2(startX + i * step, y),
                 () => SelectMode(mode.GameModeId),
-                new Vector2(190f, 48f));
+                new Vector2(buttonWidth, 56f));
+            Text label = button.GetComponentInChildren<Text>();
+            if (label != null)
+            {
+                label.fontSize = 16;
+                label.resizeTextForBestFit = true;
+                label.resizeTextMinSize = 12;
+                label.resizeTextMaxSize = 16;
+                label.horizontalOverflow = HorizontalWrapMode.Wrap;
+                label.verticalOverflow = VerticalWrapMode.Truncate;
+            }
+
             modeButtons.Add(button);
         }
     }
@@ -545,7 +767,7 @@ public class MatchMenuUI : MonoBehaviour
         MapDefinition map = lobby.SelectedMap;
 
         if (lobbyTitleLabel != null)
-            lobbyTitleLabel.text = config.Visibility == MatchVisibility.Public ? "PUBLIC MATCH" : "CUSTOM MATCH LOBBY";
+            lobbyTitleLabel.text = config.Visibility == MatchVisibility.Public ? "PUBLIC LOBBY" : "PRIVATE LOBBY";
         if (lobbyModeLabel != null)
             lobbyModeLabel.text = mode != null ? mode.DisplayName : config.GameModeId;
         if (lobbyModeDescriptionLabel != null)
@@ -634,32 +856,30 @@ public class MatchMenuUI : MonoBehaviour
     private void WireNavigation()
     {
         Selectable firstMode = modeButtons.Count > 0 ? modeButtons[0] : createLobbyButton;
-        Selectable lastMode = modeButtons.Count > 0 ? modeButtons[modeButtons.Count - 1] : firstMode;
+        Selectable firstMap = mapCards.Count > 0 ? mapCards[0].Button : createLobbyButton;
         for (int i = 0; i < modeButtons.Count; i++)
         {
             Selectable left = i > 0 ? modeButtons[i - 1] : modeButtons[modeButtons.Count - 1];
             Selectable right = i < modeButtons.Count - 1 ? modeButtons[i + 1] : modeButtons[0];
-            Selectable up = publicButton;
-            Selectable down = mapCards.Count > 0 ? mapCards[0].Button : createLobbyButton;
-            MenuUiFactory.SetNav(modeButtons[i], up, down, left, right);
+            MenuUiFactory.SetNav(modeButtons[i], publicButton, firstMap, left, right);
         }
 
+        const int mapColumns = 3;
         for (int i = 0; i < mapCards.Count; i++)
         {
-            int column = i % 3;
-            int row = i / 3;
-            Selectable up = row == 0 ? lastMode : mapCards[i - 3].Button;
-            Selectable down;
-            if (i + 3 < mapCards.Count)
-                down = mapCards[i + 3].Button;
-            else
-                down = createLobbyButton;
-            Selectable left = column == 0 ? mapCards[row * 3 + Math.Min(2, mapCards.Count - row * 3 - 1)].Button : mapCards[i - 1].Button;
-            Selectable right = column == 2 || i + 1 >= mapCards.Count ? mapCards[row * 3].Button : mapCards[i + 1].Button;
+            int column = i % mapColumns;
+            int row = i / mapColumns;
+            int rowStart = row * mapColumns;
+            int nextRowStart = rowStart + mapColumns;
+            Selectable up = firstMode;
+            Selectable down = nextRowStart < mapCards.Count ? mapCards[nextRowStart].Button : createLobbyButton;
+            int rowCount = Math.Min(mapColumns, mapCards.Count - rowStart);
+            Selectable left = column == 0 ? mapCards[rowStart + rowCount - 1].Button : mapCards[i - 1].Button;
+            Selectable right = column == rowCount - 1 ? mapCards[rowStart].Button : mapCards[i + 1].Button;
             MenuUiFactory.SetNav(mapCards[i].Button, up, down, left, right);
         }
 
-        Selectable lastMap = mapCards.Count > 0 ? mapCards[mapCards.Count - 1].Button : lastMode;
+        Selectable lastMap = mapCards.Count > 0 ? mapCards[((mapCards.Count - 1) / 3) * 3].Button : firstMode;
         Selectable bottomRight = customCancelLobbyButton != null && customCancelLobbyButton.gameObject.activeSelf
             ? customCancelLobbyButton
             : customBackButton;
@@ -674,27 +894,34 @@ public class MatchMenuUI : MonoBehaviour
 
     private void WireLobbyNavigation()
     {
-        Selectable start = startMatchButton != null && startMatchButton.gameObject.activeSelf ? startMatchButton : null;
-        Selectable change = changeSetupButton != null && changeSetupButton.gameObject.activeSelf ? changeSetupButton : null;
-        Selectable cancel = cancelLobbyButton != null && cancelLobbyButton.gameObject.activeSelf ? cancelLobbyButton : null;
-        Selectable leave = leaveLobbyButton != null && leaveLobbyButton.gameObject.activeSelf ? leaveLobbyButton : null;
-        Selectable copy = copyJoinCodeButton != null && copyJoinCodeButton.gameObject.activeSelf ? copyJoinCodeButton : null;
+        Selectable start = UsableLobbySelectable(startMatchButton);
+        Selectable change = UsableLobbySelectable(changeSetupButton);
+        Selectable cancel = UsableLobbySelectable(cancelLobbyButton);
+        Selectable leave = UsableLobbySelectable(leaveLobbyButton);
+        Selectable copy = UsableLobbySelectable(copyJoinCodeButton);
+        Selectable leftEdge = cancel != null ? cancel : leave;
+        Selectable rightPrimary = change != null ? change : start;
+
+        if (copy != null && leftEdge != null)
+            MenuUiFactory.SetNav(copy, rightPrimary != null ? rightPrimary : leftEdge, leftEdge, leftEdge, rightPrimary != null ? rightPrimary : leftEdge);
 
         if (start != null && change != null && cancel != null)
         {
-            Selectable upFromButtons = copy != null ? copy : change;
-            MenuUiFactory.SetNav(start, upFromButtons, change, cancel, copy != null ? copy : cancel);
-            MenuUiFactory.SetNav(change, start, start, cancel, copy != null ? copy : cancel);
-            MenuUiFactory.SetNav(cancel, upFromButtons, change, start, start);
-            if (copy != null)
-                MenuUiFactory.SetNav(copy, start, start, start, cancel);
+            MenuUiFactory.SetNav(change, start, start, copy != null ? copy : cancel, start);
+            MenuUiFactory.SetNav(start, change, change, cancel, change);
+            MenuUiFactory.SetNav(cancel, copy != null ? copy : start, start, start, change);
             return;
         }
 
         if (leave != null)
             MenuUiFactory.SetNav(leave, copy != null ? copy : leave, leave, leave, copy != null ? copy : leave);
-        if (copy != null && leave != null)
-            MenuUiFactory.SetNav(copy, leave, leave, leave, leave);
+    }
+
+    private static Selectable UsableLobbySelectable(Selectable selectable)
+    {
+        if (selectable == null || !selectable.gameObject.activeSelf)
+            return null;
+        return selectable;
     }
 
     private void HandleCustomBack()
@@ -767,7 +994,7 @@ public class MatchMenuUI : MonoBehaviour
         string joinCode = ResolveJoinCode();
         bool generating = string.IsNullOrEmpty(joinCode) && IsActingHost(MatchLobby.Ensure());
         if (lobbyJoinCodeHeading != null)
-            lobbyJoinCodeHeading.text = "JOIN CODE";
+            lobbyJoinCodeHeading.text = "JOIN CODE:";
         if (lobbyJoinCodeLabel != null)
         {
             if (!string.IsNullOrEmpty(joinCode))
@@ -780,6 +1007,9 @@ public class MatchMenuUI : MonoBehaviour
 
         if (copyJoinCodeButton != null)
             copyJoinCodeButton.gameObject.SetActive(!string.IsNullOrEmpty(joinCode));
+
+        if (lobbyPanel != null && lobbyPanel.activeSelf)
+            WireLobbyNavigation();
     }
 
     private void CopyJoinCode()
@@ -790,10 +1020,26 @@ public class MatchMenuUI : MonoBehaviour
 
         GUIUtility.systemCopyBuffer = joinCode;
         joinCodeCopiedUntil = Time.unscaledTime + 1.6f;
-        if (lobbyJoinCodeCopiedLabel != null)
-            lobbyJoinCodeCopiedLabel.enabled = true;
+        UpdateCopyFeedback();
         MultiplayerLog.Info("Join code copied.");
         PlaySelect();
+    }
+
+    private void UpdateCopyFeedback()
+    {
+        if (copyJoinCodeLabel == null)
+            return;
+
+        bool copied = Time.unscaledTime < joinCodeCopiedUntil;
+        string next = copied ? "Copied!" : "Copy Code";
+        if (copyJoinCodeLabel.text == next)
+            return;
+
+        GameObject selected = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+        bool keepSelection = copyJoinCodeButton != null && selected == copyJoinCodeButton.gameObject;
+        copyJoinCodeLabel.text = next;
+        if (keepSelection && EventSystem.current != null)
+            EventSystem.current.SetSelectedGameObject(copyJoinCodeButton.gameObject);
     }
 
     private static bool IsActingHost(MatchLobby lobby)

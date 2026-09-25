@@ -25,6 +25,14 @@ public class MenuInputFieldNavigation : MonoBehaviour, IMoveHandler
         if (eventData == null)
             return;
 
+        if (field != null && field.isFocused &&
+            (eventData.moveDir == MoveDirection.Left || eventData.moveDir == MoveDirection.Right))
+        {
+            field.ProcessEvent(Event.KeyboardEvent(eventData.moveDir == MoveDirection.Left ? "left" : "right"));
+            eventData.Use();
+            return;
+        }
+
         if (TryMove(eventData.moveDir))
             eventData.Use();
     }

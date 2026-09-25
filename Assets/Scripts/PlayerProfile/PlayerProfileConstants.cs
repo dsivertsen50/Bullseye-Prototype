@@ -10,6 +10,7 @@ public static class PlayerProfileConstants
 {
     public const int CurrentSchemaVersion = 1;
     public const string DefaultDisplayName = "Player";
+    public const int MaxDisplayNameLength = 24;
     public const string LogPrefix = "[PlayerProfile]";
     public const string DefaultFileName = "profile.json";
     public const string BackupFileName = "profile.backup.json";

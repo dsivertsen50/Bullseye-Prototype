@@ -99,6 +99,7 @@ public class MenuDisplayPawn : MonoBehaviour
             || behaviour is LocalPauseMenu
             || behaviour is PlayerAimZoom
             || behaviour is PlayerHaptics
+            || behaviour is PlayerThirdPersonAnimator
             || behaviour is NetworkBehaviour
             || behaviour is UnityEngine.InputSystem.PlayerInput;
     }
