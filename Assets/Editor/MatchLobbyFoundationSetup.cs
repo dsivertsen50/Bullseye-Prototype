@@ -40,10 +40,11 @@ public static class MatchLobbyFoundationSetup
         Sprite arenaPreview = CreatePreviewSprite("map_01_preview.png", new Color(0.18f, 0.42f, 0.28f, 1f), "PROTOTYPE\nARENA");
         Sprite comingSoon = CreatePreviewSprite("map_coming_soon.png", new Color(0.16f, 0.17f, 0.2f, 1f), "IMAGE\nCOMING SOON");
 
-        GameModeDefinition ffa = CreateMode("Mode_FFA.asset", "mode_ffa", "Free For All", "Every player for themselves. Most eliminations wins.", true);
-        GameModeDefinition mode2 = CreateMode("Mode_02.asset", "mode_02", "Mode 02", "A future Bullseye game mode currently under development.", false);
-        GameModeDefinition mode3 = CreateMode("Mode_03.asset", "mode_03", "Mode 03", "A future Bullseye game mode currently under development.", false);
-        GameModeDefinition mode4 = CreateMode("Mode_04.asset", "mode_04", "Mode 04", "A future Bullseye game mode currently under development.", false);
+        GameModeDefinition ffa = CreateMode("Mode_FFA.asset", "mode_ffa", "Free-For-All", "No one is your friend. Most eliminations wins.", true);
+        GameModeDefinition mode2 = CreateMode("Mode_02.asset", "mode_02", "Team Eliminations", "You have some friends... and enemies. The team with the most eliminations wins.", false);
+        GameModeDefinition mode3 = CreateMode("Mode_03.asset", "mode_03", "Capture the Flag", "The classic test of conquest. Capture the enemy flag to score points.", false);
+        GameModeDefinition mode4 = CreateMode("Mode_04.asset", "mode_04", "Bullseye Ball", "Don't like ball sports? Try this one. Hold the bullseye to score points.", false);
+        GameModeDefinition mode5 = CreateMode("Mode_05.asset", "mode_05", "Zoned Out", "King of the hill with a twist. Keep your bullseye in the zone to score points.", false);
 
         SceneAsset arenaScene = AssetDatabase.LoadAssetAtPath<SceneAsset>(ArenaScenePath);
         MapDefinition map1 = CreateMap("Map_01.asset", "map_01", "Prototype Arena", "A compact combat arena built around close-to-mid-range firefights and vertical movement.", arenaPreview, "ArenaPrototype", arenaScene, true);
@@ -56,11 +57,12 @@ public static class MatchLobbyFoundationSetup
         GameModeCatalog modeCatalog = GetOrCreate<GameModeCatalog>(ModeCatalogPath);
         SerializedObject modeSo = new SerializedObject(modeCatalog);
         SerializedProperty modes = modeSo.FindProperty("modes");
-        modes.arraySize = 4;
+        modes.arraySize = 5;
         modes.GetArrayElementAtIndex(0).objectReferenceValue = ffa;
         modes.GetArrayElementAtIndex(1).objectReferenceValue = mode2;
         modes.GetArrayElementAtIndex(2).objectReferenceValue = mode3;
         modes.GetArrayElementAtIndex(3).objectReferenceValue = mode4;
+        modes.GetArrayElementAtIndex(4).objectReferenceValue = mode5;
         modeSo.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(modeCatalog);
 

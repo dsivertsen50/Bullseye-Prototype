@@ -25,9 +25,9 @@ public class PlayerIdentity
         return new PlayerIdentity
         {
             PlayerProfileId = Guid.NewGuid().ToString(),
-            DisplayName = string.IsNullOrWhiteSpace(displayName)
-                ? PlayerProfileConstants.DefaultDisplayName
-                : displayName.Trim(),
+            DisplayName = DisplayNameRules.TryNormalize(displayName, out string normalized, out _)
+                ? normalized
+                : PlayerProfileConstants.DefaultDisplayName,
             SteamId = "",
             CreatedAtUtc = now,
             LastPlayedAtUtc = now
@@ -41,8 +41,13 @@ public class PlayerIdentity
 
     public void SetDisplayName(string displayName)
     {
-        DisplayName = string.IsNullOrWhiteSpace(displayName)
-            ? PlayerProfileConstants.DefaultDisplayName
-            : displayName.Trim();
+        if (!DisplayNameRules.TryNormalize(displayName, out string normalized, out _))
+        {
+            if (string.IsNullOrWhiteSpace(DisplayName))
+                DisplayName = PlayerProfileConstants.DefaultDisplayName;
+            return;
+        }
+
+        DisplayName = normalized;
     }
 }

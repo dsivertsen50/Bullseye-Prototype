@@ -288,6 +288,8 @@ public class MainMenuController : MonoBehaviour
         bool fromKeyboard = context.control != null && context.control.device is Keyboard;
         if (currentScreen == MenuScreen.Join && !fromKeyboard && joinEntry != null && joinEntry.TryBackspace())
             return;
+        if (currentScreen == MenuScreen.Profile && profileUi != null && profileUi.TryHandleCancel())
+            return;
         HandleBack(true);
     }
 

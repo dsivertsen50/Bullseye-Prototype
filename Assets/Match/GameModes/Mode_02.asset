@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: Mode_02
   m_EditorClassIdentifier: Assembly-CSharp::GameModeDefinition
   gameModeId: mode_02
-  displayName: Mode 02
-  shortDescription: A future Bullseye game mode currently under development.
+  displayName: Team Eliminations
+  shortDescription: You have some friends... and enemies. The team with the most eliminations wins.
   isAvailable: 0

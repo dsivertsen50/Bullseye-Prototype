@@ -1058,6 +1058,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MenuBackdrop
   subjectRoot: {fileID: 0}
   menuCamera: {fileID: 394229692}
+  playerPresentationPrefab: {fileID: 3422818454917793740, guid: e15ccc810d7c17146aa9515a43c1eafc, type: 3}
+  menuPresentationController: {fileID: 0}
   rotateSpeed: 14
   frameCamera: 1
 --- !u!4 &1292440284

@@ -10,9 +10,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 119aa0e099bb3304eb73c65a9ef7d249, type: 3}
-  m_Name: Mode_FFA
+  m_Name: Mode_05
   m_EditorClassIdentifier: Assembly-CSharp::GameModeDefinition
-  gameModeId: mode_ffa
-  displayName: Free-For-All
-  shortDescription: No one is your friend. Most eliminations wins.
-  isAvailable: 1
+  gameModeId: mode_05
+  displayName: Zoned Out
+  shortDescription: King of the hill with a twist. Keep your bullseye in the zone to score points.
+  isAvailable: 0

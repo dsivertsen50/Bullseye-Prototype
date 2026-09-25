@@ -12,7 +12,8 @@ public static class MatchIds
         "mode_ffa",
         "mode_02",
         "mode_03",
-        "mode_04"
+        "mode_04",
+        "mode_05"
     };
 
     public static readonly string[] MapIds =

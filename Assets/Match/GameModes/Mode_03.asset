@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: Mode_03
   m_EditorClassIdentifier: Assembly-CSharp::GameModeDefinition
   gameModeId: mode_03
-  displayName: Mode 03
-  shortDescription: A future Bullseye game mode currently under development.
+  displayName: Capture the Flag
+  shortDescription: The classic test of conquest. Capture the enemy flag to score points.
   isAvailable: 0

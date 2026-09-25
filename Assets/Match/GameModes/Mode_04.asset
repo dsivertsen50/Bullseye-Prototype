@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: Mode_04
   m_EditorClassIdentifier: Assembly-CSharp::GameModeDefinition
   gameModeId: mode_04
-  displayName: Mode 04
-  shortDescription: A future Bullseye game mode currently under development.
+  displayName: Bullseye Ball
+  shortDescription: Don't like ball sports? Try this one. Hold the bullseye to score points.
   isAvailable: 0

@@ -15,21 +15,56 @@ public class LobbyPlayerRow : MonoBehaviour
     public static LobbyPlayerRow Create(Transform parent)
     {
         Image image = MenuUiFactory.CreateImage(parent, "PlayerRow", new Color(0.12f, 0.14f, 0.18f, 0.92f));
+        RectTransform rect = image.rectTransform;
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.sizeDelta = new Vector2(0f, 36f);
+
         LayoutElement layout = image.gameObject.AddComponent<LayoutElement>();
-        layout.minHeight = 44f;
-        layout.preferredHeight = 44f;
+        layout.minHeight = 36f;
+        layout.preferredHeight = 36f;
+        layout.flexibleWidth = 1f;
+
+        HorizontalLayoutGroup group = image.gameObject.AddComponent<HorizontalLayoutGroup>();
+        group.padding = new RectOffset(10, 10, 2, 2);
+        group.spacing = 8f;
+        group.childAlignment = TextAnchor.MiddleLeft;
+        group.childControlWidth = true;
+        group.childControlHeight = true;
+        group.childForceExpandWidth = false;
+        group.childForceExpandHeight = true;
 
         LobbyPlayerRow row = image.gameObject.AddComponent<LobbyPlayerRow>();
-        row.nameLabel = MenuUiFactory.CreateLabel(image.transform, "Name", string.Empty, 20, new Vector2(-210f, 0f), new Vector2(280f, 36f), TextAnchor.MiddleLeft);
-        row.tagLabel = MenuUiFactory.CreateLabel(image.transform, "Tag", string.Empty, 16, new Vector2(20f, 0f), new Vector2(90f, 36f), TextAnchor.MiddleLeft);
+        row.nameLabel = CreateCell(image.transform, "Name", 16, TextAnchor.MiddleLeft, 72f, 1f);
+        row.tagLabel = CreateCell(image.transform, "Tag", 13, TextAnchor.MiddleLeft, 64f, 0f);
         row.tagLabel.color = ProfileUiFactory.MutedColor;
-        row.youLabel = MenuUiFactory.CreateLabel(image.transform, "You", string.Empty, 16, new Vector2(140f, 0f), new Vector2(70f, 36f));
+        row.youLabel = CreateCell(image.transform, "You", 13, TextAnchor.MiddleCenter, 40f, 0f);
         row.youLabel.color = new Color(0.7f, 0.85f, 1f, 1f);
-        row.hostLabel = MenuUiFactory.CreateLabel(image.transform, "Host", string.Empty, 16, new Vector2(220f, 0f), new Vector2(80f, 36f));
+        row.hostLabel = CreateCell(image.transform, "Host", 13, TextAnchor.MiddleRight, 48f, 0f);
         row.hostLabel.color = MenuUiFactory.SelectedGreen;
-        row.readyLabel = MenuUiFactory.CreateLabel(image.transform, "Ready", string.Empty, 14, new Vector2(300f, 0f), new Vector2(90f, 36f));
+        row.readyLabel = CreateCell(image.transform, "Attribute", 13, TextAnchor.MiddleRight, 0f, 0f);
         row.readyLabel.color = ProfileUiFactory.MutedColor;
         return row;
+    }
+
+    private static Text CreateCell(Transform parent, string name, int size, TextAnchor alignment, float width, float flexibleWidth)
+    {
+        Text label = MenuUiFactory.CreateLabel(parent, name, string.Empty, size, Vector2.zero, new Vector2(Mathf.Max(width, 8f), 32f), alignment);
+        label.horizontalOverflow = HorizontalWrapMode.Overflow;
+        label.verticalOverflow = VerticalWrapMode.Truncate;
+
+        LayoutElement layout = label.gameObject.AddComponent<LayoutElement>();
+        layout.minWidth = width;
+        layout.preferredWidth = Mathf.Max(width, 8f);
+        layout.flexibleWidth = flexibleWidth;
+        if (width <= 0f)
+        {
+            layout.minWidth = 0f;
+            layout.preferredWidth = 0f;
+        }
+
+        return label;
     }
 
     public void Bind(LobbyPlayerInfo info)
@@ -40,23 +75,33 @@ public class LobbyPlayerRow : MonoBehaviour
             return;
         }
 
-        nameLabel.text = string.IsNullOrWhiteSpace(info.DisplayName)
+        SetCell(nameLabel, string.IsNullOrWhiteSpace(info.DisplayName)
             ? PublicPlayerTagUtility.FallbackDisplayName(info.PublicTag)
-            : info.DisplayName;
-        tagLabel.text = PublicPlayerTagUtility.Format(info.PublicTag);
-        youLabel.text = info.IsLocal ? "YOU" : string.Empty;
-        hostLabel.text = info.IsHost ? "HOST" : string.Empty;
-        readyLabel.text = string.Empty;
+            : info.DisplayName, true);
+        SetCell(tagLabel, PublicPlayerTagUtility.Format(info.PublicTag), false);
+        SetCell(youLabel, info.IsLocal ? "YOU" : string.Empty, false);
+        SetCell(hostLabel, info.IsHost ? "HOST" : string.Empty, false);
+        SetCell(readyLabel, string.Empty, false);
         nameLabel.color = Color.white;
     }
 
     public void BindWaiting()
     {
-        nameLabel.text = "Waiting...";
+        SetCell(nameLabel, "Waiting...", true);
         nameLabel.color = ProfileUiFactory.MutedColor;
-        tagLabel.text = string.Empty;
-        youLabel.text = string.Empty;
-        hostLabel.text = string.Empty;
-        readyLabel.text = string.Empty;
+        SetCell(tagLabel, string.Empty, false);
+        SetCell(youLabel, string.Empty, false);
+        SetCell(hostLabel, string.Empty, false);
+        SetCell(readyLabel, string.Empty, false);
+    }
+
+    private static void SetCell(Text label, string text, bool alwaysVisible)
+    {
+        if (label == null)
+            return;
+
+        label.text = text ?? string.Empty;
+        bool show = alwaysVisible || !string.IsNullOrEmpty(label.text);
+        label.gameObject.SetActive(show);
     }
 }
